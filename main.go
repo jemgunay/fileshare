@@ -1,6 +1,10 @@
 package main
 
-func main() {
-	//server := NewServer("./server.conf")
+import "os"
 
+func main() {
+	server := NewServer(os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare")
+	for server != nil {
+
+	}
 }

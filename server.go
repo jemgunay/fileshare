@@ -1,17 +1,18 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 )
 
 // A server providing file sharing and access related services.
 type Server struct {
-	// server setting functionality (grabbed from config file)
-	isCollectingFileUpdates bool
-	isProvidingFileUpdates  bool
-	isProvidingHTTPRead     bool
-	isProvidingHTTPUpload   bool
+	// server settings (grabbed from config file)
+	configParams map[string]bool
 
 	configFile     string
 	startTimestamp int64
@@ -19,15 +20,23 @@ type Server struct {
 }
 
 // Initialise a new file server.
-func NewServer(configFile string) (server *Server) {
-	fileDB, err := NewFileDB(configFile)
+func NewServer(serverRootPath string) (server *Server) {
+	fileDB, err := NewFileDB(serverRootPath + "/config/db")
 	if err != nil {
 		log.Printf("Server error: %v", err.Error())
 		return
 	}
 
-	server = &Server{configFile: configFile, fileDB: fileDB}
+	// load server config
+	server = &Server{configFile: serverRootPath + "/config/server.conf", fileDB: fileDB}
+	server.configParams = make(map[string]bool)
+	server.configParams["collect_updates"] = false
+	server.configParams["serve_public_updates"] = false
+	server.configParams["enable_public_reads"] = false
+	server.configParams["enable_public_uploads"] = false
 	server.LoadConfig()
+
+	fmt.Println(server.configParams)
 
 	// start hosting HTTP server to access local file DB (via web UI, with authentication)
 
@@ -44,11 +53,40 @@ func NewServer(configFile string) (server *Server) {
 }
 
 // Load server config from local file.
-func (s *Server) LoadConfig() {
-	s.isCollectingFileUpdates = false
-	s.isProvidingFileUpdates = false
-	s.isProvidingHTTPRead = false
-	s.isProvidingHTTPUpload = false
+func (s *Server) LoadConfig() (err error) {
+	file, err := os.Open(s.configFile)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	defer file.Close()
+
+	// read file by line
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// check for empty line or # comment
+		if strings.TrimSpace(line) == "" || []rune(line)[0] == '#' {
+			continue
+		}
+		// check if param is valid
+		paramSplit := strings.Split(line, "=")
+		if len(paramSplit) < 2 {
+			continue
+		}
+		for param := range s.configParams {
+			if param == paramSplit[0] {
+				s.configParams[param] = paramSplit[1] == "true"
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	return nil
 }
 
 // Save server config to local file.

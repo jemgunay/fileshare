@@ -74,6 +74,11 @@ func (db *FileDB) SerializeToFile() error {
 
 // Deserialize from a specified file to the store map, overwriting current map values.
 func (db *FileDB) DeserializeFromFile() error {
+	// check if file exists
+	if _, err := os.Stat(db.gobPath); os.IsNotExist(err) {
+		return nil
+	}
+
 	// open file to read from
 	file, err := os.Open(db.gobPath)
 	defer file.Close()
