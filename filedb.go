@@ -8,25 +8,24 @@ import (
 // The hash of a file's contents.
 type Hash string
 
-// State of a file
+// State of a file.
+/*	1 - Remote download/local upload completed
+	2 - Currently downloading from remote server/uploading from local
+	3 - File has been deleted (mark for deletion on other servers also)
+*/
 type FileState int
 
 // Represents a file and its state.
-/*	1 - Remote download/local upload completed
-	2 - Currently downloading
-	3 - Other servers should delete this file (mark for deletion)
-	4 -
-*/
 type File struct {
 	Name           string
 	Extension      string
 	State          FileState
-	AddedTimestamp int
+	AddedTimestamp int64
 }
 
 // The DB where files are stored.
 type FileDB struct {
-	// file hash key, file path name
+	// file hash key, File object value
 	data    map[Hash]File
 	gobPath string
 }
@@ -46,7 +45,7 @@ func (db *FileDB) FileExists(fileHash string) bool {
 
 // Add a file to the DB.
 func (db *FileDB) AddFile() {
-
+	//.AddedTimestamp = time.Now().Unix()
 }
 
 // Delete a file from the DB.
