@@ -1,10 +1,14 @@
 package main
 
-import "os"
+import (
+	"os"
+)
 
 func main() {
-	server := NewServer(os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare")
-	for server != nil {
+	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare"
+	server, err := NewServer(rootPath)
 
+	for err == nil {
+		_ = server
 	}
 }
