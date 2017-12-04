@@ -34,8 +34,8 @@ type MetaData struct {
 }
 
 // State of a file:
-/*	1 - OK
-	2 - DELETED (mark for deletion on other servers also)
+/*	0 - OK
+	1 - DELETED (mark for deletion on other servers also)
 */
 type State int
 
@@ -63,12 +63,15 @@ type FileDB struct {
 	data        map[Hash]File
 	dbPath      string
 	gobFilePath string
+	requestPool chan FileAccessRequest
 }
 
 // Initialise FileDB by populating from gob file.
 func NewFileDB(dbPath string) (fileDB *FileDB, err error) {
 	fileDB = &FileDB{data: make(map[Hash]File), dbPath: dbPath, gobFilePath: dbPath + "/db.dat"}
 	err = fileDB.DeserializeFromFile()
+
+	go fileDB.StartFileAccessPoller()
 
 	return
 }
@@ -92,38 +95,29 @@ func (db *FileDB) AddFile(localFilePath string) (err error) {
 	// get media type grouping
 	newFile.MediaType, err = config.CheckMediaType(newFile.Extension)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
-	// generate hash of file contents
-	f, err := os.Open(localFilePath)
+	// move file from db/temp dir to db/content dir
+	err = os.Rename(localFilePath, newFile.ConstructWholePath())
 	if err != nil {
-		log.Println(err)
 		return err
 	}
-	defer f.Close()
+
+	// generate hash of file contents for DB map key
+	movedFile, err := os.Open(newFile.ConstructWholePath())
+	if err != nil {
+		return err
+	}
+	defer movedFile.Close()
 
 	hash := sha256.New()
-	if _, err := io.Copy(hash, f); err != nil {
-		log.Fatal(err)
+	if _, err := io.Copy(hash, movedFile); err != nil {
 		return err
 	}
 	db.data[Hash(hash.Sum(nil))] = newFile
 
-	// move file from temp dir to db dir
-	out, err := os.Create(newFile.ConstructWholePath())
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, f)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return nil
 }
 
 // Mark a file in the DB for deletion, or delete the actual local copy of the file and remove reference from DB in order to redownload.
@@ -197,7 +191,7 @@ func (db *FileDB) ProcessFileHistory(fileHistoryGob string) (err error) {
 }
 
 // Serialize store map to a specified file.
-func (db *FileDB) SerializeToFile() error {
+func (db *FileDB) SerializeToFile() (err error) {
 	// create/truncate file for writing to
 	file, err := os.Create(db.gobFilePath)
 	defer file.Close()
@@ -216,9 +210,10 @@ func (db *FileDB) SerializeToFile() error {
 }
 
 // Deserialize from a specified file to the store map, overwriting current map values.
-func (db *FileDB) DeserializeFromFile() error {
-	// check if file exists
+func (db *FileDB) DeserializeFromFile() (err error) {
+	// if db file does not exist, create a new one
 	if _, err := os.Stat(db.gobFilePath); os.IsNotExist(err) {
+		db.SerializeToFile()
 		return nil
 	}
 
@@ -231,10 +226,32 @@ func (db *FileDB) DeserializeFromFile() error {
 
 	// decode file contents to store map
 	decoder := gob.NewDecoder(file)
-	err = decoder.Decode(&db.data)
-	if err != nil {
+	if err = decoder.Decode(&db.data); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// Structure for passing file access requests and responses.
+type FileAccessRequest struct {
+	responseOut chan string
+	errorOut    chan error
+	operation   string
+	fileParam   string
+}
+
+// Poll for requests to
+func (db *FileDB) StartFileAccessPoller() {
+	db.requestPool = make(chan FileAccessRequest)
+
+	for currentReq := range db.requestPool {
+		// process request
+		switch currentReq.operation {
+		case "addFile":
+			currentReq.errorOut <- db.AddFile(currentReq.fileParam)
+		default:
+			currentReq.errorOut <- nil
+		}
+	}
 }

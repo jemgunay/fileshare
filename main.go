@@ -4,9 +4,10 @@ import (
 	"os"
 )
 
+var rootPath = os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare"
+
 func main() {
-	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare"
-	server, err := NewServer(rootPath)
+	server, err := NewServerBase()
 
 	for err == nil {
 		_ = server
