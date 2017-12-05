@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -54,7 +56,7 @@ type File struct {
 }
 
 func (f *File) ConstructWholePath() string {
-	return config.rootPath + "/db/content/" + f.Name + "." + f.Extension
+	return config.rootPath + "/static/content/" + f.Name + "." + f.Extension
 }
 
 // The DB where files are stored.
@@ -83,13 +85,16 @@ func (db *FileDB) FileExists(fileHash Hash) bool {
 }
 
 // Add a file to the DB.
-func (db *FileDB) AddFile(localFilePath string) (err error) {
+func (db *FileDB) AddFile(tempFilePath string) (err error) {
 	// create new file data struct
-	newFile := File{AddedTimestamp: time.Now().Unix(), State: 1}
+	newFile := File{AddedTimestamp: time.Now().Unix(), State: OK}
 
 	// set extension and file name
-	newFile.Extension = string([]rune(filepath.Ext(localFilePath)[1:]))
-	fileNameWithExt := []rune(filepath.Base(localFilePath))
+	if len(filepath.Ext(tempFilePath)) < 2 {
+		return fmt.Errorf("invalid file format")
+	}
+	newFile.Extension = string([]rune(filepath.Ext(tempFilePath)[1:]))
+	fileNameWithExt := []rune(filepath.Base(tempFilePath))
 	newFile.Name = string(fileNameWithExt[:len(fileNameWithExt)-len(newFile.Extension)-1])
 
 	// get media type grouping
@@ -99,7 +104,7 @@ func (db *FileDB) AddFile(localFilePath string) (err error) {
 	}
 
 	// move file from db/temp dir to db/content dir
-	err = os.Rename(localFilePath, newFile.ConstructWholePath())
+	err = os.Rename(tempFilePath, newFile.ConstructWholePath())
 	if err != nil {
 		return err
 	}
@@ -159,6 +164,27 @@ func (db *FileDB) GetFileHistory() (fileHistory string, err error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+// Generate slice representation of file data map.
+func (db *FileDB) toSlice(sortByDate bool) (files []File) {
+	files = make([]File, 0, len(db.data))
+
+	// generate slice from data map
+	for _, file := range db.data {
+		if file.State != DELETED {
+			files = append(files, file)
+		}
+	}
+
+	// sort by date added
+	if sortByDate {
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].AddedTimestamp > files[j].AddedTimestamp
+		})
+	}
+
+	return files
 }
 
 // Required parameters for providing history on file states to other servers.
@@ -235,13 +261,14 @@ func (db *FileDB) DeserializeFromFile() (err error) {
 
 // Structure for passing file access requests and responses.
 type FileAccessRequest struct {
-	responseOut chan string
-	errorOut    chan error
-	operation   string
-	fileParam   string
+	stringOut chan string
+	errorOut  chan error
+	filesOut  chan []File
+	operation string
+	fileParam string
 }
 
-// Poll for requests to
+// Poll for requests and process them
 func (db *FileDB) StartFileAccessPoller() {
 	db.requestPool = make(chan FileAccessRequest)
 
@@ -250,8 +277,10 @@ func (db *FileDB) StartFileAccessPoller() {
 		switch currentReq.operation {
 		case "addFile":
 			currentReq.errorOut <- db.AddFile(currentReq.fileParam)
+		case "toString":
+			currentReq.filesOut <- db.toSlice(true)
 		default:
-			currentReq.errorOut <- nil
+			currentReq.errorOut <- fmt.Errorf("unsupported file access operation")
 		}
 	}
 }
