@@ -6,38 +6,38 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"os"
 
 	"io/ioutil"
 
+	"strconv"
+
 	"github.com/gorilla/mux"
 )
 
 // A server providing file sharing and access related services.
 type ServerBase struct {
-	startTimestamp int64
 	fileDB         *FileDB
+	startTimestamp int64
+	config         Config
 }
 
 // Initialise a new file server.
-func NewServerBase() (serverBase *ServerBase, err error) {
-	fileDB, err := NewFileDB(rootPath + "/db")
+func NewServerBase() (err error, httpServer HTTPServer) {
+	// create new file DB
+	fileDB, err := NewFileDB(config.rootPath + "/db")
 	if err != nil {
 		log.Printf("Server error: %v", err.Error())
 		return
 	}
 
-	// load server config
-	serverBase = &ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}
-	config.LoadConfig(rootPath)
-
-	//fileDB.AddFile(rootPath + "/test/test_1.png")
-
-	httpServer := &HTTPServer{host: "localhost", port: 8000, serverBase: serverBase}
-	go httpServer.Start()
+	// start file manager http server
+	httpServer = HTTPServer{host: "localhost", port: 8000}
+	httpServer.fileDB = fileDB
+	httpServer.startTimestamp = time.Now().Unix()
+	httpServer.Start()
 
 	//fmt.Printf("%#v \n", fileDB.data)
 	//fmt.Println(config.params["version"])
@@ -56,9 +56,10 @@ func NewServerBase() (serverBase *ServerBase, err error) {
 }
 
 type HTTPServer struct {
-	host       string
-	port       int
-	serverBase *ServerBase
+	host string
+	port int
+	ServerBase
+	server *http.Server
 }
 
 // Start listening for HTTP requests.
@@ -71,35 +72,30 @@ func (s *HTTPServer) Start() {
 	// upload file
 	router.HandleFunc("/upload/", s.handleUpload).Methods("POST")
 	// serve static files
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(rootPath+"/static/"))))
-	//router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(rootPath+"/static/"))))
-	//router.PathPrefix("/content/").Handler(http.StripPrefix("/content/", http.FileServer(http.Dir(rootPath+"/db/content/"))))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
 	server := &http.Server{
 		Handler:      router,
 		Addr:         s.host + ":" + strconv.Itoa(s.port),
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  5 * time.Second,
 	}
-
-	// generate random port for http server and open in browser
-	/*s1 := rand.NewSource(time.Now().UnixNano())
-	r1 := rand.New(s1)
-	s.port = s.port + 1 + r1.Intn(1000)*/
 
 	// listen for HTTP requests
 	log.Printf("starting HTTP server on port %d", s.port)
-	// add HTTPS: https://www.kaihag.com/https-and-go/
-	err := server.ListenAndServe()
-	if err != nil {
-		log.Println(err)
-	}
+
+	go func(server *http.Server) {
+		// add HTTPS: https://www.kaihag.com/https-and-go/
+		if err := server.ListenAndServe(); err != nil {
+			log.Println(err)
+		}
+	}(server)
 }
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
 	fileAccessReq := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
-	s.serverBase.fileDB.requestPool <- fileAccessReq
+	s.fileDB.requestPool <- fileAccessReq
 	files := <-fileAccessReq.filesOut
 
 	// html template data
@@ -112,7 +108,7 @@ func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// load HTML template from disk
-	htmlTemplate, err := ioutil.ReadFile(rootPath + "/dynamic/index.html")
+	htmlTemplate, err := ioutil.ReadFile(config.rootPath + "/dynamic/index.html")
 	if err != nil {
 		s.writeResponse(w, "", err)
 		return
@@ -148,7 +144,7 @@ func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// copy file from form to new local temp file
-	tempFilePath := rootPath + "/db/temp/" + handler.Filename
+	tempFilePath := config.rootPath + "/db/temp/" + handler.Filename
 	tempFile, err := os.OpenFile(tempFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		s.writeResponse(w, "", err)
@@ -165,9 +161,11 @@ func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
 	newFile.Close()
 	tempFile.Close()
 
+	metaData := MetaData{Description: req.Form.Get("description-input")}
+
 	// add file to DB & move from db/temp dir to db/content dir
 	fileAccessReq := FileAccessRequest{errorOut: make(chan error), operation: "addFile", fileParam: tempFilePath}
-	s.serverBase.fileDB.requestPool <- fileAccessReq
+	s.fileDB.requestPool <- fileAccessReq
 	if err := <-fileAccessReq.errorOut; err != nil {
 		s.writeResponse(w, "", err)
 		return
@@ -177,8 +175,9 @@ func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
 	http.Redirect(w, req, "/", 302)
 }
 
-// Write a HTTP response.
+// Write a HTTP response to connection.
 func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err error) {
+	w.WriteHeader(http.StatusOK)
 	if err != nil {
 		log.Println(err)
 		response = err.Error()
@@ -187,4 +186,13 @@ func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err e
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+// Gracefully stop the server and save DB to file.
+func (s *HTTPServer) Stop() {
+	/*if err := s.server.Shutdown(context.Background()); err != nil {
+		log.Println(err)
+	}*/
+
+	s.fileDB.SerializeToFile()
 }
