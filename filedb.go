@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -53,11 +54,33 @@ type File struct {
 	MetaData
 	UUID string
 }
+// Represents a clean 
+type JSONFile struct {
+	File
+	FullFileName string
+}
 
 // Get full absolute path to file.
 func (f *File) AbsolutePath() string {
 	return config.rootPath + "/static/content/" + f.UUID + "." + f.Extension
 }
+
+// Get a filtered JSON representation of the File properties.
+func (db *FileDB) filesToJSON() string {
+	files := db.toSlice(true)
+	filesJSON := make([]JSONFile, 0, len(files))
+	
+	for _, file := range files {
+		filesJSON = append(filesJSON, JSONFile{File: file, FullFileName: file.Name + "." + file.Extension})
+	}
+	
+	result, err := json.Marshal(filesJSON)
+	if err != nil {
+		return err.Error()
+	}
+	
+	return string(result)
+} 
 
 // The operation a transaction performed.
 type TransactionType int
@@ -77,30 +100,67 @@ type Transaction struct {
 	Version           string
 }
 
-// Create transaction and add to DB.
-func (db *FileDB) CreateTransaction(transactionType TransactionType, targetFileUUID string) {
-	newTransaction := Transaction{UUID: uuid.NewV4().String(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"]}
-	db.Transactions = append(db.Transactions, newTransaction)
-}
-
 // The DB where files are stored.
 type FileDB struct {
 	// file UUID key, File object value
 	Data         map[string]File
 	Transactions []Transaction
-	dbPath       string
-	filePath     string
+	dir       string
+	file     string
 	requestPool  chan FileAccessRequest
 }
 
 // Initialise FileDB by populating from gob file.
-func NewFileDB(dbPath string) (fileDB *FileDB, err error) {
-	fileDB = &FileDB{Data: make(map[string]File), dbPath: dbPath, filePath: dbPath + "/db.dat"}
+func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
+	fileDB = &FileDB{Data: make(map[string]File), dir: dbDir, file: dbDir + "/db.dat"}
 	err = fileDB.deserializeFromFile()
 
 	go fileDB.StartFileAccessPoller()
 
 	return
+}
+
+// Structure for passing request and response data between poller.
+type FileAccessRequest struct {
+	stringOut    chan string
+	errorOut     chan error
+	filesOut     chan []File
+	operation    string
+	fileParam    string
+	fileMetadata MetaData
+}
+
+// Poll for requests, process them & pass result/error back to requester via channels.
+func (db *FileDB) StartFileAccessPoller() {
+	db.requestPool = make(chan FileAccessRequest)
+
+	for req := range db.requestPool {
+		// process request
+		switch req.operation {
+		case "addFile":
+			req.errorOut <- db.addFile(req.fileParam, req.fileMetadata)
+			db.serializeToFile()
+		case "deleteFile":
+			req.errorOut <- db.deleteFile(req.fileParam, false)
+			db.serializeToFile()
+		case "serialize":
+			req.errorOut <- db.serializeToFile()
+		case "deserialize":
+			req.errorOut <- db.deserializeFromFile()
+		case "toString":
+			req.filesOut <- db.toSlice(true)
+		case "destroy":
+			req.errorOut <- db.destroy()
+		default:
+			req.errorOut <- fmt.Errorf("unsupported file access operation")
+		}
+	}
+}
+
+// Create transaction and add to DB.
+func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileUUID string) {
+	newTransaction := Transaction{UUID: uuid.NewV4().String(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"]}
+	db.Transactions = append(db.Transactions, newTransaction)
 }
 
 // Check if a file exists in the DB with the specified file UUID.
@@ -138,8 +198,8 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 	}
 
 	db.Data[newFile.UUID] = newFile
-
-	db.CreateTransaction(CREATE, newFile.UUID)
+	// record transaction
+	db.recordTransaction(CREATE, newFile.UUID)
 
 	return nil
 }
@@ -162,7 +222,7 @@ func (db *FileDB) deleteFile(fileUUID string, hardDelete bool) (err error) {
 		delete(db.Data, fileUUID)
 	}
 
-	db.CreateTransaction(DELETE, file.UUID)
+	db.recordTransaction(DELETE, file.UUID)
 
 	return nil
 }
@@ -246,7 +306,7 @@ func (db *FileDB) toSlice(sortByDate bool) (files []File) {
 // Serialize store map & transactions slice to a specified file.
 func (db *FileDB) serializeToFile() (err error) {
 	// create/truncate file for writing to
-	file, err := os.Create(db.filePath)
+	file, err := os.Create(db.file)
 	if err != nil {
 		return err
 	}
@@ -265,13 +325,13 @@ func (db *FileDB) serializeToFile() (err error) {
 // Deserialize from a specified file to the store map, overwriting current map values.
 func (db *FileDB) deserializeFromFile() (err error) {
 	// if db file does not exist, create a new one
-	if _, err := os.Stat(db.filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(db.file); os.IsNotExist(err) {
 		db.serializeToFile()
 		return nil
 	}
 
 	// open file to read from
-	file, err := os.Open(db.filePath)
+	file, err := os.Open(db.file)
 	if err != nil {
 		return err
 	}
@@ -286,35 +346,22 @@ func (db *FileDB) deserializeFromFile() (err error) {
 	return nil
 }
 
-// Structure for passing request and response data between poller.
-type FileAccessRequest struct {
-	stringOut    chan string
-	errorOut     chan error
-	filesOut     chan []File
-	operation    string
-	fileParam    string
-	fileMetadata MetaData
-}
-
-// Poll for requests and process them
-func (db *FileDB) StartFileAccessPoller() {
-	db.requestPool = make(chan FileAccessRequest)
-
-	for req := range db.requestPool {
-		// process request
-		switch req.operation {
-		case "addFile":
-			req.errorOut <- db.addFile(req.fileParam, req.fileMetadata)
-		case "deleteFile":
-			req.errorOut <- db.deleteFile(req.fileParam, false)
-		case "serialize":
-			req.errorOut <- db.serializeToFile()
-		case "deserialize":
-			req.errorOut <- db.deserializeFromFile()
-		case "toString":
-			req.filesOut <- db.toSlice(true)
-		default:
-			req.errorOut <- fmt.Errorf("unsupported file access operation")
-		}
+// Delete DB files and reset File DB.
+func (db *FileDB) destroy() (err error) {
+	err = os.Remove(db.file)
+	if err != nil {
+		return
 	}
+	
+	// delete all content files
+	RemoveDirContents(config.rootPath + "/static/content/")
+	RemoveDirContents(db.dir + "/temp/")
+	
+	// reinitialise DB
+	db.Data = make(map[string]File)
+	db.Transactions = make([]Transaction, 0, 0)
+	db.requestPool = make(chan FileAccessRequest)
+	
+	log.Println("DB has been reset.")
+	return nil
 }

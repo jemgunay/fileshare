@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"io"
@@ -21,11 +22,11 @@ import (
 type ServerBase struct {
 	fileDB         *FileDB
 	startTimestamp int64
-	config         Config
 }
 
 // Initialise a new file server.
 func NewServerBase() (err error, httpServer HTTPServer) {
+	// start hosting HTTP server to access local file DB (via web app UI, with auth)
 	// create new file DB
 	fileDB, err := NewFileDB(config.rootPath + "/db")
 	if err != nil {
@@ -34,23 +35,28 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 	}
 
 	// start file manager http server
-	httpServer = HTTPServer{host: "localhost", port: 8000}
-	httpServer.fileDB = fileDB
-	httpServer.startTimestamp = time.Now().Unix()
+	if config.params["http_host"] == "" || config.params["http_port"] == "" {
+		err = fmt.Errorf("host and port parameters must be specified in config")
+		log.Println(err)
+		return
+	}
+	httpPort, err := strconv.Atoi(config.params["http_port"])
+	if err != nil {
+		err = fmt.Errorf("invalid port found in ")
+		log.Println(err)
+		return
+	}
+	httpServer = HTTPServer{host: config.params["http_host"], port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}}
 	httpServer.Start()
 
-	//fmt.Printf("%#v \n", fileDB.data)
-	//fmt.Println(config.params["version"])
 
-	// start hosting HTTP server to access local file DB (via web UI, with authentication)
+	// start hosting files to remote servers
 
 	// get a list of other currently online servers providing file updates (via C&C web server) + from local config file containing previously known servers/manually added servers
 
 	// provide these servers with a log of currently owned file hashes, requesting for files we do not own (everyone must have a complete log of all operations)
 
 	// retrieve all files we do not own from the server (one request at a time) + retrieve remote files marked for deletion also, and delete those locally
-
-	// once file DB is up to date, start hosting files to remote servers
 
 	return
 }
@@ -67,14 +73,15 @@ func (s *HTTPServer) Start() {
 	// define HTTP routes
 	router := mux.NewRouter()
 
-	// view all files
+	// view all files & upload form
 	router.HandleFunc("/", s.viewFiles).Methods("GET")
-	// upload file
+	router.HandleFunc("/{file}", s.getFiles).Methods("GET")
+	// handle file upload
 	router.HandleFunc("/upload/", s.handleUpload).Methods("POST")
 	// serve static files
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
-	server := &http.Server{
+	s.server = &http.Server{
 		Handler:      router,
 		Addr:         s.host + ":" + strconv.Itoa(s.port),
 		WriteTimeout: 5 * time.Second,
@@ -89,14 +96,19 @@ func (s *HTTPServer) Start() {
 		if err := server.ListenAndServe(); err != nil {
 			log.Println(err)
 		}
-	}(server)
+	}(s.server)
+}
+
+// Read single file JSON data.
+func (s *HTTPServer) getFiles(w http.ResponseWriter, req *http.Request) {
+	s.writeResponse(w, s.ServerBase.fileDB.filesToJSON(), nil)
 }
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
-	fileAccessReq := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
-	s.fileDB.requestPool <- fileAccessReq
-	files := <-fileAccessReq.filesOut
+	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
+	s.fileDB.requestPool <- fileAR
+	files := <-fileAR.filesOut
 
 	// html template data
 	htmlData := struct {
@@ -128,8 +140,8 @@ func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
 
 // Process HTTP file upload request.
 func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
-	// limit request size to prevent DOS (5MB)
-	//req.Body = http.MaxBytesReader(w, req.Body, 5*1024*1024)
+	// limit request size to prevent DOS (10MB)
+	req.Body = http.MaxBytesReader(w, req.Body, 10*1024*1024)
 
 	// get file data from form
 	if err := req.ParseMultipartForm(0); err != nil {
@@ -153,6 +165,7 @@ func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
 
 	_, err = io.Copy(tempFile, newFile)
 	if err != nil {
+		os.Remove(tempFilePath)
 		s.writeResponse(w, "", err)
 		return
 	}
@@ -161,12 +174,17 @@ func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
 	newFile.Close()
 	tempFile.Close()
 
-	metaData := MetaData{Description: req.Form.Get("description-input")}
+	// process tags and people fields
+	tags := ProcessInputList(req.Form.Get("tags-input"), ",")
+	people := ProcessInputList(req.Form.Get("people-input"), ",")
+	metaData := MetaData{Description: req.Form.Get("description-input"), Tags: tags, People: people}
 
 	// add file to DB & move from db/temp dir to db/content dir
-	fileAccessReq := FileAccessRequest{errorOut: make(chan error), operation: "addFile", fileParam: tempFilePath}
-	s.fileDB.requestPool <- fileAccessReq
-	if err := <-fileAccessReq.errorOut; err != nil {
+	fileAR := FileAccessRequest{errorOut: make(chan error), operation: "addFile", fileParam: tempFilePath, fileMetadata: metaData}
+	s.fileDB.requestPool <- fileAR
+	if err := <-fileAR.errorOut; err != nil {
+		// destroy temp file on add failure
+		os.Remove(tempFilePath)
 		s.writeResponse(w, "", err)
 		return
 	}
@@ -190,9 +208,14 @@ func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err e
 
 // Gracefully stop the server and save DB to file.
 func (s *HTTPServer) Stop() {
-	/*if err := s.server.Shutdown(context.Background()); err != nil {
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := s.server.Shutdown(ctx); err != nil {
 		log.Println(err)
-	}*/
+	}
 
-	s.fileDB.SerializeToFile()
+	fileAR := FileAccessRequest{errorOut: make(chan error), operation: "serialize"}
+	s.fileDB.requestPool <- fileAR
+	if err := <-fileAR.errorOut; err != nil {
+		log.Println(err)
+	}
 }

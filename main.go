@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"log"
+	"time"
 )
 
 var config Config
@@ -21,11 +23,18 @@ func main() {
 	}
 
 	// process command line input
+	time.Sleep(time.Millisecond * 300)
 	for {
 		input := getConsoleInput("Enter command")
 		switch input {
-		case "client":
-
+		// reset DB
+		case "destroy":
+			fileAR := FileAccessRequest{errorOut: make(chan error), operation: "destroy"}
+			httpServer.fileDB.requestPool <- fileAR
+			if err := <-fileAR.errorOut; err != nil {
+				log.Println(err)
+			}
+		// terminate
 		case "exit":
 			httpServer.Stop()
 			return
@@ -38,7 +47,7 @@ func main() {
 // Format & print input requirement and get console input.
 func getConsoleInput(inputMsg string) string {
 	reader := bufio.NewReader(os.Stdin)
-	println("> " + inputMsg + ":\n")
+	fmt.Println("> " + inputMsg + ":")
 	text, _ := reader.ReadString('\n')
 	text = strings.TrimSpace(text)
 	return text
