@@ -8,14 +8,12 @@ import (
 	"log"
 	"net/http"
 	"time"
-
 	"os"
-
 	"io/ioutil"
-
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"bytes"
 )
 
 // A server providing file sharing and access related services.
@@ -75,7 +73,8 @@ func (s *HTTPServer) Start() {
 
 	// view all files & upload form
 	router.HandleFunc("/", s.viewFiles).Methods("GET")
-	router.HandleFunc("/{file}", s.getFiles).Methods("GET")
+	// Search query params in order of precedence: description, tags, people, startDate, endDate, fileType
+	router.HandleFunc("/search", s.searchFiles).Methods("GET")
 	// handle file upload
 	router.HandleFunc("/upload/", s.handleUpload).Methods("POST")
 	// serve static files
@@ -99,43 +98,116 @@ func (s *HTTPServer) Start() {
 	}(s.server)
 }
 
-// Read single file JSON data.
-func (s *HTTPServer) getFiles(w http.ResponseWriter, req *http.Request) {
-	s.writeResponse(w, s.ServerBase.fileDB.filesToJSON(), nil)
+// Search request query container.
+type SearchRequest struct {
+	description string
+	tags []string
+	people []string
+	startDate string
+	endDate string
+	fileType string
+}
+
+// Search files by their properties.
+func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+	// construct search query from url params [desc, start_date, end_date, type, tags, people, format(raw json/html->false/true)]
+	searchReq := SearchRequest{description: q.Get("desc"), startDate: q.Get("start_date"), endDate: q.Get("end_date"), fileType: q.Get("type")}
+	searchReq.tags = ProcessInputList(q.Get("tags"),",")
+	searchReq.people = ProcessInputList(q.Get("people"),",")
+	
+	// perform search
+	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
+	s.fileDB.requestPool <- fileAR
+	files := <-fileAR.filesOut
+
+	// respond with JSON or HTML
+	format, err := strconv.ParseBool(q.Get("format"))
+	if err != nil {
+		format = false
+	}
+	if format {
+		// load HTML template from disk
+		htmlTemplate, err := ioutil.ReadFile(config.rootPath + "/dynamic/files_list.html")
+		if err != nil {
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		// substitute HTML template variables
+		templateParsed, err := template.New("t").Parse(string(htmlTemplate))
+		if err != nil {
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		// html template data
+		htmlData := struct {
+			Files []File
+		}{
+			files,
+		}
+		if err = templateParsed.Execute(w, htmlData); err != nil {
+			s.writeResponse(w, "", err)
+		}
+		
+		return
+	}
+	// JSON
+	filesJSON := FilesToJSON(files)
+	s.writeResponse(w, filesJSON, nil)
 }
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
+	// get a list of all files from db
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
 	s.fileDB.requestPool <- fileAR
 	files := <-fileAR.filesOut
 
-	// html template data
-	htmlData := struct {
+	
+	// HTML template data
+	templateData := struct {
 		Title string
 		Files []File
+		FilesHTML template.HTML
 	}{
 		"Home",
 		files,
+		"",
 	}
+	
+	filesListResult, err := s.completeTemplate(config.rootPath + "/dynamic/files_list.html", templateData)
+	templateData.FilesHTML = template.HTML(filesListResult)
+	indexResult, err := s.completeTemplate(config.rootPath + "/dynamic/index.html", templateData)
+	
+	s.writeResponse(w, indexResult, err)
+}
 
+// Replace variables in HTML templates with corresponding values in TemplateData.
+func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result string, err error) {
 	// load HTML template from disk
-	htmlTemplate, err := ioutil.ReadFile(config.rootPath + "/dynamic/index.html")
+	htmlTemplate, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		s.writeResponse(w, "", err)
+		log.Println(err)
 		return
 	}
 
-	// substitute HTML template variables
+	// parse HTML template
 	templateParsed, err := template.New("t").Parse(string(htmlTemplate))
 	if err != nil {
-		s.writeResponse(w, "", err)
+		log.Println(err)
 		return
 	}
-
-	if err = templateParsed.Execute(w, htmlData); err != nil {
-		s.writeResponse(w, "", err)
+	
+	// perform template variable replacement
+	buffer := new(bytes.Buffer)
+	if err = templateParsed.Execute(buffer, data); err != nil {
+		log.Println(err)
+		return
 	}
+	
+	return buffer.String(), nil
 }
 
 // Process HTTP file upload request.

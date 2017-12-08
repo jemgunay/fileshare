@@ -1,0 +1,25 @@
+<!-- file list -->
+{{ range $key, $file := .Files }}
+
+<div class="col-sm-6">
+    <div class="media">
+        <div class="media-left">
+            <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank">
+                <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+            </a>
+        </div>
+        <div class="media-body">
+            <h4 class="media-heading"><u>{{ $file.Name }}.{{ $file.Extension }}</u></h4>
+            <p>{{ $file.Description }} ({{ $file.MediaType }})</p>
+
+        {{ if $file.Tags }}
+            <p>Tags: <strong>{{ $file.Tags }}</strong></p>
+        {{ end }}
+        {{ if $file.Tags }}
+            <p>People: <strong>{{ $file.People }}</strong></p>
+        {{ end }}
+        </div>
+    </div>
+</div>
+
+{{ end }}

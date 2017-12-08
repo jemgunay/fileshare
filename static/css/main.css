@@ -1,0 +1,22 @@
+.help-block {
+    display: inline;
+}
+
+.media {
+    margin-bottom: 15px;
+}
+.media img {
+    width: 115px;
+    height: 115px;
+}
+
+#search-bar {
+    margin-bottom: 15px;
+}
+
+/* bootstrap remove rounded corners */
+* {
+    -webkit-border-radius: 0 !important;
+    -moz-border-radius: 0 !important;
+    border-radius: 0 !important;
+}

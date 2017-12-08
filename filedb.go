@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/twinj/uuid"
+	"crypto/sha256"
+	"io"
+	"github.com/sahilm/fuzzy"
 )
 
 // Media type of a file.
@@ -53,8 +56,10 @@ type File struct {
 	State
 	MetaData
 	UUID string
+	Hash string
 }
-// Represents a clean 
+
+// Represents a clean
 type JSONFile struct {
 	File
 	FullFileName string
@@ -64,23 +69,6 @@ type JSONFile struct {
 func (f *File) AbsolutePath() string {
 	return config.rootPath + "/static/content/" + f.UUID + "." + f.Extension
 }
-
-// Get a filtered JSON representation of the File properties.
-func (db *FileDB) filesToJSON() string {
-	files := db.toSlice(true)
-	filesJSON := make([]JSONFile, 0, len(files))
-	
-	for _, file := range files {
-		filesJSON = append(filesJSON, JSONFile{File: file, FullFileName: file.Name + "." + file.Extension})
-	}
-	
-	result, err := json.Marshal(filesJSON)
-	if err != nil {
-		return err.Error()
-	}
-	
-	return string(result)
-} 
 
 // The operation a transaction performed.
 type TransactionType int
@@ -105,8 +93,8 @@ type FileDB struct {
 	// file UUID key, File object value
 	Data         map[string]File
 	Transactions []Transaction
-	dir       string
-	file     string
+	dir          string
+	file         string
 	requestPool  chan FileAccessRequest
 }
 
@@ -127,6 +115,7 @@ type FileAccessRequest struct {
 	filesOut     chan []File
 	operation    string
 	fileParam    string
+	searchParams SearchRequest
 	fileMetadata MetaData
 }
 
@@ -143,12 +132,14 @@ func (db *FileDB) StartFileAccessPoller() {
 		case "deleteFile":
 			req.errorOut <- db.deleteFile(req.fileParam, false)
 			db.serializeToFile()
+		case "search":
+			req.filesOut <- db.search(req.searchParams)
 		case "serialize":
 			req.errorOut <- db.serializeToFile()
 		case "deserialize":
 			req.errorOut <- db.deserializeFromFile()
 		case "toString":
-			req.filesOut <- db.toSlice(true)
+			req.filesOut <- SortFilesByDate(db.toSlice())
 		case "destroy":
 			req.errorOut <- db.destroy()
 		default:
@@ -197,6 +188,19 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 		return err
 	}
 
+	// generate hash of file contents
+	f, err := os.Open(newFile.AbsolutePath())
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	newFile.Hash = string(h.Sum(nil))
+	
 	db.Data[newFile.UUID] = newFile
 	// record transaction
 	db.recordTransaction(CREATE, newFile.UUID)
@@ -225,6 +229,58 @@ func (db *FileDB) deleteFile(fileUUID string, hardDelete bool) (err error) {
 	db.recordTransaction(DELETE, file.UUID)
 
 	return nil
+}
+
+// Get a filtered JSON representation of the File properties.
+func FilesToJSON(files []File) string {
+	filesJSON := make([]JSONFile, 0, len(files))
+
+	for _, file := range files {
+		filesJSON = append(filesJSON, JSONFile{File: file, FullFileName: file.Name + "." + file.Extension})
+	}
+
+	result, err := json.Marshal(filesJSON)
+	if err != nil {
+		return err.Error()
+	}
+
+	return string(result)
+}
+
+// Sort a list of Files by date.
+func SortFilesByDate(files []File) ([]File) {
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].AddedTimestamp > files[j].AddedTimestamp
+	})
+	return files
+}
+
+// Search the DB for Files which match the provided criteria.
+func (db *FileDB) search(searchReq SearchRequest) (results []File) {
+	files := db.toSlice()
+	// 
+	searchPattern := searchReq.description
+	searchData := make([]string, len(db.Data))
+	
+	// if description not defined, then return all files ordered by date created descending
+	if searchReq.description == "" {
+		return SortFilesByDate(files)
+	}
+	
+	// create a slice of descriptions
+	for i, file := range files {
+		searchData[i] = file.Description
+	}
+
+	// fuzzy search description for matches
+	matches := fuzzy.Find(searchPattern, searchData)
+	results = make([]File, 0, len(matches))
+
+	for _, match := range matches {
+		results = append(results, files[match.Index])
+	}
+	
+	return
 }
 
 // Required parameters for providing history on file states to other servers.
@@ -283,7 +339,7 @@ func (db *FileDB) processFileHistory(fileHistoryGob string) (err error) {
 }
 
 // Generate slice representation of file Data map.
-func (db *FileDB) toSlice(sortByDate bool) (files []File) {
+func (db *FileDB) toSlice() (files []File) {
 	files = make([]File, 0, len(db.Data))
 
 	// generate slice from Data map
@@ -291,13 +347,6 @@ func (db *FileDB) toSlice(sortByDate bool) (files []File) {
 		if file.State != DELETED {
 			files = append(files, file)
 		}
-	}
-
-	// sort by date added
-	if sortByDate {
-		sort.Slice(files, func(i, j int) bool {
-			return files[i].AddedTimestamp > files[j].AddedTimestamp
-		})
 	}
 
 	return files
@@ -352,16 +401,16 @@ func (db *FileDB) destroy() (err error) {
 	if err != nil {
 		return
 	}
-	
+
 	// delete all content files
 	RemoveDirContents(config.rootPath + "/static/content/")
 	RemoveDirContents(db.dir + "/temp/")
-	
+
 	// reinitialise DB
 	db.Data = make(map[string]File)
 	db.Transactions = make([]Transaction, 0, 0)
 	db.requestPool = make(chan FileAccessRequest)
-	
+
 	log.Println("DB has been reset.")
 	return nil
 }
