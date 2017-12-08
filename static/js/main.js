@@ -10,13 +10,22 @@ $(document).ready(function() {
         });
     });
     
-    // search
-    $("#search-input").on("input", function() {
+    // description
+    $("#desc-search-input").on("input", function() {
         performRequest(hostname + "/search?desc=" + $(this).val() + "&format=true", "GET", "", function(html) {
             $("#results-window").empty().append(html)
         });
     });
     
+    // tags
+    var $input = $("#tags-search-input");
+    $input.typeahead({
+        source: [
+            {id: "someId1", name: "Display name 1"},
+            {id: "someId2", name: "Display name 2"}
+        ],
+        autoSelect: true
+    });
 });
 
 // Perform AJAX request.

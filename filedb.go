@@ -208,6 +208,27 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 	return nil
 }
 
+// Get specific DB related metadata.
+func (db *FileDB) getMetaData(target string) (result []string) {
+	
+	for _, file := range db.Data {
+		switch target {
+		case "tags":
+			for _, tag := range file.Tags {
+				result = append(result, tag)
+			}	
+		case "people":
+			for _, people := range file.People {
+				result = append(result, people)
+			}
+		default:
+			
+		}
+	}
+	
+	return result
+}
+
 // Mark a file in the DB for deletion, or delete the actual local copy of the file and remove reference from DB in order to redownload.
 func (db *FileDB) deleteFile(fileUUID string, hardDelete bool) (err error) {
 	if db.fileExists(fileUUID) == false {

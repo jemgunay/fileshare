@@ -75,6 +75,7 @@ func (s *HTTPServer) Start() {
 	router.HandleFunc("/", s.viewFiles).Methods("GET")
 	// Search query params in order of precedence: description, tags, people, startDate, endDate, fileType
 	router.HandleFunc("/search", s.searchFiles).Methods("GET")
+	router.HandleFunc("/data", s.getData).Methods("GET")
 	// handle file upload
 	router.HandleFunc("/upload/", s.handleUpload).Methods("POST")
 	// serve static files
@@ -158,13 +159,28 @@ func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 	s.writeResponse(w, filesJSON, nil)
 }
 
+// Get specific JSON data such as all tags & people.
+func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
+	response := ""
+	q := req.URL.Query()
+	
+	tags, err := strconv.ParseBool(q.Get("tags"))
+	if err != nil {
+		tags = false
+	}
+	if tags {
+		response += ""
+	}
+	
+	s.writeResponse(w, response, nil)
+}
+
 // Process HTTP view files request.
 func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
 	// get a list of all files from db
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
 	s.fileDB.requestPool <- fileAR
 	files := <-fileAR.filesOut
-
 	
 	// HTML template data
 	templateData := struct {
