@@ -7,6 +7,12 @@
     height: 115px;
 }
 
+#search-panel .form-group {
+    margin-bottom: 0;
+}
+
+
+
 /* bootstrap remove rounded corners */
 * {
     -webkit-border-radius: 0 !important;

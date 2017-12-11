@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"bytes"
+	"encoding/json"
 )
 
 // A server providing file sharing and access related services.
@@ -161,18 +162,41 @@ func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 
 // Get specific JSON data such as all tags & people.
 func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
-	response := ""
+	var resultList []string
 	q := req.URL.Query()
 	
+	// tags
 	tags, err := strconv.ParseBool(q.Get("tags"))
 	if err != nil {
 		tags = false
 	}
-	if tags {
-		response += ""
+	// people
+	people, err := strconv.ParseBool(q.Get("people"))
+	if err != nil {
+		people = false
 	}
 	
-	s.writeResponse(w, response, nil)
+	switch{
+	case tags:
+		fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: "tags"}
+		s.fileDB.requestPool <- fileAR
+		resultList = <-fileAR.stringsOut
+
+	case people:
+		fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: "tags"}
+		s.fileDB.requestPool <- fileAR
+		resultList = <-fileAR.stringsOut
+	
+	default:
+		resultList = append(resultList, "no metadata target param provided")
+	}
+
+	// parse query result to json
+	response, err := json.Marshal(resultList)
+	if err != nil {
+		response = []byte(err.Error())
+	}
+	s.writeResponse(w, string(response), nil)
 }
 
 // Process HTTP view files request.

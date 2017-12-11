@@ -113,8 +113,10 @@ type FileAccessRequest struct {
 	stringOut    chan string
 	errorOut     chan error
 	filesOut     chan []File
+	stringsOut chan []string
 	operation    string
 	fileParam    string
+	target    string
 	searchParams SearchRequest
 	fileMetadata MetaData
 }
@@ -132,6 +134,8 @@ func (db *FileDB) StartFileAccessPoller() {
 		case "deleteFile":
 			req.errorOut <- db.deleteFile(req.fileParam, false)
 			db.serializeToFile()
+		case "getMetaData":
+			req.stringsOut <- db.getMetaData(req.target)
 		case "search":
 			req.filesOut <- db.search(req.searchParams)
 		case "serialize":
@@ -210,20 +214,24 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 
 // Get specific DB related metadata.
 func (db *FileDB) getMetaData(target string) (result []string) {
+	resultMap := make(map[string]bool)
 	
 	for _, file := range db.Data {
 		switch target {
 		case "tags":
 			for _, tag := range file.Tags {
-				result = append(result, tag)
+				resultMap[tag] = true
 			}	
 		case "people":
 			for _, people := range file.People {
-				result = append(result, people)
+				resultMap[people] = true
 			}
-		default:
-			
 		}
+	}
+
+	// map to slice
+	for  item := range resultMap {
+		result = append(result, item)	
 	}
 	
 	return result
@@ -279,28 +287,31 @@ func SortFilesByDate(files []File) ([]File) {
 // Search the DB for Files which match the provided criteria.
 func (db *FileDB) search(searchReq SearchRequest) (results []File) {
 	files := db.toSlice()
-	// 
-	searchPattern := searchReq.description
-	searchData := make([]string, len(db.Data))
+	// if search/filter criteria not defined, then return all files ordered by date created descending
+	results = SortFilesByDate(files)
 	
-	// if description not defined, then return all files ordered by date created descending
-	if searchReq.description == "" {
-		return SortFilesByDate(files)
-	}
-	
-	// create a slice of descriptions
-	for i, file := range files {
-		searchData[i] = file.Description
+	// fuzzy search by description
+	if searchReq.description != "" {
+		// create a slice of descriptions
+		searchData := make([]string, len(db.Data))
+		for i, file := range files {
+			searchData[i] = file.Description
+		}
+
+		// fuzzy search description for matches
+		matches := fuzzy.Find(searchReq.description, searchData)
+		results = make([]File, 0, len(matches))
+
+		for _, match := range matches {
+			results = append(results, files[match.Index])
+		}
 	}
 
-	// fuzzy search description for matches
-	matches := fuzzy.Find(searchPattern, searchData)
-	results = make([]File, 0, len(matches))
-
-	for _, match := range matches {
-		results = append(results, files[match.Index])
+	// filter description results by tags
+	if len(searchReq.tags) > 0 {
+		
 	}
-	
+
 	return
 }
 
