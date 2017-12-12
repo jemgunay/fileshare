@@ -29,6 +29,26 @@ const (
 	UNSUPPORTED
 )
 
+// Convert media type to string representation. 
+func (m MediaType) String() string {
+	switch m {
+	case IMAGE:
+		return "image"
+	case VIDEO:
+		return "video"
+	case AUDIO:
+		return "audio"
+	case TEXT:
+		return "text"
+	case OTHER:
+		return "other"
+	case UNSUPPORTED:
+		fallthrough
+	default:
+		return "unsupported"
+	}
+}
+
 type MetaData struct {
 	Description string
 	MediaType
@@ -223,14 +243,16 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 				resultMap[tag] = true
 			}	
 		case "people":
-			for _, people := range file.People {
-				resultMap[people] = true
+			for _, person := range file.People {
+				resultMap[person] = true
 			}
+		case "media_types":
+			resultMap[file.MediaType.String()] = true
 		}
 	}
 
 	// map to slice
-	for  item := range resultMap {
+	for item := range resultMap {
 		result = append(result, item)	
 	}
 	
@@ -293,25 +315,31 @@ func (db *FileDB) search(searchReq SearchRequest) (results []File) {
 	// fuzzy search by description
 	if searchReq.description != "" {
 		// create a slice of descriptions
-		searchData := make([]string, len(db.Data))
+		descriptionData := make([]string, len(db.Data))
 		for i, file := range files {
-			searchData[i] = file.Description
+			descriptionData[i] = file.Description
 		}
 
 		// fuzzy search description for matches
-		matches := fuzzy.Find(searchReq.description, searchData)
+		matches := fuzzy.Find(searchReq.description, descriptionData)
 		results = make([]File, 0, len(matches))
 
 		for _, match := range matches {
 			results = append(results, files[match.Index])
 		}
 	}
-
-	// filter description results by tags
-	if len(searchReq.tags) > 0 {
+	
+	// filter description results by tags & people
+	/*var filterResults []File
+	for i, file := range results {
+		// by tags
+		tagsDelta := GetSliceDifference(file.Tags, searchReq.tags)
 		
-	}
-
+		// by people
+		
+	}*/
+	
+	
 	return
 }
 

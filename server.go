@@ -105,8 +105,8 @@ type SearchRequest struct {
 	description string
 	tags []string
 	people []string
-	startDate string
-	endDate string
+	minDate int
+	maxDate int
 	fileType string
 }
 
@@ -114,9 +114,16 @@ type SearchRequest struct {
 func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	// construct search query from url params [desc, start_date, end_date, type, tags, people, format(raw json/html->false/true)]
-	searchReq := SearchRequest{description: q.Get("desc"), startDate: q.Get("start_date"), endDate: q.Get("end_date"), fileType: q.Get("type")}
-	searchReq.tags = ProcessInputList(q.Get("tags"),",")
-	searchReq.people = ProcessInputList(q.Get("people"),",")
+	searchReq := SearchRequest{description: q.Get("desc"), fileType: q.Get("type"), minDate: 0, maxDate: 0}
+	searchReq.tags = ProcessInputList(q.Get("tags"),",", true)
+	searchReq.people = ProcessInputList(q.Get("people"),",", true)
+	// parse date to int unix timestamp
+	if formattedDate, err := strconv.ParseInt(q.Get("min_date"), 10, 64); err == nil {
+		searchReq.minDate = int(formattedDate)
+	}
+	if formattedDate, err := strconv.ParseInt(q.Get("max_date"), 10, 64); err == nil {
+		searchReq.maxDate = int(formattedDate)
+	}
 	
 	// perform search
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
@@ -129,33 +136,23 @@ func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 		format = false
 	}
 	if format {
-		// load HTML template from disk
-		htmlTemplate, err := ioutil.ReadFile(config.rootPath + "/dynamic/files_list.html")
-		if err != nil {
-			s.writeResponse(w, "", err)
-			return
-		}
-
-		// substitute HTML template variables
-		templateParsed, err := template.New("t").Parse(string(htmlTemplate))
-		if err != nil {
-			s.writeResponse(w, "", err)
-			return
-		}
-
-		// html template data
-		htmlData := struct {
+		// HTML formatted response
+		templateData := struct {
 			Files []File
 		}{
 			files,
 		}
-		if err = templateParsed.Execute(w, htmlData); err != nil {
-			s.writeResponse(w, "", err)
-		}
+		filesListResult, err := s.completeTemplate(config.rootPath + "/dynamic/files_list.html", templateData)
 		
+		if err != nil {
+			s.writeResponse(w, err.Error(), err)
+			return
+		}
+
+		s.writeResponse(w, filesListResult, err)
 		return
 	}
-	// JSON
+	// JSON formatted response
 	filesJSON := FilesToJSON(files)
 	s.writeResponse(w, filesJSON, nil)
 }
@@ -164,32 +161,26 @@ func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
 	var resultList []string
 	q := req.URL.Query()
-	
+
+	// determine data request type
+	reqTarget := ""
 	// tags
-	tags, err := strconv.ParseBool(q.Get("tags"))
-	if err != nil {
-		tags = false
+	if tags, err := strconv.ParseBool(q.Get("tags")); err == nil && tags == true {
+		reqTarget = "tags"
 	}
 	// people
-	people, err := strconv.ParseBool(q.Get("people"))
-	if err != nil {
-		people = false
+	if people, err := strconv.ParseBool(q.Get("people")); err == nil && people == true {
+		reqTarget = "people"
+	}
+	// media_types
+	if mediaTypes, err := strconv.ParseBool(q.Get("media_types")); err == nil && mediaTypes == true {
+		reqTarget = "media_types"
 	}
 	
-	switch{
-	case tags:
-		fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: "tags"}
-		s.fileDB.requestPool <- fileAR
-		resultList = <-fileAR.stringsOut
-
-	case people:
-		fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: "tags"}
-		s.fileDB.requestPool <- fileAR
-		resultList = <-fileAR.stringsOut
-	
-	default:
-		resultList = append(resultList, "no metadata target param provided")
-	}
+	// perform data request
+	fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: reqTarget}
+	s.fileDB.requestPool <- fileAR
+	resultList = <-fileAR.stringsOut
 
 	// parse query result to json
 	response, err := json.Marshal(resultList)
@@ -287,8 +278,8 @@ func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
 	tempFile.Close()
 
 	// process tags and people fields
-	tags := ProcessInputList(req.Form.Get("tags-input"), ",")
-	people := ProcessInputList(req.Form.Get("people-input"), ",")
+	tags := ProcessInputList(req.Form.Get("tags-input"), ",", true)
+	people := ProcessInputList(req.Form.Get("people-input"), ",", true)
 	metaData := MetaData{Description: req.Form.Get("description-input"), Tags: tags, People: people}
 
 	// add file to DB & move from db/temp dir to db/content dir

@@ -11,57 +11,64 @@ $(document).ready(function() {
     });
     
     // description
-    $("#desc-search-input").on("input", function() {
-        performRequest(hostname + "/search?desc=" + $(this).val() + "&format=true", "GET", "", function(html) {
-            $("#results-window").empty().append(html)
-        });
-    });
-    
+    $("#desc-search-input").on("input", performSearch);
+
     // tags
     performRequest(hostname + "/data?tags=true", "GET", "", function(data) {
-        var data = ["Amsterdam",
-            "London",
-            "Paris",
-            "Washington",
-            "New York",
-            "New Jersey",
-            "New Orleans",
-            "Los Angeles",
-            "Sydney",
-            "Melbourne",
-            "Canberra",
-            "Beijing",
-            "New Delhi",
-            "Kathmandu",
-            "Cairo",
-            "Cape Town",
-            "Kinshasa"];
-        var citynames = new Bloodhound({
-            datumTokenizer: Bloodhound.tokenizers.obj.whitespace('name'),
-            queryTokenizer: Bloodhound.tokenizers.whitespace,
-            local: $.map(data, function (city) {
-                return {
-                    name: city
-                };
-            })
-        });
-        citynames.initialize();
-
-        $('.tags-container input').tagsinput({
-            typeaheadjs: [{
-                minLength: 1,
-                highlight: true,
-            },{
-                minlength: 1,
-                name: 'citynames',
-                displayKey: 'name',
-                valueKey: 'name',
-                source: citynames.ttAdapter()
-            }],
-            freeInput: true
-        });
+        // tags & people
+        $('#tags-search-input, #tags-input').tokenfield({
+            autocomplete: {
+                source: JSON.parse(data),
+                delay: 0
+            },
+            showAutocompleteOnFocus: true,
+            limit: 8
+        }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
     });
+
+    // people
+    performRequest(hostname + "/data?people=true", "GET", "", function(data) {
+        // tags & people
+        $('#people-search-input, #people-input').tokenfield({
+            autocomplete: {
+                source: JSON.parse(data),
+                delay: 0
+            },
+            showAutocompleteOnFocus: true,
+            limit: 8
+        }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
+    });
+
+    // media type drop down
+    performRequest(hostname + "/data?media_types=true", "GET", "", function(data) {
+        var parsedData = JSON.parse(data);
+        for (var i = 0; i < parsedData.length; i++) {
+            $('#type-search-input').append($('<option>', {
+                value: i+1,
+                text : parsedData[i].charAt(0).toUpperCase() + parsedData[i].slice(1)
+            }));
+        }
+        $('#type-search-input').on("change", performSearch);
+    });
+    
+    // date pickers
+    $("#min-date-picker, #max-date-picker").datetimepicker({
+        format: "DD/MM/YYYY"
+    }).on("dp.change", performSearch);
+    
 });
+
+// Perform search/filter request.
+function performSearch() {
+    var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
+    var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false)];
+    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&format=true";
+    
+    console.log(request);
+    performRequest(hostname + request, "GET", "", function(html) {
+        $("#results-window").empty().append(html)
+    });
+}
 
 // Perform AJAX request.
 function performRequest(URL, httpMethod, data, resultMethod) {
