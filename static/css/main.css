@@ -7,7 +7,7 @@
     height: 115px;
 }
 
-#search-panel .panel-body {
+#search-panel .panel-body, #results-panel-body {
     padding-bottom: 0;
 }
 

@@ -22,7 +22,7 @@ $(document).ready(function() {
                 delay: 0
             },
             showAutocompleteOnFocus: true,
-            limit: 8
+            limit: 5
         }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
     });
 
@@ -35,7 +35,7 @@ $(document).ready(function() {
                 delay: 0
             },
             showAutocompleteOnFocus: true,
-            limit: 8
+            limit: 5
         }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
     });
 
@@ -48,7 +48,7 @@ $(document).ready(function() {
                 delay: 0
             },
             showAutocompleteOnFocus: true,
-            limit: 8
+            limit: 5
         }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
     });
     
@@ -63,7 +63,7 @@ $(document).ready(function() {
 function performSearch() {
     var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
     var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
-    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=true";
+    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=html";
     
     console.log(request);
     performRequest(hostname + request, "GET", "", function(html) {

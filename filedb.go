@@ -2,19 +2,20 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
-	"github.com/twinj/uuid"
-	"crypto/sha256"
-	"io"
 	"github.com/sahilm/fuzzy"
+	"github.com/twinj/uuid"
 )
 
 // Media type of a file.
@@ -29,7 +30,7 @@ const (
 	UNSUPPORTED
 )
 
-// Convert media type to string representation. 
+// Convert media type to string representation.
 func (m MediaType) String() string {
 	switch m {
 	case IMAGE:
@@ -133,10 +134,10 @@ type FileAccessRequest struct {
 	stringOut    chan string
 	errorOut     chan error
 	filesOut     chan []File
-	stringsOut chan []string
+	stringsOut   chan []string
 	operation    string
 	fileParam    string
-	target    string
+	target       string
 	searchParams SearchRequest
 	fileMetadata MetaData
 }
@@ -224,7 +225,7 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 		return err
 	}
 	newFile.Hash = string(h.Sum(nil))
-	
+
 	db.Data[newFile.UUID] = newFile
 	// record transaction
 	db.recordTransaction(CREATE, newFile.UUID)
@@ -235,13 +236,13 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 // Get specific DB related metadata.
 func (db *FileDB) getMetaData(target string) (result []string) {
 	resultMap := make(map[string]bool)
-	
+
 	for _, file := range db.Data {
 		switch target {
 		case "tags":
 			for _, tag := range file.Tags {
 				resultMap[tag] = true
-			}	
+			}
 		case "people":
 			for _, person := range file.People {
 				resultMap[person] = true
@@ -253,9 +254,9 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 
 	// map to slice
 	for item := range resultMap {
-		result = append(result, item)	
+		result = append(result, item)
 	}
-	
+
 	return result
 }
 
@@ -283,7 +284,7 @@ func (db *FileDB) deleteFile(fileUUID string, hardDelete bool) (err error) {
 }
 
 // Get a filtered JSON representation of the File properties.
-func FilesToJSON(files []File) string {
+func FilesToJSON(files []File, pretty bool) string {
 	filesJSON := make([]JSONFile, 0, len(files))
 
 	for _, file := range files {
@@ -295,11 +296,20 @@ func FilesToJSON(files []File) string {
 		return err.Error()
 	}
 
+	// pretty print
+	if pretty {
+		var prettyResult bytes.Buffer
+		if err := json.Indent(&prettyResult, result, "", "\t"); err != nil {
+			return string(result)
+		}
+		result = prettyResult.Bytes()
+	}
+
 	return string(result)
 }
 
 // Sort a list of Files by date.
-func SortFilesByDate(files []File) ([]File) {
+func SortFilesByDate(files []File) []File {
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].AddedTimestamp > files[j].AddedTimestamp
 	})
@@ -307,11 +317,10 @@ func SortFilesByDate(files []File) ([]File) {
 }
 
 // Search the DB for Files which match the provided criteria.
-func (db *FileDB) search(searchReq SearchRequest) (results []File) {
+func (db *FileDB) search(searchReq SearchRequest) []File {
 	files := db.toSlice()
-	// if search/filter criteria not defined, then return all files ordered by date created descending
-	results = SortFilesByDate(files)
-	
+	var filterResults, searchResults []File
+
 	// fuzzy search by description
 	if searchReq.description != "" {
 		// create a slice of descriptions
@@ -322,25 +331,67 @@ func (db *FileDB) search(searchReq SearchRequest) (results []File) {
 
 		// fuzzy search description for matches
 		matches := fuzzy.Find(searchReq.description, descriptionData)
-		results = make([]File, 0, len(matches))
+		searchResults = make([]File, len(matches))
 
-		for _, match := range matches {
-			results = append(results, files[match.Index])
+		for i, match := range matches {
+			searchResults[i] = files[match.Index]
+		}
+
+	} else {
+		// if no description search criteria was supplied, then specific order does not matter - sort results date descending
+		searchResults = SortFilesByDate(files)
+	}
+
+	// false = add file to results, true = remove file from results
+	ignoreFiles := make([]bool, len(searchResults))
+	keepCounter := 0
+
+	for i := range searchResults {
+		// min date
+		if searchResults[i].AddedTimestamp < searchReq.minDate {
+			ignoreFiles[i] = true
+			continue
+		}
+		// max date (check if max date is undefined, i.e. 0)
+		if searchReq.maxDate > 0 && (searchResults[i].AddedTimestamp > searchReq.maxDate) {
+			ignoreFiles[i] = true
+			continue
+		}
+
+		// tags
+		if len(searchReq.tags) > 0 {
+			tagsMatched := 0
+			concatFileTags := "|" + strings.Join(searchResults[i].Tags, "|") + "|"
+			// iterate over search request tags checking if they are a substring of the combined file tags
+			for _, tag := range searchReq.tags {
+				if strings.Contains(concatFileTags, tag) {
+					tagsMatched++
+				}
+			}
+			// tag not found on file
+			if tagsMatched < len(searchReq.tags) {
+				ignoreFiles[i] = true
+				continue
+			}
+		}
+
+		// increment counter if file is to be kept
+		if ignoreFiles[i] == false {
+			keepCounter++
 		}
 	}
-	
-	// filter description results by tags & people
-	/*var filterResults []File
-	for i, file := range results {
-		// by tags
-		tagsDelta := GetSliceDifference(file.Tags, searchReq.tags)
-		
-		// by people
-		
-	}*/
-	
-	
-	return
+
+	// construct new File slice of selected results
+	filterResults = make([]File, keepCounter)
+	currentFilterResult := 0
+	for i := range searchResults {
+		if ignoreFiles[i] == false {
+			filterResults[currentFilterResult] = searchResults[i]
+			currentFilterResult++
+		}
+	}
+
+	return filterResults
 }
 
 // Required parameters for providing history on file states to other servers.

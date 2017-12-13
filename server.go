@@ -1,20 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
 	"os"
-	"io/ioutil"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
-	"bytes"
-	"encoding/json"
 )
 
 // A server providing file sharing and access related services.
@@ -47,7 +47,6 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 	}
 	httpServer = HTTPServer{host: config.params["http_host"], port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}}
 	httpServer.Start()
-
 
 	// start hosting files to remote servers
 
@@ -103,48 +102,45 @@ func (s *HTTPServer) Start() {
 // Search request query container.
 type SearchRequest struct {
 	description string
-	tags []string
-	people []string
-	minDate int
-	maxDate int
-	fileTypes []string
+	tags        []string
+	people      []string
+	minDate     int64
+	maxDate     int64
+	fileTypes   []string
 }
 
 // Search files by their properties.
+// URL params: [desc, start_date, end_date, type, tags, people, format(json/html), pretty]
 func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
-	// construct search query from url params [desc, start_date, end_date, type, tags, people, format(raw json/html->false/true)]
+	// construct search query from url params
 	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
-	searchReq.tags = ProcessInputList(q.Get("tags"),",", true)
-	searchReq.people = ProcessInputList(q.Get("people"),",", true)
+	searchReq.tags = ProcessInputList(q.Get("tags"), ",", true)
+	searchReq.people = ProcessInputList(q.Get("people"), ",", true)
 	searchReq.fileTypes = ProcessInputList(q.Get("file_types"), ",", true)
 	// parse date to int unix timestamp
 	if formattedDate, err := strconv.ParseInt(q.Get("min_date"), 10, 64); err == nil {
-		searchReq.minDate = int(formattedDate)
+		searchReq.minDate = formattedDate
 	}
 	if formattedDate, err := strconv.ParseInt(q.Get("max_date"), 10, 64); err == nil {
-		searchReq.maxDate = int(formattedDate)
+		searchReq.maxDate = formattedDate
 	}
-	
+
 	// perform search
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
 	s.fileDB.requestPool <- fileAR
 	files := <-fileAR.filesOut
 
-	// respond with JSON or HTML
-	format, err := strconv.ParseBool(q.Get("format"))
-	if err != nil {
-		format = false
-	}
-	if format {
+	// respond with JSON or HTML?
+	if q.Get("format") == "html" {
 		// HTML formatted response
 		templateData := struct {
 			Files []File
 		}{
 			files,
 		}
-		filesListResult, err := s.completeTemplate(config.rootPath + "/dynamic/files_list.html", templateData)
-		
+		filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
+
 		if err != nil {
 			s.writeResponse(w, err.Error(), err)
 			return
@@ -153,8 +149,14 @@ func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 		s.writeResponse(w, filesListResult, err)
 		return
 	}
+
+	// pretty print JSON?
+	prettyPrint, err := strconv.ParseBool(q.Get("pretty"))
+	if err != nil {
+		prettyPrint = false
+	}
 	// JSON formatted response
-	filesJSON := FilesToJSON(files)
+	filesJSON := FilesToJSON(files, prettyPrint)
 	s.writeResponse(w, filesJSON, nil)
 }
 
@@ -177,7 +179,7 @@ func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
 	if mediaTypes, err := strconv.ParseBool(q.Get("file_types")); err == nil && mediaTypes == true {
 		reqTarget = "file_types"
 	}
-	
+
 	// perform data request
 	fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: reqTarget}
 	s.fileDB.requestPool <- fileAR
@@ -197,22 +199,22 @@ func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
 	s.fileDB.requestPool <- fileAR
 	files := <-fileAR.filesOut
-	
+
 	// HTML template data
 	templateData := struct {
-		Title string
-		Files []File
+		Title     string
+		Files     []File
 		FilesHTML template.HTML
 	}{
 		"Home",
 		files,
 		"",
 	}
-	
-	filesListResult, err := s.completeTemplate(config.rootPath + "/dynamic/files_list.html", templateData)
+
+	filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
 	templateData.FilesHTML = template.HTML(filesListResult)
-	indexResult, err := s.completeTemplate(config.rootPath + "/dynamic/index.html", templateData)
-	
+	indexResult, err := s.completeTemplate(config.rootPath+"/dynamic/index.html", templateData)
+
 	s.writeResponse(w, indexResult, err)
 }
 
@@ -231,14 +233,14 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		log.Println(err)
 		return
 	}
-	
+
 	// perform template variable replacement
 	buffer := new(bytes.Buffer)
 	if err = templateParsed.Execute(buffer, data); err != nil {
 		log.Println(err)
 		return
 	}
-	
+
 	return buffer.String(), nil
 }
 
