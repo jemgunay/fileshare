@@ -107,16 +107,17 @@ type SearchRequest struct {
 	people []string
 	minDate int
 	maxDate int
-	fileType string
+	fileTypes []string
 }
 
 // Search files by their properties.
 func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	// construct search query from url params [desc, start_date, end_date, type, tags, people, format(raw json/html->false/true)]
-	searchReq := SearchRequest{description: q.Get("desc"), fileType: q.Get("type"), minDate: 0, maxDate: 0}
+	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
 	searchReq.tags = ProcessInputList(q.Get("tags"),",", true)
 	searchReq.people = ProcessInputList(q.Get("people"),",", true)
+	searchReq.fileTypes = ProcessInputList(q.Get("file_types"), ",", true)
 	// parse date to int unix timestamp
 	if formattedDate, err := strconv.ParseInt(q.Get("min_date"), 10, 64); err == nil {
 		searchReq.minDate = int(formattedDate)
@@ -173,8 +174,8 @@ func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
 		reqTarget = "people"
 	}
 	// media_types
-	if mediaTypes, err := strconv.ParseBool(q.Get("media_types")); err == nil && mediaTypes == true {
-		reqTarget = "media_types"
+	if mediaTypes, err := strconv.ParseBool(q.Get("file_types")); err == nil && mediaTypes == true {
+		reqTarget = "file_types"
 	}
 	
 	// perform data request

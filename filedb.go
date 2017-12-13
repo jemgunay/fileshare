@@ -246,7 +246,7 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 			for _, person := range file.People {
 				resultMap[person] = true
 			}
-		case "media_types":
+		case "file_types":
 			resultMap[file.MediaType.String()] = true
 		}
 	}

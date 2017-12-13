@@ -40,15 +40,16 @@ $(document).ready(function() {
     });
 
     // media type drop down
-    performRequest(hostname + "/data?media_types=true", "GET", "", function(data) {
-        var parsedData = JSON.parse(data);
-        for (var i = 0; i < parsedData.length; i++) {
-            $('#type-search-input').append($('<option>', {
-                value: i+1,
-                text : parsedData[i].charAt(0).toUpperCase() + parsedData[i].slice(1)
-            }));
-        }
-        $('#type-search-input').on("change", performSearch);
+    performRequest(hostname + "/data?file_types=true", "GET", "", function(data) {
+        // tags & people
+        $('#type-search-input').tokenfield({
+            autocomplete: {
+                source: JSON.parse(data),
+                delay: 0
+            },
+            showAutocompleteOnFocus: true,
+            limit: 8
+        }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
     });
     
     // date pickers
@@ -61,8 +62,8 @@ $(document).ready(function() {
 // Perform search/filter request.
 function performSearch() {
     var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
-    var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false)];
-    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&format=true";
+    var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
+    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=true";
     
     console.log(request);
     performRequest(hostname + request, "GET", "", function(html) {
