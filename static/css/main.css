@@ -11,11 +11,29 @@
     padding-bottom: 0;
 }
 
-
+#results-window {
+    min-height: 400px;
+}
+#results-window h3 {
+    margin-top: 100px;
+}
+.section-header {
+    margin-top: 25px;
+    margin-bottom: 25px;
+}
 
 /* bootstrap remove rounded corners */
 * {
     -webkit-border-radius: 0 !important;
     -moz-border-radius: 0 !important;
     border-radius: 0 !important;
+}
+
+/* typefaces */
+html, body {
+    
+}
+
+h1, h2, h3 {
+    font-family: 'Pacifico', cursive;    
 }

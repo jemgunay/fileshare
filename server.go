@@ -72,12 +72,13 @@ func (s *HTTPServer) Start() {
 	router := mux.NewRouter()
 
 	// view all files & upload form
-	router.HandleFunc("/", s.viewFiles).Methods("GET")
-	// Search query params in order of precedence: description, tags, people, startDate, endDate, fileType
-	router.HandleFunc("/search", s.searchFiles).Methods("GET")
-	router.HandleFunc("/data", s.getData).Methods("GET")
+	router.HandleFunc("/", s.viewFilesHandler).Methods("GET")
+	// search files
+	router.HandleFunc("/search", s.searchFilesHandler).Methods("GET")
+	// fetch specific data
+	router.HandleFunc("/data", s.getDataHandler).Methods("GET")
 	// handle file upload
-	router.HandleFunc("/upload/", s.handleUpload).Methods("POST")
+	router.HandleFunc("/upload/", s.uploadHandler).Methods("POST")
 	// serve static files
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
@@ -110,8 +111,8 @@ type SearchRequest struct {
 }
 
 // Search files by their properties.
-// URL params: [desc, start_date, end_date, type, tags, people, format(json/html), pretty]
-func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
+// URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html), pretty]
+func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	// construct search query from url params
 	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
@@ -161,7 +162,7 @@ func (s *HTTPServer) searchFiles(w http.ResponseWriter, req *http.Request) {
 }
 
 // Get specific JSON data such as all tags & people.
-func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) getDataHandler(w http.ResponseWriter, req *http.Request) {
 	var resultList []string
 	q := req.URL.Query()
 
@@ -194,7 +195,7 @@ func (s *HTTPServer) getData(w http.ResponseWriter, req *http.Request) {
 }
 
 // Process HTTP view files request.
-func (s *HTTPServer) viewFiles(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, req *http.Request) {
 	// get a list of all files from db
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
 	s.fileDB.requestPool <- fileAR
@@ -245,7 +246,7 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 }
 
 // Process HTTP file upload request.
-func (s *HTTPServer) handleUpload(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) uploadHandler(w http.ResponseWriter, req *http.Request) {
 	// limit request size to prevent DOS (10MB)
 	req.Body = http.MaxBytesReader(w, req.Body, 10*1024*1024)
 

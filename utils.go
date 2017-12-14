@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Delete all files in a directory.
@@ -39,4 +40,14 @@ func ProcessInputList(list string, delimiter string, toLowerCase bool) (separate
 		}
 	}
 	return
+}
+
+// Convert unix epoch timestamp to YYYY-MM-DD format (trim anything smaller)
+func TrimUnixEpoch(epoch int64) time.Time {
+	dateParsed := time.Unix(epoch, 0).UTC().Format("2006-01-02")
+	timeParsed, err := time.Parse("2006-01-02", dateParsed)
+	if err != nil {
+		return time.Now()
+	}
+	return timeParsed
 }

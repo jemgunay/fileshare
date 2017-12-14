@@ -248,7 +248,7 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 				resultMap[person] = true
 			}
 		case "file_types":
-			resultMap[file.MediaType.String()] = true
+			resultMap[strings.Title(file.MediaType.String())] = true
 		}
 	}
 
@@ -291,21 +291,25 @@ func FilesToJSON(files []File, pretty bool) string {
 		filesJSON = append(filesJSON, JSONFile{File: file, FullFileName: file.Name + "." + file.Extension})
 	}
 
-	result, err := json.Marshal(filesJSON)
-	if err != nil {
+	// jsonify
+	jsonBuffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(jsonBuffer)
+	encoder.SetEscapeHTML(false)
+
+	if err := encoder.Encode(filesJSON); err != nil {
 		return err.Error()
 	}
 
 	// pretty print
 	if pretty {
-		var prettyResult bytes.Buffer
-		if err := json.Indent(&prettyResult, result, "", "\t"); err != nil {
-			return string(result)
+		indentBuffer := &bytes.Buffer{}
+		if err := json.Indent(indentBuffer, jsonBuffer.Bytes(), "", "\t"); err != nil {
+			return string(jsonBuffer.Bytes())
 		}
-		result = prettyResult.Bytes()
+		jsonBuffer = indentBuffer
 	}
 
-	return string(result)
+	return string(jsonBuffer.Bytes())
 }
 
 // Sort a list of Files by date.
@@ -347,24 +351,29 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 	keepCounter := 0
 
 	for i := range searchResults {
+		// trim HH:MM:SS to filter by year/month/day only
+		minSearchDate := TrimUnixEpoch(searchReq.minDate)
+		maxSearchDate := TrimUnixEpoch(searchReq.maxDate)
+		fileDate := TrimUnixEpoch(searchResults[i].AddedTimestamp)
+		
 		// min date
-		if searchResults[i].AddedTimestamp < searchReq.minDate {
+		if fileDate.Before(minSearchDate) {
 			ignoreFiles[i] = true
 			continue
 		}
-		// max date (check if max date is undefined, i.e. 0)
-		if searchReq.maxDate > 0 && (searchResults[i].AddedTimestamp > searchReq.maxDate) {
+		// max date
+		if fileDate.After(maxSearchDate) {
 			ignoreFiles[i] = true
 			continue
 		}
 
-		// tags
+		// filter by tags
 		if len(searchReq.tags) > 0 {
 			tagsMatched := 0
 			concatFileTags := "|" + strings.Join(searchResults[i].Tags, "|") + "|"
 			// iterate over search request tags checking if they are a substring of the combined file tags
 			for _, tag := range searchReq.tags {
-				if strings.Contains(concatFileTags, tag) {
+				if strings.Contains(concatFileTags, "|" + tag + "|") {
 					tagsMatched++
 				}
 			}
@@ -375,12 +384,47 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			}
 		}
 
+		// filter by people
+		if len(searchReq.people) > 0 {
+			peopleMatched := 0
+			concatFilePeople := "|" + strings.Join(searchResults[i].People, "|") + "|"
+			// iterate over search request people checking if they are a substring of the combined file people
+			for _, person := range searchReq.people {
+				if strings.Contains(concatFilePeople, "|" + person + "|") {
+					peopleMatched++
+				}
+			}
+			// tag not found on file
+			if peopleMatched < len(searchReq.people) {
+				ignoreFiles[i] = true
+				continue
+			}
+		}
+
+		// filter by file types
+		if len(searchReq.fileTypes) > 0 {
+			typeMatched := false
+			// check each search request file type against current file file type
+			for _, fileType := range searchReq.fileTypes {
+				if strings.ToLower(fileType) == searchResults[i].MediaType.String() {
+					typeMatched = true
+					break
+				}
+			} 
+			
+			// tag not found on file
+			if typeMatched == false {
+				ignoreFiles[i] = true
+				continue
+			}
+		}
+
 		// increment counter if file is to be kept
 		if ignoreFiles[i] == false {
 			keepCounter++
 		}
 	}
-
+	
 	// construct new File slice of selected results
 	filterResults = make([]File, keepCounter)
 	currentFilterResult := 0

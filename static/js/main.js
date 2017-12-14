@@ -1,4 +1,5 @@
 var hostname = location.protocol + '//' + location.host;
+var maxAutoCompleteSuggestions = 5;
 
 $(document).ready(function() {
     // send message on button click
@@ -9,64 +10,77 @@ $(document).ready(function() {
             window.location = "/"
         });
     });
-    
+
+    // init search/filter inputs
+    initSearchInputs();
+});
+
+// Pull required data from server & initialise search/filter inputs.
+function initSearchInputs() {
     // description
     $("#desc-search-input").on("input", performSearch);
 
-    // tags
-    performRequest(hostname + "/data?tags=true", "GET", "", function(data) {
-        // tags & people
-        $('#tags-search-input, #tags-input').tokenfield({
-            autocomplete: {
-                source: JSON.parse(data),
-                delay: 0
-            },
-            showAutocompleteOnFocus: true,
-            limit: 5
-        }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
-    });
+    // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield value will be populated pre-with all retrieved data.
+    var tokenfieldSets = [["tags", "#tags-search-input, #tags-input", false], ["people", "#people-search-input, #people-input", false], ["file_types", "#type-search-input", true]];
 
-    // people
-    performRequest(hostname + "/data?people=true", "GET", "", function(data) {
-        // tags & people
-        $('#people-search-input, #people-input').tokenfield({
-            autocomplete: {
-                source: JSON.parse(data),
-                delay: 0
-            },
-            showAutocompleteOnFocus: true,
-            limit: 5
-        }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
-    });
+    for (var i = 0; i < tokenfieldSets.length; i++) {
+        var urlParam = tokenfieldSets[i][0];
+        var tagIDs = tokenfieldSets[i][1];
+        var populateValue = tokenfieldSets[i][2];
 
-    // media type drop down
-    performRequest(hostname + "/data?file_types=true", "GET", "", function(data) {
-        // tags & people
-        $('#type-search-input').tokenfield({
-            autocomplete: {
-                source: JSON.parse(data),
-                delay: 0
-            },
-            showAutocompleteOnFocus: true,
-            limit: 5
-        }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
-    });
-    
+        (function (urlParam, tagIDs, populateValue) {
+            performRequest(hostname + "/data?" + urlParam + "=true", "GET", "", function (result) {
+                var data = JSON.parse(result);
+                var commaSeparatedData = data.join();
+                if (populateValue) {
+                    $(tagIDs).val(commaSeparatedData);
+                }
+
+                // tags & people
+                $(tagIDs).tokenfield({
+                    autocomplete: {
+                        source: function (request, response) {
+                            var results = $.ui.autocomplete.filter(data, request.term);
+                            response(results.slice(0, maxAutoCompleteSuggestions))
+                        },
+                        delay: 0
+                    },
+                    showAutocompleteOnFocus: true,
+                    createTokensOnBlur: true
+                }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
+            });
+        }(urlParam, tagIDs, populateValue));
+    }
+
     // date pickers
     $("#min-date-picker, #max-date-picker").datetimepicker({
         format: "DD/MM/YYYY"
-    }).on("dp.change", performSearch);
-    
-});
+    });
+    $("#min-date-picker").data("DateTimePicker").date(new Date(0));
+    $("#max-date-picker").data("DateTimePicker").date(new Date());
+    $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
+}
 
 // Perform search/filter request.
 function performSearch() {
+    // collect & format parameters from inputs
     var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
+    if (dates[0]) { dates[0] = dates[0].unix() }
+    if (dates[1]) { dates[1] = dates[1].unix() }    
     var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
+    
     var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=html";
     
     console.log(request);
+    
+    // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
+        if (html.length === 2) {
+            performRequest(hostname + "/static/no_match.html", "GET", "", function(htmlNoMatch) {
+                $("#results-window").empty().append(htmlNoMatch)
+            });
+            return
+        }
         $("#results-window").empty().append(html)
     });
 }
