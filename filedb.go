@@ -237,6 +237,17 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 func (db *FileDB) getMetaData(target string) (result []string) {
 	resultMap := make(map[string]bool)
 
+	// min/max dates data request
+	if target == "dates" {
+		sortedFiles := SortFilesByDate(db.toSlice())
+		minDate := fmt.Sprintf("%d", sortedFiles[len(sortedFiles)-1].AddedTimestamp)
+		maxDate := fmt.Sprintf("%d", sortedFiles[0].AddedTimestamp)
+		result = append(result, minDate)
+		result = append(result, maxDate)
+		return
+	}
+
+	// other data request types
 	for _, file := range db.Data {
 		switch target {
 		case "tags":
@@ -257,7 +268,7 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 		result = append(result, item)
 	}
 
-	return result
+	return
 }
 
 // Mark a file in the DB for deletion, or delete the actual local copy of the file and remove reference from DB in order to redownload.
@@ -355,7 +366,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 		minSearchDate := TrimUnixEpoch(searchReq.minDate)
 		maxSearchDate := TrimUnixEpoch(searchReq.maxDate)
 		fileDate := TrimUnixEpoch(searchResults[i].AddedTimestamp)
-		
+
 		// min date
 		if fileDate.Before(minSearchDate) {
 			ignoreFiles[i] = true
@@ -373,7 +384,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			concatFileTags := "|" + strings.Join(searchResults[i].Tags, "|") + "|"
 			// iterate over search request tags checking if they are a substring of the combined file tags
 			for _, tag := range searchReq.tags {
-				if strings.Contains(concatFileTags, "|" + tag + "|") {
+				if strings.Contains(concatFileTags, "|"+tag+"|") {
 					tagsMatched++
 				}
 			}
@@ -390,7 +401,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			concatFilePeople := "|" + strings.Join(searchResults[i].People, "|") + "|"
 			// iterate over search request people checking if they are a substring of the combined file people
 			for _, person := range searchReq.people {
-				if strings.Contains(concatFilePeople, "|" + person + "|") {
+				if strings.Contains(concatFilePeople, "|"+person+"|") {
 					peopleMatched++
 				}
 			}
@@ -410,8 +421,8 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 					typeMatched = true
 					break
 				}
-			} 
-			
+			}
+
 			// tag not found on file
 			if typeMatched == false {
 				ignoreFiles[i] = true
@@ -424,7 +435,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			keepCounter++
 		}
 	}
-	
+
 	// construct new File slice of selected results
 	filterResults = make([]File, keepCounter)
 	currentFilterResult := 0

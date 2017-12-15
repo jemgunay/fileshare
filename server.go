@@ -76,7 +76,7 @@ func (s *HTTPServer) Start() {
 	// search files
 	router.HandleFunc("/search", s.searchFilesHandler).Methods("GET")
 	// fetch specific data
-	router.HandleFunc("/data", s.getDataHandler).Methods("GET")
+	router.HandleFunc("/data/{type}", s.getMetaDataHandler).Methods("GET")
 	// handle file upload
 	router.HandleFunc("/upload/", s.uploadHandler).Methods("POST")
 	// serve static files
@@ -162,27 +162,11 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, req *http.Request
 }
 
 // Get specific JSON data such as all tags & people.
-func (s *HTTPServer) getDataHandler(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, req *http.Request) {
 	var resultList []string
-	q := req.URL.Query()
-
-	// determine data request type
-	reqTarget := ""
-	// tags
-	if tags, err := strconv.ParseBool(q.Get("tags")); err == nil && tags == true {
-		reqTarget = "tags"
-	}
-	// people
-	if people, err := strconv.ParseBool(q.Get("people")); err == nil && people == true {
-		reqTarget = "people"
-	}
-	// media_types
-	if mediaTypes, err := strconv.ParseBool(q.Get("file_types")); err == nil && mediaTypes == true {
-		reqTarget = "file_types"
-	}
 
 	// perform data request
-	fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: reqTarget}
+	fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: mux.Vars(req)["type"]}
 	s.fileDB.requestPool <- fileAR
 	resultList = <-fileAR.stringsOut
 
@@ -217,32 +201,6 @@ func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, req *http.Request) 
 	indexResult, err := s.completeTemplate(config.rootPath+"/dynamic/index.html", templateData)
 
 	s.writeResponse(w, indexResult, err)
-}
-
-// Replace variables in HTML templates with corresponding values in TemplateData.
-func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result string, err error) {
-	// load HTML template from disk
-	htmlTemplate, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	// parse HTML template
-	templateParsed, err := template.New("t").Parse(string(htmlTemplate))
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	// perform template variable replacement
-	buffer := new(bytes.Buffer)
-	if err = templateParsed.Execute(buffer, data); err != nil {
-		log.Println(err)
-		return
-	}
-
-	return buffer.String(), nil
 }
 
 // Process HTTP file upload request.
@@ -311,6 +269,32 @@ func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err e
 	if err != nil {
 		log.Println(err)
 	}
+}
+
+// Replace variables in HTML templates with corresponding values in TemplateData.
+func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result string, err error) {
+	// load HTML template from disk
+	htmlTemplate, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	// parse HTML template
+	templateParsed, err := template.New("t").Parse(string(htmlTemplate))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	// perform template variable replacement
+	buffer := new(bytes.Buffer)
+	if err = templateParsed.Execute(buffer, data); err != nil {
+		log.Println(err)
+		return
+	}
+
+	return buffer.String(), nil
 }
 
 // Gracefully stop the server and save DB to file.

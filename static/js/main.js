@@ -18,7 +18,7 @@ $(document).ready(function() {
 // Pull required data from server & initialise search/filter inputs.
 function initSearchInputs() {
     // description
-    $("#desc-search-input").on("input", performSearch);
+    $("#desc-search-input").val("").on("input", performSearch);
 
     // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield value will be populated pre-with all retrieved data.
     var tokenfieldSets = [["tags", "#tags-search-input, #tags-input", false], ["people", "#people-search-input, #people-input", false], ["file_types", "#type-search-input", true]];
@@ -29,7 +29,7 @@ function initSearchInputs() {
         var populateValue = tokenfieldSets[i][2];
 
         (function (urlParam, tagIDs, populateValue) {
-            performRequest(hostname + "/data?" + urlParam + "=true", "GET", "", function (result) {
+            performRequest(hostname + "/data/" + urlParam, "GET", "", function (result) {
                 var data = JSON.parse(result);
                 var commaSeparatedData = data.join();
                 if (populateValue) {
@@ -56,9 +56,12 @@ function initSearchInputs() {
     $("#min-date-picker, #max-date-picker").datetimepicker({
         format: "DD/MM/YYYY"
     });
-    $("#min-date-picker").data("DateTimePicker").date(new Date(0));
-    $("#max-date-picker").data("DateTimePicker").date(new Date());
-    $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
+    performRequest(hostname + "/data/dates", "GET", "", function (result) {
+        var dates = JSON.parse(result);
+        $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(dates[0])*1000));
+        $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(dates[1])*1000));
+        $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
+    });
 }
 
 // Perform search/filter request.
@@ -66,7 +69,7 @@ function performSearch() {
     // collect & format parameters from inputs
     var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
     if (dates[0]) { dates[0] = dates[0].unix() }
-    if (dates[1]) { dates[1] = dates[1].unix() }    
+    if (dates[1]) { dates[1] = dates[1].unix() }
     var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
     
     var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=html";
