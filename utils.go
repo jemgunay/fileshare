@@ -42,7 +42,7 @@ func ProcessInputList(list string, delimiter string, toLowerCase bool) (separate
 	return
 }
 
-// Convert unix epoch timestamp to YYYY-MM-DD format (trim anything smaller)
+// Convert unix epoch timestamp to YYYY-MM-DD format (trim anything smaller).
 func TrimUnixEpoch(epoch int64) time.Time {
 	dateParsed := time.Unix(epoch, 0).UTC().Format("2006-01-02")
 	timeParsed, err := time.Parse("2006-01-02", dateParsed)
@@ -50,4 +50,16 @@ func TrimUnixEpoch(epoch int64) time.Time {
 		return time.Now()
 	}
 	return timeParsed
+}
+
+// Check whether the given file/dir exists or not.
+func FileOrDirExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return true, err
 }

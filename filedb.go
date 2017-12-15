@@ -121,9 +121,26 @@ type FileDB struct {
 
 // Initialise FileDB by populating from gob file.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
-	fileDB = &FileDB{Data: make(map[string]File), dir: dbDir, file: dbDir + "/db.dat"}
+	// check db/temp directory exists
+	tempDir := dbDir+"/temp/"
+	result, err := FileOrDirExists(tempDir)
+	if result == false {
+		// attempt to create
+		err = os.Mkdir(tempDir, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("%v", "failed to create "+tempDir+" directory/file.")
+		}
+		result, err = FileOrDirExists(tempDir)
+		if result == false {
+			return nil, err
+		}
+	}
+
+	// init file DB
+	fileDB = &FileDB{Data: make(map[string]File), dir: dbDir, file: dbDir + "/file_db.dat"}
 	err = fileDB.deserializeFromFile()
 
+	// start request poller
 	go fileDB.StartFileAccessPoller()
 
 	return
@@ -163,8 +180,6 @@ func (db *FileDB) StartFileAccessPoller() {
 			req.errorOut <- db.serializeToFile()
 		case "deserialize":
 			req.errorOut <- db.deserializeFromFile()
-		case "toString":
-			req.filesOut <- SortFilesByDate(db.toSlice())
 		case "destroy":
 			req.errorOut <- db.destroy()
 		default:
@@ -373,7 +388,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			continue
 		}
 		// max date
-		if fileDate.After(maxSearchDate) {
+		if searchReq.maxDate != 0 && fileDate.After(maxSearchDate) {
 			ignoreFiles[i] = true
 			continue
 		}
@@ -417,7 +432,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			typeMatched := false
 			// check each search request file type against current file file type
 			for _, fileType := range searchReq.fileTypes {
-				if strings.ToLower(fileType) == searchResults[i].MediaType.String() {
+				if fileType == searchResults[i].MediaType.String() {
 					typeMatched = true
 					break
 				}

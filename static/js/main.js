@@ -7,16 +7,20 @@ $(document).ready(function() {
         e.preventDefault();
         var formData = new FormData(this);
         performRequest(hostname + "/upload/", "POST", formData, function(html) {
+            // TODO
             window.location = "/"
         });
     });
 
     // init search/filter inputs
-    initSearchInputs();
+    performRequest(hostname + "/data?fetch=tags,people,file_types,dates", "GET", "", function (result) {
+        var parsedData = JSON.parse(result);
+        initSearchInputs(parsedData);
+    });
 });
 
 // Pull required data from server & initialise search/filter inputs.
-function initSearchInputs() {
+function initSearchInputs(inputDefaultData) {
     // description
     $("#desc-search-input").val("").on("input", performSearch);
 
@@ -24,44 +28,49 @@ function initSearchInputs() {
     var tokenfieldSets = [["tags", "#tags-search-input, #tags-input", false], ["people", "#people-search-input, #people-input", false], ["file_types", "#type-search-input", true]];
 
     for (var i = 0; i < tokenfieldSets.length; i++) {
-        var urlParam = tokenfieldSets[i][0];
+        var metaType = tokenfieldSets[i][0];
         var tagIDs = tokenfieldSets[i][1];
         var populateValue = tokenfieldSets[i][2];
+        
+        var commaSeparatedData = inputDefaultData[metaType].join();
+        // set default input value
+        if (populateValue) {
+            $(tagIDs).val(commaSeparatedData);
+        }
 
-        (function (urlParam, tagIDs, populateValue) {
-            performRequest(hostname + "/data/" + urlParam, "GET", "", function (result) {
-                var data = JSON.parse(result);
-                var commaSeparatedData = data.join();
-                if (populateValue) {
-                    $(tagIDs).val(commaSeparatedData);
-                }
-
-                // tags & people
-                $(tagIDs).tokenfield({
-                    autocomplete: {
-                        source: function (request, response) {
-                            var results = $.ui.autocomplete.filter(data, request.term);
-                            response(results.slice(0, maxAutoCompleteSuggestions))
-                        },
-                        delay: 0
+        (function (tagIDs, inputDefaultData, metaType) {
+            $(tagIDs).tokenfield({
+                autocomplete: {
+                    source: function (request, response) {
+                        var results = $.ui.autocomplete.filter(inputDefaultData[metaType], request.term);
+                        
+                        // remove already selected tokens from autocomplete results
+                        var selectedTokens = $(tagIDs).tokenfield('getTokens', false);
+                        var selectedTokenVals = [];
+                        for (var i in selectedTokens) { 
+                            selectedTokenVals.push(selectedTokens[i]["label"]);
+                        }
+                        var unselectedResults = $(results).not(selectedTokenVals).get();
+                        
+                        // limit autocomplete results
+                        response(unselectedResults.slice(0, maxAutoCompleteSuggestions))
                     },
-                    showAutocompleteOnFocus: true,
-                    createTokensOnBlur: true
-                }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
-            });
-        }(urlParam, tagIDs, populateValue));
+                    delay: 0
+                },
+                showAutocompleteOnFocus: true,
+                createTokensOnBlur: true
+            }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
+        }(tagIDs, inputDefaultData, metaType));
     }
 
     // date pickers
     $("#min-date-picker, #max-date-picker").datetimepicker({
         format: "DD/MM/YYYY"
     });
-    performRequest(hostname + "/data/dates", "GET", "", function (result) {
-        var dates = JSON.parse(result);
-        $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(dates[0])*1000));
-        $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(dates[1])*1000));
-        $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
-    });
+    
+    $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(inputDefaultData["dates"][0])*1000));
+    $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(inputDefaultData["dates"][1])*1000));
+    $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
 }
 
 // Perform search/filter request.
@@ -74,7 +83,7 @@ function performSearch() {
     
     var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=html";
     
-    console.log(request);
+    // console.log(request);
     
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {

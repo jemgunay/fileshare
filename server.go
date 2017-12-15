@@ -33,6 +33,13 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 		return
 	}
 
+	// create new user DB
+	userDB, err := NewUserDB(config.rootPath + "/db")
+	if err != nil {
+		log.Printf("Server error: %v", err.Error())
+		return
+	}
+	
 	// start file manager http server
 	if config.params["http_host"] == "" || config.params["http_port"] == "" {
 		err = fmt.Errorf("host and port parameters must be specified in config")
@@ -41,11 +48,11 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 	}
 	httpPort, err := strconv.Atoi(config.params["http_port"])
 	if err != nil {
-		err = fmt.Errorf("invalid port found in ")
+		err = fmt.Errorf("invalid port value found in config file")
 		log.Println(err)
 		return
 	}
-	httpServer = HTTPServer{host: config.params["http_host"], port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}}
+	httpServer = HTTPServer{host: config.params["http_host"], port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
 	httpServer.Start()
 
 	// start hosting files to remote servers
@@ -64,6 +71,7 @@ type HTTPServer struct {
 	port int
 	ServerBase
 	server *http.Server
+	userDB *UserDB
 }
 
 // Start listening for HTTP requests.
@@ -73,10 +81,12 @@ func (s *HTTPServer) Start() {
 
 	// view all files & upload form
 	router.HandleFunc("/", s.viewFilesHandler).Methods("GET")
+	// login/register form
+	router.HandleFunc("/login", s.loginHandler).Methods("GET")
 	// search files
 	router.HandleFunc("/search", s.searchFilesHandler).Methods("GET")
 	// fetch specific data
-	router.HandleFunc("/data/{type}", s.getMetaDataHandler).Methods("GET")
+	router.HandleFunc("/data", s.getMetaDataHandler).Methods("GET")
 	// handle file upload
 	router.HandleFunc("/upload/", s.uploadHandler).Methods("POST")
 	// serve static files
@@ -108,6 +118,11 @@ type SearchRequest struct {
 	minDate     int64
 	maxDate     int64
 	fileTypes   []string
+}
+
+// Handle login.
+func (s *HTTPServer) loginHandler(w http.ResponseWriter, req *http.Request) {
+	s.writeResponse(w, "Add login here", nil)
 }
 
 // Search files by their properties.
@@ -162,16 +177,23 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, req *http.Request
 }
 
 // Get specific JSON data such as all tags & people.
+// URL params (data is returned for metadata types included in the fetch param): ?fetch=tags,people,file_types,dates
 func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, req *http.Request) {
-	var resultList []string
+	q := req.URL.Query()
+	resultsList := make(map[string][]string)
 
-	// perform data request
-	fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: mux.Vars(req)["type"]}
-	s.fileDB.requestPool <- fileAR
-	resultList = <-fileAR.stringsOut
+	metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
+	for _, meta := range metaDataTypes {
+		// perform data request
+		fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: meta}
+		s.fileDB.requestPool <- fileAR
+		data := <-fileAR.stringsOut
+
+		resultsList[meta] = data
+	}
 
 	// parse query result to json
-	response, err := json.Marshal(resultList)
+	response, err := json.Marshal(resultsList)
 	if err != nil {
 		response = []byte(err.Error())
 	}
@@ -181,7 +203,8 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, req *http.Request
 // Process HTTP view files request.
 func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, req *http.Request) {
 	// get a list of all files from db
-	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "toString"}
+	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio", ",", true)}
+	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
 	s.fileDB.requestPool <- fileAR
 	files := <-fileAR.filesOut
 

@@ -7,6 +7,10 @@
     height: 115px;
 }
 
+.result-panel {
+    max-height: 145px;
+    overflow: hidden;
+}
 #search-panel .panel-body, #results-panel-body {
     padding-bottom: 0;
 }
