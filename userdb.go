@@ -1,9 +1,10 @@
 package main
 
 import (
-	"net/http"
-	"golang.org/x/crypto/bcrypt"
 	"fmt"
+	"net/http"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -40,9 +41,9 @@ type UserDB struct {
 // Create a new user DB.
 func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	var cookieStore = sessions.NewCookieStore(securecookie.GenerateRandomKey(64))
-	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map [string]User)}
+	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map[string]User)}
 
-	// load users from file
+	// load users & sessions from file
 
 	// create default admin account if no users exist
 	if len(userDB.Users) == 0 {
@@ -59,13 +60,13 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 type UserAccessRequest struct {
 	stringsIn []string
 	boolIn    bool
-	writerIn http.ResponseWriter
-	reqIn *http.Request
+	writerIn  http.ResponseWriter
+	reqIn     *http.Request
 	operation string
-	response chan UserAccessResponse
+	response  chan UserAccessResponse
 }
 type UserAccessResponse struct {
-	err error
+	err     error
 	success bool
 }
 
@@ -121,7 +122,7 @@ func (db *UserDB) addUser(email string, password string, admin bool) (err error)
 
 // Authenticate user.
 func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (success bool, err error) {
-	session, err := db.cookies.Get(r, "session")
+	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
 		return false, err
 	}
@@ -136,7 +137,7 @@ func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (succ
 
 // Perform user login.
 func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success bool, err error) {
-	session, err := db.cookies.Get(r, "session")
+	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
 		return false, err
 	}
@@ -156,7 +157,6 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 		}
 	}
 	if matchFound == false {
-		session.Values["authenticated"] = false
 		return false, nil
 	}
 
@@ -165,8 +165,8 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 	session.Values["email"] = emailParam
 	// session expires after 7 days
 	session.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400 * 7,
+		Path:   "/",
+		MaxAge: 86400 * 7,
 	}
 	if err := session.Save(r, w); err != nil {
 		return false, err
@@ -177,7 +177,7 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 
 // Perform user logout.
 func (db *UserDB) logoutUser(w http.ResponseWriter, r *http.Request) (err error) {
-	session, err := db.cookies.Get(r, "session")
+	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
 		return err
 	}

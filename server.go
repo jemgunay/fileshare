@@ -80,13 +80,13 @@ func (s *HTTPServer) Start() {
 	router := mux.NewRouter()
 
 	// URL routes
-	router.HandleFunc("/", s.requestHandler).Methods("GET")
-	router.HandleFunc("/login", s.requestHandler).Methods("GET", "POST")
-	router.HandleFunc("/logout", s.requestHandler).Methods("POST")
-	router.HandleFunc("/request", s.requestHandler).Methods("POST")
-	router.HandleFunc("/search", s.requestHandler).Methods("GET")
-	router.HandleFunc("/data", s.requestHandler).Methods("GET")
-	router.HandleFunc("/upload/", s.requestHandler).Methods("POST")
+	router.HandleFunc("/", s.auth(s.viewFilesHandler)).Methods("GET")
+	router.HandleFunc("/login", s.auth(s.loginHandler)).Methods("GET", "POST")
+	router.HandleFunc("/logout", s.auth(s.logoutHandler)).Methods("GET")
+	router.HandleFunc("/request", s.auth(nil)).Methods("POST")
+	router.HandleFunc("/search", s.auth(s.searchFilesHandler)).Methods("GET")
+	router.HandleFunc("/data", s.auth(s.getMetaDataHandler)).Methods("GET")
+	router.HandleFunc("/upload/", s.auth(s.uploadHandler)).Methods("POST")
 	// static file server
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
@@ -108,47 +108,30 @@ func (s *HTTPServer) Start() {
 	}(s.server)
 }
 
-// Check auth before routing to handlers.
-func (s *HTTPServer) requestHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("t_30")
-	if r.URL.Path == "/login" {
-		s.loginHandler(w, r)
-		return
-	}
+// Request handler wrapper for auth.
+func (s *HTTPServer) auth(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.URL.Path)
 
-	// authenticate
-	fmt.Println("t_31")
-	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "authenticateUser", writerIn: w, reqIn: r}
-	s.userDB.requestPool <- userAR
-	response := <- userAR.response
-	ok, err := response.success, response.err
+		// authenticate
+		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "authenticateUser", writerIn: w, reqIn: r}
+		s.userDB.requestPool <- userAR
+		response := <-userAR.response
+		ok, err := response.success, response.err
 
-	if err != nil {
-		log.Println(err)
-		s.writeResponse(w, "error", err)
-		return
-	}
-	if ok == false {
-		http.Redirect(w, r, "/login", 301)
-		return
-	}
+		if err != nil {
+			log.Println(err)
+			s.writeResponse(w, "error", err)
+			return
+		}
+		if ok == false {
+			//http.Redirect(w, r, "/login", http.StatusFound)
+			s.writeResponse(w, "incorrect", err)
+			return
+		}
 
-	// route to handlers
-	switch r.URL.Path {
-	case "/":
-		s.viewFilesHandler(w, r)
-	case "/logout":
-		s.logoutHandler(w, r)
-	case "/request":
-
-	case "/search":
-		s.searchFilesHandler(w, r)
-	case "/data":
-		s.getMetaDataHandler(w, r)
-	case "/upload":
-		s.uploadHandler(w, r)
-	default:
-		s.writeResponse(w, "unrecognised request path", nil)
+		// continue to call handler
+		h(w, r)
 	}
 }
 
@@ -190,7 +173,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "loginUser", writerIn: w, reqIn: r}
 		s.userDB.requestPool <- userAR
-		response := <- userAR.response
+		response := <-userAR.response
 		ok, err := response.success, response.err
 		switch {
 		case err != nil:
@@ -208,13 +191,14 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "logoutUser", writerIn: w, reqIn: r}
 	s.userDB.requestPool <- userAR
-	err := (<- userAR.response).err
+	err := (<-userAR.response).err
 
 	if err != nil {
 		log.Println(err)
 		s.writeResponse(w, "error", err)
 	}
-	http.Redirect(w, r, "/login", 301)
+	//http.Redirect(w, r, "/login", 301)
+	s.writeResponse(w, "logged out", err)
 }
 
 // Search files by their properties.
@@ -378,7 +362,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// upload to db/temp success
-	http.Redirect(w, r, "/", 302)
+	//http.Redirect(w, r, "/", 302)
+	s.writeResponse(w, "file uploaded", err)
 }
 
 // Write a HTTP response to connection.
