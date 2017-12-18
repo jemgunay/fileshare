@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ .Title }}</title>
+
+    <!-- css -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" href="/static/css/bootstrap-datetimepicker.min.css">
+
+    <link href="//code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" type="text/css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/tokenfield-typeahead.min.css">
+    <link rel="stylesheet" href="/static/css/bootstrap-tokenfield.min.css">
+
+    <link href="/static/css/main.css" rel="stylesheet" type="text/css">
+
+    <!-- typeface -->
+    <link href="https://fonts.googleapis.com/css?family=Pacifico" rel="stylesheet">
+
+    <!-- favicon -->
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+
+    {{ .ContentHTML }}
+
+    <!-- core -->
+    <script src="http://code.jquery.com/jquery-1.9.1.js" type="text/javascript"></script>
+    <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js" type="text/javascript"></script>
+    <script src="/static/js/bootstrap.min.js" type="text/javascript"></script>
+
+    <!-- other -->
+    {{ .FooterHTML }}
+</body>
+</html>

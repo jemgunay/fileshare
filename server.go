@@ -39,7 +39,7 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 		log.Printf("Server error: %v", err.Error())
 		return
 	}
-	
+
 	// start file manager http server
 	if config.params["http_host"] == "" || config.params["http_port"] == "" {
 		err = fmt.Errorf("host and port parameters must be specified in config")
@@ -79,17 +79,15 @@ func (s *HTTPServer) Start() {
 	// define HTTP routes
 	router := mux.NewRouter()
 
-	// view all files & upload form
-	router.HandleFunc("/", s.viewFilesHandler).Methods("GET")
-	// login/register form
-	router.HandleFunc("/login", s.loginHandler).Methods("GET")
-	// search files
-	router.HandleFunc("/search", s.searchFilesHandler).Methods("GET")
-	// fetch specific data
-	router.HandleFunc("/data", s.getMetaDataHandler).Methods("GET")
-	// handle file upload
-	router.HandleFunc("/upload/", s.uploadHandler).Methods("POST")
-	// serve static files
+	// URL routes
+	router.HandleFunc("/", s.requestHandler).Methods("GET")
+	router.HandleFunc("/login", s.requestHandler).Methods("GET", "POST")
+	router.HandleFunc("/logout", s.requestHandler).Methods("POST")
+	router.HandleFunc("/request", s.requestHandler).Methods("POST")
+	router.HandleFunc("/search", s.requestHandler).Methods("GET")
+	router.HandleFunc("/data", s.requestHandler).Methods("GET")
+	router.HandleFunc("/upload/", s.requestHandler).Methods("POST")
+	// static file server
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
 	s.server = &http.Server{
@@ -110,6 +108,50 @@ func (s *HTTPServer) Start() {
 	}(s.server)
 }
 
+// Check auth before routing to handlers.
+func (s *HTTPServer) requestHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("t_30")
+	if r.URL.Path == "/login" {
+		s.loginHandler(w, r)
+		return
+	}
+
+	// authenticate
+	fmt.Println("t_31")
+	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "authenticateUser", writerIn: w, reqIn: r}
+	s.userDB.requestPool <- userAR
+	response := <- userAR.response
+	ok, err := response.success, response.err
+
+	if err != nil {
+		log.Println(err)
+		s.writeResponse(w, "error", err)
+		return
+	}
+	if ok == false {
+		http.Redirect(w, r, "/login", 301)
+		return
+	}
+
+	// route to handlers
+	switch r.URL.Path {
+	case "/":
+		s.viewFilesHandler(w, r)
+	case "/logout":
+		s.logoutHandler(w, r)
+	case "/request":
+
+	case "/search":
+		s.searchFilesHandler(w, r)
+	case "/data":
+		s.getMetaDataHandler(w, r)
+	case "/upload":
+		s.uploadHandler(w, r)
+	default:
+		s.writeResponse(w, "unrecognised request path", nil)
+	}
+}
+
 // Search request query container.
 type SearchRequest struct {
 	description string
@@ -121,14 +163,64 @@ type SearchRequest struct {
 }
 
 // Handle login.
-func (s *HTTPServer) loginHandler(w http.ResponseWriter, req *http.Request) {
-	s.writeResponse(w, "Add login here", nil)
+func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	// fetch login form
+	case "GET":
+		// HTML template data
+		templateData := struct {
+			Title       string
+			FooterHTML  template.HTML
+			ContentHTML template.HTML
+		}{
+			"Login",
+			"",
+			"",
+		}
+
+		footerResult, err := s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
+		templateData.FooterHTML = template.HTML(footerResult)
+		loginResult, err := s.completeTemplate(config.rootPath+"/static/login.html", templateData)
+		templateData.ContentHTML = template.HTML(loginResult)
+		mainResult, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+
+		s.writeResponse(w, mainResult, err)
+
+	// submit login request
+	case "POST":
+		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "loginUser", writerIn: w, reqIn: r}
+		s.userDB.requestPool <- userAR
+		response := <- userAR.response
+		ok, err := response.success, response.err
+		switch {
+		case err != nil:
+			log.Println(err)
+			s.writeResponse(w, "error", err)
+		case err == nil && ok == false:
+			s.writeResponse(w, "incorrect", err)
+		case ok:
+			s.writeResponse(w, "success", err)
+		}
+	}
+}
+
+// Handle logout.
+func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "logoutUser", writerIn: w, reqIn: r}
+	s.userDB.requestPool <- userAR
+	err := (<- userAR.response).err
+
+	if err != nil {
+		log.Println(err)
+		s.writeResponse(w, "error", err)
+	}
+	http.Redirect(w, r, "/login", 301)
 }
 
 // Search files by their properties.
 // URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html), pretty]
-func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, req *http.Request) {
-	q := req.URL.Query()
+func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
 	// construct search query from url params
 	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
 	searchReq.tags = ProcessInputList(q.Get("tags"), ",", true)
@@ -178,8 +270,8 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, req *http.Request
 
 // Get specific JSON data such as all tags & people.
 // URL params (data is returned for metadata types included in the fetch param): ?fetch=tags,people,file_types,dates
-func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, req *http.Request) {
-	q := req.URL.Query()
+func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
 	resultsList := make(map[string][]string)
 
 	metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
@@ -201,7 +293,7 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, req *http.Request
 }
 
 // Process HTTP view files request.
-func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, r *http.Request) {
 	// get a list of all files from db
 	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio", ",", true)}
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
@@ -210,34 +302,42 @@ func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, req *http.Request) 
 
 	// HTML template data
 	templateData := struct {
-		Title     string
-		Files     []File
-		FilesHTML template.HTML
+		Title       string
+		Files       []File
+		FooterHTML  template.HTML
+		FilesHTML   template.HTML
+		ContentHTML template.HTML
 	}{
 		"Home",
 		files,
 		"",
+		"",
+		"",
 	}
 
+	footerResult, err := s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
+	templateData.FooterHTML = template.HTML(footerResult)
 	filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
 	templateData.FilesHTML = template.HTML(filesListResult)
-	indexResult, err := s.completeTemplate(config.rootPath+"/dynamic/index.html", templateData)
+	homeResult, err := s.completeTemplate(config.rootPath+"/dynamic/home.html", templateData)
+	templateData.ContentHTML = template.HTML(homeResult)
+	mainResult, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
 
-	s.writeResponse(w, indexResult, err)
+	s.writeResponse(w, mainResult, err)
 }
 
 // Process HTTP file upload request.
-func (s *HTTPServer) uploadHandler(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// limit request size to prevent DOS (10MB)
-	req.Body = http.MaxBytesReader(w, req.Body, 10*1024*1024)
+	r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 
 	// get file data from form
-	if err := req.ParseMultipartForm(0); err != nil {
+	if err := r.ParseMultipartForm(0); err != nil {
 		s.writeResponse(w, "", err)
 		return
 	}
 
-	newFile, handler, err := req.FormFile("file-input")
+	newFile, handler, err := r.FormFile("file-input")
 	if err != nil {
 		s.writeResponse(w, "", err)
 		return
@@ -263,9 +363,9 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, req *http.Request) {
 	tempFile.Close()
 
 	// process tags and people fields
-	tags := ProcessInputList(req.Form.Get("tags-input"), ",", true)
-	people := ProcessInputList(req.Form.Get("people-input"), ",", true)
-	metaData := MetaData{Description: req.Form.Get("description-input"), Tags: tags, People: people}
+	tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
+	people := ProcessInputList(r.Form.Get("people-input"), ",", true)
+	metaData := MetaData{Description: r.Form.Get("description-input"), Tags: tags, People: people}
 
 	// add file to DB & move from db/temp dir to db/content dir
 	fileAR := FileAccessRequest{errorOut: make(chan error), operation: "addFile", fileParam: tempFilePath, fileMetadata: metaData}
@@ -278,7 +378,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// upload to db/temp success
-	http.Redirect(w, req, "/", 302)
+	http.Redirect(w, r, "/", 302)
 }
 
 // Write a HTTP response to connection.

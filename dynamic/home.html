@@ -1,0 +1,125 @@
+<div class="container-fluid">
+    <div class="row">
+
+        <!-- upload form -->
+        <div class="col-md-offset-2 col-md-8">
+            <h2 class="section-header">File Upload</h2>
+
+            <div class="panel panel-default">
+                <div class="panel-body">
+                    <form action="/upload/" method="post" enctype="multipart/form-data" id="upload-form">
+                        <!-- file selection -->
+                        <div class="form-group">
+                            <label for="file-input">Select File</label>
+                            <input type="file" id="file-input" name="file-input">
+                        </div>
+                        <!-- description field -->
+                        <div class="form-group">
+                            <label for="description-input">Description</label>
+                            <input type="text" class="form-control" id="description-input" name="description-input">
+                        </div>
+
+                        <!-- tags & people fields -->
+                        <div class="row">
+                            <div class="col-sm-6 form-group">
+                                <label for="tags-input">Tags</label>
+                                <p class="help-block">(comma separated)</p>
+                                <input type="text" class="form-control" id="tags-input" name="tags-input">
+                            </div>
+                            <div class="col-sm-6 form-group">
+                                <label for="people-input">People</label>
+                                <p class="help-block">(comma separated)</p>
+                                <input type="text" class="form-control" id="people-input" name="people-input">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-default pull-right" id="upload-btn">Submit</button>
+                    </form>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- display all uploaded files -->
+    <div class="row">
+        <div class="col-md-offset-2 col-md-8">
+
+            <h2 class="section-header">Stored Files</h2>
+
+            <!-- search options -->
+            <div class="panel panel-default" id="search-panel">
+                <div class="panel-body">
+                    <div class="row">
+
+                        <!-- description -->
+                        <div class="col-sm-6 form-group">
+                            <label for="desc-search-input">Description Search</label>
+                            <input type="text" id="desc-search-input" class="form-control">
+                        </div>
+
+                        <!-- date inputs -->
+                        <div class="col-sm-3 form-group">
+                            <label for="min-date-search-input">Min Date</label>
+                            <div class='input-group date' id='min-date-picker'>
+                                <input type='text' class="form-control" id="min-date-search-input">
+                                <span class="input-group-addon">
+                                    <span class="glyphicon glyphicon-calendar"></span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-sm-3 form-group">
+                            <label for="max-date-search-input">Max Date</label>
+                            <div class='input-group date' id='max-date-picker'>
+                                <input type='text' class="form-control" id="max-date-search-input">
+                                <span class="input-group-addon">
+                                    <span class="glyphicon glyphicon-calendar"></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- tags -->
+                        <div class="col-sm-4 form-group">
+                            <div class="tags-container">
+                                <label for="tags-search-input">Tags Filter</label>
+                                <input type="text" id="tags-search-input" class="form-control">
+                            </div>
+                        </div>
+
+                        <!-- people -->
+                        <div class="col-sm-4 form-group">
+                            <div class="tags-container">
+                                <label for="people-search-input">People Filter</label>
+                                <input type="text" id="people-search-input" class="form-control">
+                            </div>
+                        </div>
+
+                        <!-- media_type -->
+                        <div class="col-sm-4 form-group">
+                            <div class="tags-container">
+                                <label for="type-search-input">File Type Filter</label>
+                                <input type="text" id="type-search-input" class="form-control">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel panel-default" id="results-panel">
+                <div class="panel-body" id="results-panel-body">
+                    <div class="row">
+
+                        <!-- file list -->
+                        <div id="results-window">
+                            {{ .FilesHTML }}
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/sahilm/fuzzy"
-	"github.com/twinj/uuid"
 )
 
 // Media type of a file.
@@ -190,7 +189,7 @@ func (db *FileDB) StartFileAccessPoller() {
 
 // Create transaction and add to DB.
 func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileUUID string) {
-	newTransaction := Transaction{UUID: uuid.NewV4().String(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"]}
+	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"]}
 	db.Transactions = append(db.Transactions, newTransaction)
 }
 
@@ -220,7 +219,7 @@ func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 	}
 
 	// generated UUID to use as storage filename
-	newFile.UUID = uuid.NewV4().String()
+	newFile.UUID = NewUUID()
 
 	// move file from db/temp dir to db/content dir
 	err = os.Rename(tempFilePath, newFile.AbsolutePath())

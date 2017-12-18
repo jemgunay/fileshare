@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"github.com/twinj/uuid"
 )
 
 // Delete all files in a directory.
@@ -62,4 +63,9 @@ func FileOrDirExists(path string) (bool, error) {
 		return false, nil
 	}
 	return true, err
+}
+
+// Generate new UUID.
+func NewUUID() (UUID string) {
+	return uuid.NewV4().String()
 }
