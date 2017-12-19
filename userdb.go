@@ -143,8 +143,11 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 	}
 
 	// get form data
-	emailParam := r.FormValue("email-input")
-	passwordParam := r.FormValue("password-input")
+	if err = r.ParseForm(); err != nil {
+		return false, err
+	}
+	emailParam := r.FormValue("email")
+	passwordParam := r.FormValue("password")
 
 	// check form data against user DB
 	matchFound := false

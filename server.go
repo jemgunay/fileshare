@@ -80,19 +80,19 @@ func (s *HTTPServer) Start() {
 	router := mux.NewRouter()
 
 	// URL routes
-	router.HandleFunc("/", s.auth(s.viewFilesHandler)).Methods("GET")
-	router.HandleFunc("/login", s.auth(s.loginHandler)).Methods("GET", "POST")
-	router.HandleFunc("/logout", s.auth(s.logoutHandler)).Methods("GET")
-	router.HandleFunc("/request", s.auth(nil)).Methods("POST")
-	router.HandleFunc("/search", s.auth(s.searchFilesHandler)).Methods("GET")
-	router.HandleFunc("/data", s.auth(s.getMetaDataHandler)).Methods("GET")
-	router.HandleFunc("/upload/", s.auth(s.uploadHandler)).Methods("POST")
+	router.HandleFunc("/", s.authHandler(s.viewFilesHandler)).Methods("GET")
+	router.HandleFunc("/login", s.loginHandler).Methods("GET", "POST")
+	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods("GET")
+	router.HandleFunc("/request", s.requestAccessHandler).Methods("GET", "POST")
+	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods("GET")
+	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods("GET")
+	router.HandleFunc("/upload/", s.authHandler(s.uploadHandler)).Methods("POST")
 	// static file server
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
 	s.server = &http.Server{
 		Handler:      router,
-		Addr:         s.host + ":" + strconv.Itoa(s.port),
+		Addr:         s.host + ":" + fmt.Sprintf("%d", s.port),
 		WriteTimeout: 5 * time.Second,
 		ReadTimeout:  5 * time.Second,
 	}
@@ -109,24 +109,25 @@ func (s *HTTPServer) Start() {
 }
 
 // Request handler wrapper for auth.
-func (s *HTTPServer) auth(h http.HandlerFunc) http.HandlerFunc {
+func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL.Path)
-
 		// authenticate
 		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "authenticateUser", writerIn: w, reqIn: r}
 		s.userDB.requestPool <- userAR
 		response := <-userAR.response
 		ok, err := response.success, response.err
 
-		if err != nil {
-			log.Println(err)
-			s.writeResponse(w, "error", err)
-			return
-		}
-		if ok == false {
-			//http.Redirect(w, r, "/login", http.StatusFound)
-			s.writeResponse(w, "incorrect", err)
+		// if auth failed (error or wrong password)
+		if err != nil || ok == false {
+			if err != nil {
+				log.Println(err)
+			}
+
+			if r.Method == "GET" {
+				http.Redirect(w, r, "/login", 302)
+			} else {
+				s.writeResponse(w, "unauthorised", err)
+			}
 			return
 		}
 
@@ -145,6 +146,11 @@ type SearchRequest struct {
 	fileTypes   []string
 }
 
+// Handle user registration.
+func (s *HTTPServer) requestAccessHandler(w http.ResponseWriter, r *http.Request) {
+	s.writeResponse(w, "register page", nil)
+}
+
 // Handle login.
 func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -153,17 +159,19 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		// HTML template data
 		templateData := struct {
 			Title       string
+			BrandName   string
 			FooterHTML  template.HTML
 			ContentHTML template.HTML
 		}{
 			"Login",
+			config.params["brand_name"],
 			"",
 			"",
 		}
 
 		footerResult, err := s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
 		templateData.FooterHTML = template.HTML(footerResult)
-		loginResult, err := s.completeTemplate(config.rootPath+"/static/login.html", templateData)
+		loginResult, err := s.completeTemplate(config.rootPath+"/dynamic/login.html", templateData)
 		templateData.ContentHTML = template.HTML(loginResult)
 		mainResult, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
 
@@ -175,14 +183,15 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		s.userDB.requestPool <- userAR
 		response := <-userAR.response
 		ok, err := response.success, response.err
+
 		switch {
 		case err != nil:
 			log.Println(err)
-			s.writeResponse(w, "error", err)
-		case err == nil && ok == false:
-			s.writeResponse(w, "incorrect", err)
+			s.writeResponse(w, "error", nil)
+		case ok == false:
+			s.writeResponse(w, "unauthorised", nil)
 		case ok:
-			s.writeResponse(w, "success", err)
+			s.writeResponse(w, "success", nil)
 		}
 	}
 }
@@ -197,8 +206,8 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		s.writeResponse(w, "error", err)
 	}
-	//http.Redirect(w, r, "/login", 301)
-	s.writeResponse(w, "logged out", err)
+	http.Redirect(w, r, "/login", 302)
+	//s.writeResponse(w, "logged out", err)
 }
 
 // Search files by their properties.
@@ -234,7 +243,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 		filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
 
 		if err != nil {
-			s.writeResponse(w, err.Error(), err)
+			s.writeResponse(w, "", err)
 			return
 		}
 
@@ -287,19 +296,25 @@ func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, r *http.Request) {
 	// HTML template data
 	templateData := struct {
 		Title       string
+		BrandName string
 		Files       []File
+		NavbarHTML template.HTML
 		FooterHTML  template.HTML
 		FilesHTML   template.HTML
 		ContentHTML template.HTML
 	}{
 		"Home",
+		config.params["brand_name"],
 		files,
+		"",
 		"",
 		"",
 		"",
 	}
 
-	footerResult, err := s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
+	navbarResult, err := s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
+	templateData.NavbarHTML = template.HTML(navbarResult)
+	footerResult, err := s.completeTemplate(config.rootPath+"/static/main_footer.html", templateData)
 	templateData.FooterHTML = template.HTML(footerResult)
 	filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
 	templateData.FilesHTML = template.HTML(filesListResult)
@@ -362,13 +377,11 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// upload to db/temp success
-	//http.Redirect(w, r, "/", 302)
 	s.writeResponse(w, "file uploaded", err)
 }
 
 // Write a HTTP response to connection.
 func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err error) {
-	w.WriteHeader(http.StatusOK)
 	if err != nil {
 		log.Println(err)
 		response = err.Error()

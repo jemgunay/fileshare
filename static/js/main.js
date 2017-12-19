@@ -1,4 +1,3 @@
-var hostname = location.protocol + '//' + location.host;
 var maxAutoCompleteSuggestions = 5;
 
 $(document).ready(function() {
@@ -6,7 +5,7 @@ $(document).ready(function() {
     $("form#upload-form").submit(function(e) {
         e.preventDefault();
         var formData = new FormData(this);
-        performRequest(hostname + "/upload/", "POST", formData, function(html) {
+        performUploadRequest(hostname + "/upload/", "POST", formData, function(html) {
             // TODO
             window.location = "/"
         });
@@ -94,24 +93,5 @@ function performSearch() {
             return
         }
         $("#results-window").empty().append(html)
-    });
-}
-
-// Perform AJAX request.
-function performRequest(URL, httpMethod, data, resultMethod) {
-    $.ajax({
-        url: URL,
-        type: httpMethod,
-        dataType: 'text',
-        data: data,
-        error: function(e) {
-            console.log(e);
-        },
-        success: function(e) {
-            resultMethod(e);
-        },
-        cache: false,
-        contentType: false,
-        processData: false
     });
 }
