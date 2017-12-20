@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -41,18 +40,18 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 	}
 
 	// start file manager http server
-	if config.params["http_host"] == "" || config.params["http_port"] == "" {
+	if config.params["http_host"].val == "" || config.params["http_port"].val == "" {
 		err = fmt.Errorf("host and port parameters must be specified in config")
 		log.Println(err)
 		return
 	}
-	httpPort, err := strconv.Atoi(config.params["http_port"])
+	httpPort, err := strconv.Atoi(config.params["http_port"].val)
 	if err != nil {
 		err = fmt.Errorf("invalid port value found in config file")
 		log.Println(err)
 		return
 	}
-	httpServer = HTTPServer{host: config.params["http_host"], port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
+	httpServer = HTTPServer{host: config.params["http_host"].val, port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
 	httpServer.Start()
 
 	// start hosting files to remote servers
@@ -80,13 +79,13 @@ func (s *HTTPServer) Start() {
 	router := mux.NewRouter()
 
 	// URL routes
-	router.HandleFunc("/", s.authHandler(s.viewFilesHandler)).Methods("GET")
+	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods("GET")
 	router.HandleFunc("/login", s.loginHandler).Methods("GET", "POST")
 	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods("GET")
 	router.HandleFunc("/request", s.requestAccessHandler).Methods("GET", "POST")
 	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods("GET")
 	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods("GET")
-	router.HandleFunc("/upload/", s.authHandler(s.uploadHandler)).Methods("POST")
+	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods("GET", "POST")
 	// static file server
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 
@@ -164,18 +163,17 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Login",
-			config.params["brand_name"],
+			config.params["brand_name"].val,
 			"",
 			"",
 		}
 
-		footerResult, err := s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
-		templateData.FooterHTML = template.HTML(footerResult)
-		loginResult, err := s.completeTemplate(config.rootPath+"/dynamic/login.html", templateData)
-		templateData.ContentHTML = template.HTML(loginResult)
-		mainResult, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+		var err error
+		templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
+		templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/dynamic/login.html", templateData)
+		result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
 
-		s.writeResponse(w, mainResult, err)
+		s.writeResponse(w, string(result), err)
 
 	// submit login request
 	case "POST":
@@ -242,12 +240,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 		}
 		filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
 
-		if err != nil {
-			s.writeResponse(w, "", err)
-			return
-		}
-
-		s.writeResponse(w, filesListResult, err)
+		s.writeResponse(w, string(filesListResult), err)
 		return
 	}
 
@@ -286,7 +279,7 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // Process HTTP view files request.
-func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// get a list of all files from db
 	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio", ",", true)}
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
@@ -296,88 +289,119 @@ func (s *HTTPServer) viewFilesHandler(w http.ResponseWriter, r *http.Request) {
 	// HTML template data
 	templateData := struct {
 		Title       string
-		BrandName string
+		BrandName   string
 		Files       []File
-		NavbarHTML template.HTML
+		NavbarHTML  template.HTML
+		NavbarFocus string
 		FooterHTML  template.HTML
 		FilesHTML   template.HTML
 		ContentHTML template.HTML
 	}{
-		"Home",
-		config.params["brand_name"],
+		"Memories",
+		config.params["brand_name"].val,
 		files,
 		"",
+		"search",
 		"",
 		"",
 		"",
 	}
 
-	navbarResult, err := s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
-	templateData.NavbarHTML = template.HTML(navbarResult)
-	footerResult, err := s.completeTemplate(config.rootPath+"/static/main_footer.html", templateData)
-	templateData.FooterHTML = template.HTML(footerResult)
-	filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
-	templateData.FilesHTML = template.HTML(filesListResult)
-	homeResult, err := s.completeTemplate(config.rootPath+"/dynamic/home.html", templateData)
-	templateData.ContentHTML = template.HTML(homeResult)
-	mainResult, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+	var err error
+	templateData.NavbarHTML, err = s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
+	templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/search_footer.html", templateData)
+	templateData.FilesHTML, err = s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
+	templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/dynamic/home.html", templateData)
+	result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
 
-	s.writeResponse(w, mainResult, err)
+	s.writeResponse(w, string(result), err)
 }
 
 // Process HTTP file upload request.
 func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// limit request size to prevent DOS (10MB)
-	r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+	switch r.Method {
+	// fetch upload page
+	case "GET":
+		// HTML template data
+		templateData := struct {
+			Title       string
+			BrandName   string
+			NavbarHTML  template.HTML
+			NavbarFocus string
+			FooterHTML  template.HTML
+			UploadHTML  template.HTML
+			ContentHTML template.HTML
+		}{
+			"Upload",
+			config.params["brand_name"].val,
+			"",
+			"upload",
+			"",
+			"",
+			"",
+		}
 
-	// get file data from form
-	if err := r.ParseMultipartForm(0); err != nil {
-		s.writeResponse(w, "", err)
-		return
+		var err error
+		templateData.NavbarHTML, err = s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
+		templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/upload_footer.html", templateData)
+		templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/static/upload.html", templateData)
+		result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+
+		s.writeResponse(w, string(result), err)
+
+	// file upload
+	case "POST":
+		// limit request size to prevent DOS (10MB)
+		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+
+		// get file data from form
+		if err := r.ParseMultipartForm(0); err != nil {
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		newFile, handler, err := r.FormFile("file-input")
+		if err != nil {
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		// copy file from form to new local temp file
+		tempFilePath := config.rootPath + "/db/temp/" + handler.Filename
+		tempFile, err := os.OpenFile(tempFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+		if err != nil {
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		if err != nil {
+			os.Remove(tempFilePath)
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		// close files before processing temp file
+		newFile.Close()
+		tempFile.Close()
+
+		// process tags and people fields
+		tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
+		people := ProcessInputList(r.Form.Get("people-input"), ",", true)
+		metaData := MetaData{Description: r.Form.Get("description-input"), Tags: tags, People: people}
+
+		// add file to DB & move from db/temp dir to db/content dir
+		fileAR := FileAccessRequest{errorOut: make(chan error), operation: "addFile", fileParam: tempFilePath, fileMetadata: metaData}
+		s.fileDB.requestPool <- fileAR
+		if err := <-fileAR.errorOut; err != nil {
+			// destroy temp file on add failure
+			os.Remove(tempFilePath)
+			s.writeResponse(w, "", err)
+			return
+		}
+
+		// upload to db/temp success
+		s.writeResponse(w, "file uploaded", err)
 	}
-
-	newFile, handler, err := r.FormFile("file-input")
-	if err != nil {
-		s.writeResponse(w, "", err)
-		return
-	}
-
-	// copy file from form to new local temp file
-	tempFilePath := config.rootPath + "/db/temp/" + handler.Filename
-	tempFile, err := os.OpenFile(tempFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		s.writeResponse(w, "", err)
-		return
-	}
-
-	_, err = io.Copy(tempFile, newFile)
-	if err != nil {
-		os.Remove(tempFilePath)
-		s.writeResponse(w, "", err)
-		return
-	}
-
-	// close files before processing temp file
-	newFile.Close()
-	tempFile.Close()
-
-	// process tags and people fields
-	tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
-	people := ProcessInputList(r.Form.Get("people-input"), ",", true)
-	metaData := MetaData{Description: r.Form.Get("description-input"), Tags: tags, People: people}
-
-	// add file to DB & move from db/temp dir to db/content dir
-	fileAR := FileAccessRequest{errorOut: make(chan error), operation: "addFile", fileParam: tempFilePath, fileMetadata: metaData}
-	s.fileDB.requestPool <- fileAR
-	if err := <-fileAR.errorOut; err != nil {
-		// destroy temp file on add failure
-		os.Remove(tempFilePath)
-		s.writeResponse(w, "", err)
-		return
-	}
-
-	// upload to db/temp success
-	s.writeResponse(w, "file uploaded", err)
 }
 
 // Write a HTTP response to connection.
@@ -393,7 +417,7 @@ func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err e
 }
 
 // Replace variables in HTML templates with corresponding values in TemplateData.
-func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result string, err error) {
+func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result template.HTML, err error) {
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -415,7 +439,7 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		return
 	}
 
-	return buffer.String(), nil
+	return template.HTML(buffer.String()), nil
 }
 
 // Gracefully stop the server and save DB to file.

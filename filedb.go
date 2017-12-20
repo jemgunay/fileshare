@@ -189,7 +189,7 @@ func (db *FileDB) StartFileAccessPoller() {
 
 // Create transaction and add to DB.
 func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileUUID string) {
-	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"]}
+	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"].val}
 	db.Transactions = append(db.Transactions, newTransaction)
 }
 

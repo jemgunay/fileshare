@@ -16,6 +16,11 @@ func main() {
 	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare"
 	config.LoadConfig(rootPath)
 
+	err := config.SaveConfig()
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	// init servers
 	err, httpServer := NewServerBase()
 	if err != nil {

@@ -1,16 +1,6 @@
 var maxAutoCompleteSuggestions = 5;
 
 $(document).ready(function() {
-    // send message on button click
-    $("form#upload-form").submit(function(e) {
-        e.preventDefault();
-        var formData = new FormData(this);
-        performUploadRequest(hostname + "/upload/", "POST", formData, function(html) {
-            // TODO
-            window.location = "/"
-        });
-    });
-
     // init search/filter inputs
     performRequest(hostname + "/data?fetch=tags,people,file_types,dates", "GET", "", function (result) {
         var parsedData = JSON.parse(result);

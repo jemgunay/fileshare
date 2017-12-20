@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"net/http"
+	"os"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -40,14 +42,20 @@ type UserDB struct {
 
 // Create a new user DB.
 func NewUserDB(dbDir string) (userDB *UserDB, err error) {
-	var cookieStore = sessions.NewCookieStore(securecookie.GenerateRandomKey(64))
+	// get session key
+	key, err := fetchSessionKey()
+	if err != nil {
+		return nil, err
+	}
+
+	var cookieStore = sessions.NewCookieStore(key)
 	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map[string]User)}
 
 	// load users & sessions from file
 
 	// create default admin account if no users exist
 	if len(userDB.Users) == 0 {
-		userDB.addUser("admin", "test", true)
+		userDB.addUser("admin", "admin", true)
 	}
 
 	// start request poller
@@ -191,4 +199,52 @@ func (db *UserDB) logoutUser(w http.ResponseWriter, r *http.Request) (err error)
 		return err
 	}
 	return nil
+}
+
+// Get session secure key from session.dat if one was created in the previous run, otherwise create a new one
+func fetchSessionKey() (key []byte, err error) {
+	sessionFilePath := config.rootPath + "/config/session.dat"
+
+	// check if file exists
+	ok, err := FileOrDirExists(sessionFilePath)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		// create file for writing to
+		file, err := os.Create(sessionFilePath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		key := securecookie.GenerateRandomKey(64)
+		if key == nil {
+			return nil, fmt.Errorf("could not generate session key")
+		}
+
+		// encode to file
+		encoder := gob.NewEncoder(file)
+		err = encoder.Encode(&key)
+		if err != nil {
+			return nil, err
+		}
+
+		return key, nil
+	}
+
+	// open file to read from
+	file, err := os.Open(sessionFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// decode file contents to store map
+	decoder := gob.NewDecoder(file)
+	if err = decoder.Decode(&key); err != nil {
+		return nil, err
+	}
+
+	return key, nil
 }

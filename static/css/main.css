@@ -1,7 +1,15 @@
+.navbar {
+    margin-bottom: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 888;
+}
+
 .help-block {
     display: inline;
 }
-
 .media img {
     width: 115px;
     height: 115px;
@@ -55,11 +63,11 @@
 }
 
 /* typefaces */
-html, body {
-    
+body {
+    padding-top: 50px;
 }
 
-h1, h2, h3 {
+h1, h2, h3, .navbar-brand {
     font-family: 'Pacifico', cursive;    
 }
 
