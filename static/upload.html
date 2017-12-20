@@ -11,12 +11,15 @@
                 <div class="panel-body">
 
                     <!-- file upload -->
+                    <label for="file-inputs">Upload Files</label>
+                    <form action="/file-upload" class="dropzone" id="file-inputs"></form>
+
                     <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
-                        <!-- file selection -->
+                        <!-- file selection
                         <div class="form-group">
                             <label for="file-input">Select File</label>
                             <input type="file" id="file-input" name="file-input">
-                        </div>
+                        </div>-->
                         <!-- description field -->
                         <div class="form-group">
                             <label for="description-input">Description</label>

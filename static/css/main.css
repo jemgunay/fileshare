@@ -1,3 +1,6 @@
+.container-fluid {
+    margin-top: 50px;
+}
 .navbar {
     margin-bottom: 0;
     position: fixed;
@@ -6,15 +9,6 @@
     width: 100%;
     z-index: 888;
 }
-
-.help-block {
-    display: inline;
-}
-.media img {
-    width: 115px;
-    height: 115px;
-}
-
 .result-panel {
     max-height: 145px;
     overflow: hidden;
@@ -32,6 +26,14 @@
 .section-header {
     margin-top: 25px;
     margin-bottom: 25px;
+}
+
+.help-block {
+    display: inline;
+}
+.media img {
+    width: 115px;
+    height: 115px;
 }
 
 /* bootstrap remove rounded corners */
@@ -63,12 +65,12 @@
 }
 
 /* typefaces */
-body {
-    padding-top: 50px;
-}
-
-h1, h2, h3, .navbar-brand {
+h1, h2, h3 {
     font-family: 'Pacifico', cursive;    
+}
+.navbar-brand {
+    font-family: 'Pacifico', cursive;
+    padding: 15px 25px;
 }
 
 /* loading spinner */
