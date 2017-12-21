@@ -9,12 +9,12 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/sahilm/fuzzy"
+	"net/http"
 )
 
 // Media type of a file.
@@ -121,18 +121,8 @@ type FileDB struct {
 // Initialise FileDB by populating from gob file.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	// check db/temp directory exists
-	tempDir := dbDir+"/temp/"
-	result, err := FileOrDirExists(tempDir)
-	if result == false {
-		// attempt to create
-		err = os.Mkdir(tempDir, 0755)
-		if err != nil {
-			return nil, fmt.Errorf("%v", "failed to create "+tempDir+" directory/file.")
-		}
-		result, err = FileOrDirExists(tempDir)
-		if result == false {
-			return nil, err
-		}
+	if err = EnsureDirExists(dbDir + "/temp/"); err != nil {
+		return
 	}
 
 	// init file DB
@@ -199,31 +189,60 @@ func (db *FileDB) fileExists(fileUUID string) bool {
 	return ok
 }
 
+// Upload file to temp dir in a subdir named as the UUID of the session user.
+func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user *User) (filePath, fileName string, err error) {
+	// check form file
+	newFormFile, handler, err := r.FormFile("file-input")
+	if err != nil {
+		return
+	}
+	defer newFormFile.Close()
+
+	// if a temp file for the user does not exist, create one named by their UUID
+	tempFilePath := config.rootPath + "/db/temp/" + user.UUID + "/"
+	if err = EnsureDirExists(tempFilePath); err != nil {
+		return
+	}
+
+	// check if a file already exists with the same name in temp dir
+
+
+	// create new empty file
+	tempFile, err := os.OpenFile(tempFilePath+handler.Filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return
+	}
+	defer tempFile.Close()
+
+	// copy file from form to new local temp file
+	if _, err = io.Copy(tempFile, newFormFile); err != nil {
+		return
+	}
+
+	// validate file name/extension
+	_, extension := SplitFileName(handler.Filename)
+	if _, err = config.CheckMediaType(extension); err != nil {
+		// delete temp file if unrecognised extension
+		os.Remove(tempFilePath+handler.Filename)
+		return
+	}
+
+	return "/temp_uploaded/" + user.UUID + "/", handler.Filename, nil
+}
+
 // Add a file to the DB.
 func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
 	// create new file Data struct
-	newFile := File{AddedTimestamp: time.Now().Unix(), State: OK, MetaData: metaData}
+	newFile := File{AddedTimestamp: time.Now().Unix(), State: OK, MetaData: metaData, UUID: NewUUID()}
 
-	// set extension and file name
-	if len(filepath.Ext(tempFilePath)) < 2 {
-		return fmt.Errorf("invalid file format")
+	// validate file name/extension
+	newFile.Name, newFile.Extension = SplitFileName(tempFilePath)
+	if _, err = config.CheckMediaType(newFile.Extension); err != nil {
+		return
 	}
-	newFile.Extension = string([]rune(filepath.Ext(tempFilePath)[1:]))
-	fileNameWithExt := []rune(filepath.Base(tempFilePath))
-	newFile.Name = string(fileNameWithExt[:len(fileNameWithExt)-len(newFile.Extension)-1])
-
-	// get media type grouping
-	newFile.MediaType, err = config.CheckMediaType(newFile.Extension)
-	if err != nil {
-		return err
-	}
-
-	// generated UUID to use as storage filename
-	newFile.UUID = NewUUID()
 
 	// move file from db/temp dir to db/content dir
-	err = os.Rename(tempFilePath, newFile.AbsolutePath())
-	if err != nil {
+	if err = os.Rename(tempFilePath, newFile.AbsolutePath()); err != nil {
 		return err
 	}
 

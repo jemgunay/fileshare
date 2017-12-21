@@ -5,6 +5,7 @@
     <!-- display all uploaded files -->
     <div class="row">
         <div class="col-md-offset-2 col-md-8">
+
             <h2 class="section-header">Stored Files</h2>
 
             <!-- search options -->
@@ -12,55 +13,57 @@
                 <div class="panel-body">
                     <div class="row">
 
-                        <!-- description -->
-                        <div class="col-sm-6 form-group">
-                            <label for="desc-search-input">Description Search</label>
-                            <input type="text" id="desc-search-input" class="form-control">
-                        </div>
+                        <form>
+                            <!-- description -->
+                            <div class="col-sm-6 form-group">
+                                <label for="desc-search-input">Description Search</label>
+                                <input type="text" id="desc-search-input" class="form-control">
+                            </div>
 
-                        <!-- date inputs -->
-                        <div class="col-sm-3 form-group">
-                            <label for="min-date-search-input">Min Date</label>
-                            <div class='input-group date' id='min-date-picker'>
-                                <input type='text' class="form-control" id="min-date-search-input">
-                                <span class="input-group-addon">
-                                    <span class="glyphicon glyphicon-calendar"></span>
-                                </span>
+                            <!-- date inputs -->
+                            <div class="col-sm-3 form-group">
+                                <label for="min-date-search-input">Min Date</label>
+                                <div class='input-group date' id='min-date-picker'>
+                                    <input type='text' class="form-control" id="min-date-search-input">
+                                    <span class="input-group-addon">
+                                        <span class="glyphicon glyphicon-calendar"></span>
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-sm-3 form-group">
-                            <label for="max-date-search-input">Max Date</label>
-                            <div class='input-group date' id='max-date-picker'>
-                                <input type='text' class="form-control" id="max-date-search-input">
-                                <span class="input-group-addon">
-                                    <span class="glyphicon glyphicon-calendar"></span>
-                                </span>
+                            <div class="col-sm-3 form-group">
+                                <label for="max-date-search-input">Max Date</label>
+                                <div class='input-group date' id='max-date-picker'>
+                                    <input type='text' class="form-control" id="max-date-search-input">
+                                    <span class="input-group-addon">
+                                        <span class="glyphicon glyphicon-calendar"></span>
+                                    </span>
+                                </div>
                             </div>
-                        </div>
 
-                        <!-- tags -->
-                        <div class="col-sm-4 form-group">
-                            <div class="tags-container">
-                                <label for="tags-search-input">Tags Filter</label>
-                                <input type="text" id="tags-search-input" class="form-control">
+                            <!-- tags -->
+                            <div class="col-sm-4 form-group">
+                                <div class="tags-container">
+                                    <label for="tags-search-input">Tags Filter</label>
+                                    <input type="text" id="tags-search-input" class="form-control">
+                                </div>
                             </div>
-                        </div>
 
-                        <!-- people -->
-                        <div class="col-sm-4 form-group">
-                            <div class="tags-container">
-                                <label for="people-search-input">People Filter</label>
-                                <input type="text" id="people-search-input" class="form-control">
+                            <!-- people -->
+                            <div class="col-sm-4 form-group">
+                                <div class="tags-container">
+                                    <label for="people-search-input">People Filter</label>
+                                    <input type="text" id="people-search-input" class="form-control">
+                                </div>
                             </div>
-                        </div>
 
-                        <!-- media_type -->
-                        <div class="col-sm-4 form-group">
-                            <div class="tags-container">
-                                <label for="type-search-input">File Type Filter</label>
-                                <input type="text" id="type-search-input" class="form-control">
+                            <!-- media_type -->
+                            <div class="col-sm-4 form-group">
+                                <div class="tags-container">
+                                    <label for="type-search-input">File Type Filter</label>
+                                    <input type="text" id="type-search-input" class="form-control">
+                                </div>
                             </div>
-                        </div>
+                        </form>
 
                     </div>
                 </div>

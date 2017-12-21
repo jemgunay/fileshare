@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 	"github.com/twinj/uuid"
+	"fmt"
 )
 
 // Delete all files in a directory.
@@ -65,7 +66,31 @@ func FileOrDirExists(path string) (bool, error) {
 	return true, err
 }
 
+// If a directory does not exist, create it.
+func EnsureDirExists(path string) error {
+	result, err := FileOrDirExists(path)
+	if err != nil {
+		return err
+	}
+	if result == false {
+		// attempt to create
+		err = os.Mkdir(path, 0755)
+		if err != nil {
+			return fmt.Errorf("%v", "failed to create "+path+" directory.")
+		}
+	}
+	return nil
+}
+
 // Generate new UUID.
 func NewUUID() (UUID string) {
 	return uuid.NewV4().String()
+}
+
+// Split file name into name & extension.
+func SplitFileName(file string) (name, extension string) {
+	extension = string([]rune(filepath.Ext(file)[1:]))
+	fileNameWithExt := []rune(filepath.Base(file))
+	name = string(fileNameWithExt[:len(fileNameWithExt)-len(extension)-1])
+	return
 }

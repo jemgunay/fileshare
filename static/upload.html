@@ -2,7 +2,6 @@
 
 <div class="container-fluid">
 
-    <!-- upload form -->
     <div class="row">
         <div class="col-md-offset-2 col-md-8">
             <h2 class="section-header">File Upload</h2>
@@ -10,37 +9,19 @@
             <div class="panel panel-default">
                 <div class="panel-body">
 
-                    <!-- file upload -->
+                    <!-- file dropzone -->
                     <label for="file-inputs">Upload Files</label>
-                    <form action="/file-upload" class="dropzone" id="file-inputs"></form>
+                    <form action="/upload/temp" class="dropzone" id="file-input"></form>
 
-                    <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
-                        <!-- file selection
-                        <div class="form-group">
-                            <label for="file-input">Select File</label>
-                            <input type="file" id="file-input" name="file-input">
-                        </div>-->
-                        <!-- description field -->
-                        <div class="form-group">
-                            <label for="description-input">Description</label>
-                            <input type="text" class="form-control" id="description-input" name="description-input">
-                        </div>
+                </div>
+            </div>
 
-                        <!-- tags & people fields -->
-                        <div class="row">
-                            <div class="col-sm-6 form-group">
-                                <label for="tags-input">Tags</label>
-                                <input type="text" class="form-control" id="tags-input" name="tags-input">
-                            </div>
-                            <div class="col-sm-6 form-group">
-                                <label for="people-input">People</label>
-                                <input type="text" class="form-control" id="people-input" name="people-input">
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn btn-default pull-right" id="upload-btn">Submit</button>
-                    </form>
-
+            <!-- unpublished files -->
+            <div class="panel panel-default">
+                <div class="panel-body">
+                    <div id="upload-results-panel">
+                        {{ .UploadFormsHTML }}
+                    </div>
                 </div>
             </div>
 

@@ -51,15 +51,21 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	var cookieStore = sessions.NewCookieStore(key)
 	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map[string]User)}
 
-	// load users & sessions from file
-
-	// create default admin account if no users exist
-	if len(userDB.Users) == 0 {
-		userDB.addUser("admin", "admin", true)
-	}
+	// load users
+	userDB.deserializeFromFile()
 
 	// start request poller
 	go userDB.StartUserAccessPoller()
+
+	// create default admin account if no users exist
+	if len(userDB.Users) == 0 {
+		//userDB.addUser("admin", "admin", true)
+		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin", "admin"}, boolIn: true}
+		userDB.requestPool <- userAR
+		if (<-userAR.response).err != nil {
+			return nil, fmt.Errorf("default admin account could not be created")
+		}
+	}
 
 	return
 }
@@ -76,6 +82,7 @@ type UserAccessRequest struct {
 type UserAccessResponse struct {
 	err     error
 	success bool
+	user *User
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
@@ -92,16 +99,22 @@ func (db *UserDB) StartUserAccessPoller() {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
 				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.boolIn)
+				db.serializeToFile()
 			}
 
 		case "authenticateUser":
 			response.success, response.err = db.authenticateUser(req.writerIn, req.reqIn)
 
+		case "getSessionUser":
+			response.user, response.err = db.getSessionUser(req.writerIn, req.reqIn)
+
 		case "loginUser":
 			response.success, response.err = db.loginUser(req.writerIn, req.reqIn)
+			db.serializeToFile()
 
 		case "logoutUser":
 			response.err = db.logoutUser(req.writerIn, req.reqIn)
+			db.serializeToFile()
 
 		default:
 			response.err = fmt.Errorf("unsupported user access operation")
@@ -140,7 +153,19 @@ func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (succ
 		return false, nil
 	}
 
+
 	return true, nil
+}
+
+// Get User object associated with request session.
+func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user *User, err error) {
+	session, err := db.cookies.Get(r, "memory-share")
+	if err != nil {
+		return nil, err
+	}
+
+	sessionUser := db.Users[session.Values["email"].(string)]
+	return &sessionUser, nil
 }
 
 // Perform user login.
@@ -247,4 +272,48 @@ func fetchSessionKey() (key []byte, err error) {
 	}
 
 	return key, nil
+}
+
+
+// Serialize store map & transactions slice to a specified file.
+func (db *UserDB) serializeToFile() (err error) {
+	// create/truncate file for writing to
+	file, err := os.Create(db.file)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// encode store map to file
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(&db)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Deserialize from a specified file to the store map, overwriting current map values.
+func (db *UserDB) deserializeFromFile() (err error) {
+	// if db file does not exist, create a new one
+	if _, err := os.Stat(db.file); os.IsNotExist(err) {
+		db.serializeToFile()
+		return nil
+	}
+
+	// open file to read from
+	file, err := os.Open(db.file)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// decode file contents to store map
+	decoder := gob.NewDecoder(file)
+	if err = decoder.Decode(&db); err != nil {
+		return err
+	}
+
+	return nil
 }

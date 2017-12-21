@@ -1,0 +1,37 @@
+<div class="row">
+    <!-- temp uploaded image -->
+    <div class="col-md-2">
+        <img src="{{ .FilePath }}{{ .FileName }}" width="100%">
+    </div>
+
+    <!--  -->
+    <div class="col-md-10">
+
+        <form action="/upload/store" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="{{ .FileName }}">
+
+            <!-- description field -->
+            <div class="form-group">
+                <label for="description-input">Description</label>
+                <input type="text" class="form-control" id="description-input" name="description-input">
+            </div>
+
+            <!-- tags & people fields -->
+            <div class="row">
+                <div class="col-sm-6 form-group">
+                    <label for="tags-input">Tags</label>
+                    <input type="text" class="form-control" id="tags-input" name="tags-input">
+                </div>
+                <div class="col-sm-6 form-group">
+                    <label for="people-input">People</label>
+                    <input type="text" class="form-control" id="people-input" name="people-input">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-default pull-right" id="upload-btn">Save</button>
+        </form>
+
+    </div>
+</div>
+
+<hr>
