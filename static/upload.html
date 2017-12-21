@@ -10,19 +10,20 @@
                 <div class="panel-body">
 
                     <!-- file dropzone -->
-                    <label for="file-inputs">Upload Files</label>
-                    <form action="/upload/temp" class="dropzone" id="file-input"></form>
+                    <form action="/upload/temp" class="dropzone" id="file-input">
+                        <div class="dz-message needsclick">
+                            <strong>Drop files here or click to upload.</strong><br>
+                            <span class="note needsclick">(Files are not published instantly after upload - you wil be able to add a description, tags and people first!)</span>
+                        </div>
+
+                    </form>
 
                 </div>
             </div>
 
             <!-- unpublished files -->
-            <div class="panel panel-default">
-                <div class="panel-body">
-                    <div id="upload-results-panel">
-                        {{ .UploadFormsHTML }}
-                    </div>
-                </div>
+            <div id="upload-results-panel">
+                {{ .UploadFormsHTML }}
             </div>
 
         </div>

@@ -78,9 +78,9 @@ func (s *HTTPServer) Start() {
 	router := mux.NewRouter()
 
 	// user
-	router.HandleFunc("/login", s.loginHandler).Methods("GET", "POST")
+	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods("GET", "POST")
 	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods("GET")
-	router.HandleFunc("/request", s.requestAccessHandler).Methods("GET", "POST")
+	router.HandleFunc("/request", s.authHandler(s.requestAccessHandler)).Methods("GET", "POST")
 	// memory data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods("GET")
 	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods("GET")
@@ -117,6 +117,15 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "authenticateUser", writerIn: w, reqIn: r}
 		s.userDB.requestPool <- userAR
 		response := <-userAR.response
+
+		// if already logged in, redirect these page requests
+		/*if response.success && (r.URL.String() == "/login" || r.URL.String() == "/request") {
+			if r.Method == "GET" {
+				http.Redirect(w, r, "/", 302)
+			} else {
+				s.writeResponse(w, "", nil)
+			}
+		}*/
 
 		// if auth failed (error or wrong password)
 		if response.err != nil || response.success == false {
@@ -336,13 +345,13 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		// fetch upload page
 		templateData := struct {
-			Title       string
-			BrandName   string
-			NavbarHTML  template.HTML
-			NavbarFocus string
-			FooterHTML  template.HTML
-			UploadHTML  template.HTML
-			ContentHTML template.HTML
+			Title           string
+			BrandName       string
+			NavbarHTML      template.HTML
+			NavbarFocus     string
+			FooterHTML      template.HTML
+			UploadHTML      template.HTML
+			ContentHTML     template.HTML
 			UploadFormsHTML template.HTML
 		}{
 			"Upload",
@@ -356,11 +365,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// get all files in temp dir for current session user
-		tempFilePath := config.rootPath + "/db/temp/" + userResponse.user.UUID + "/"
-		files, err := ioutil.ReadDir(tempFilePath)
-		if err != nil {
-			s.writeResponse(w, "", err)
-		}
+		files, err := ioutil.ReadDir(config.rootPath + "/db/temp/" + userResponse.user.UUID + "/")
 
 		// generate upload description forms for each unpublished image
 		for _, f := range files {
@@ -369,7 +374,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				FilePath string
 			}{
 				f.Name(),
-				tempFilePath,
+				"/temp_uploaded/" + userResponse.user.UUID + "/",
 			}
 
 			result, err := s.completeTemplate(config.rootPath+"/dynamic/upload_form.html", uploadTemplateData)

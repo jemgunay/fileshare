@@ -1,13 +1,6 @@
+/* generic */
 .container-fluid {
     margin-top: 50px;
-}
-.navbar {
-    margin-bottom: 0;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    z-index: 888;
 }
 .result-panel {
     max-height: 145px;
@@ -35,6 +28,7 @@
     width: 115px;
     height: 115px;
 }
+
 
 /* bootstrap remove rounded corners */
 * {
@@ -88,4 +82,31 @@ h1, h2, h3 {
 @-webkit-keyframes spin2 {
     from { -webkit-transform: rotate(0deg); }
     to { -webkit-transform: rotate(360deg); }
+}
+
+/* dropzone */
+.dropzone {
+    border: 2px dashed #0087F7;
+    border-radius: 5px;
+    background: white;
+
+    opacity: 1.0;
+    transition: opacity .3s ease-in-out;
+    -moz-transition: opacity .3s ease-in-out;
+    -webkit-transition: opacity .3s ease-in-out;
+}
+.dropzone:hover {
+    opacity: 0.6;
+    transition: opacity .3s ease-in-out;
+    -moz-transition: opacity .3s ease-in-out;
+    -webkit-transition: opacity .3s ease-in-out;
+}
+.dropzone .dz-message {
+    font-weight: 400;
+}
+.dropzone .dz-message .note {
+    font-size: 1em;
+    font-weight: 200;
+    display: block;
+    margin-top: 1.4rem;
 }

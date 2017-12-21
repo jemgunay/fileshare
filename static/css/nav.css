@@ -1,0 +1,90 @@
+@media (max-width: 767px) {
+    .navbar-brand {
+        margin-top: 4px;
+    }
+}
+
+.navbar {
+    margin-bottom: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 888;
+}
+
+/* burger icon animation */
+.icon-bar {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+#nav-animated-icon {
+    width: 22px;
+    height: 20px;
+    position: relative;
+    -webkit-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+    -webkit-transition: .5s ease-in-out;
+    -moz-transition: .5s ease-in-out;
+    -o-transition: .5s ease-in-out;
+    transition: .5s ease-in-out;
+    cursor: pointer;
+}
+
+#nav-animated-icon .icon-bar {
+    display: block;
+    position: absolute;
+    height: 2px;
+    width: 22px;
+    opacity: 1;
+    left: 0;
+    -webkit-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+    -webkit-transition: .25s ease-in-out;
+    -moz-transition: .25s ease-in-out;
+    -o-transition: .25s ease-in-out;
+    transition: .25s ease-in-out;
+}
+
+#nav-animated-icon .icon-bar:nth-child(1) {
+    top: -1px;
+}
+
+#nav-animated-icon .icon-bar:nth-child(2),#nav-animated-icon .icon-bar:nth-child(3) {
+    top: 5px;
+}
+
+#nav-animated-icon .icon-bar:nth-child(4) {
+    top: 13px;
+}
+
+#nav-animated-icon.open .icon-bar:nth-child(1) {
+    top: 5px;
+    width: 0%;
+    left: 50%;
+}
+
+#nav-animated-icon.open .icon-bar:nth-child(2) {
+    -webkit-transform: rotate(45deg);
+    -moz-transform: rotate(45deg);
+    -o-transform: rotate(45deg);
+    transform: rotate(45deg);
+}
+
+#nav-animated-icon.open .icon-bar:nth-child(3) {
+    -webkit-transform: rotate(-45deg);
+    -moz-transform: rotate(-45deg);
+    -o-transform: rotate(-45deg);
+    transform: rotate(-45deg);
+}
+
+#nav-animated-icon.open .icon-bar:nth-child(4) {
+    top: 5px;
+    width: 0%;
+    left: 50%;
+}

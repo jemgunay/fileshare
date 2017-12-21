@@ -25,8 +25,8 @@ const (
 // A user account.
 type User struct {
 	UUID     string
-	password string
-	admin    bool
+	Password string
+	Admin    bool
 	AccountState
 }
 
@@ -49,7 +49,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	}
 
 	var cookieStore = sessions.NewCookieStore(key)
-	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map[string]User)}
+	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map[string]User), requestPool: make(chan UserAccessRequest)}
 
 	// load users
 	userDB.deserializeFromFile()
@@ -59,7 +59,6 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default admin account if no users exist
 	if len(userDB.Users) == 0 {
-		//userDB.addUser("admin", "admin", true)
 		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin", "admin"}, boolIn: true}
 		userDB.requestPool <- userAR
 		if (<-userAR.response).err != nil {
@@ -82,13 +81,11 @@ type UserAccessRequest struct {
 type UserAccessResponse struct {
 	err     error
 	success bool
-	user *User
+	user    *User
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
 func (db *UserDB) StartUserAccessPoller() {
-	db.requestPool = make(chan UserAccessRequest)
-
 	for req := range db.requestPool {
 		response := UserAccessResponse{}
 
@@ -136,7 +133,7 @@ func (db *UserDB) addUser(email string, password string, admin bool) (err error)
 		return err
 	}
 
-	newUser := User{password: string(hashedPassword), admin: admin, UUID: NewUUID()}
+	newUser := User{Password: string(hashedPassword), Admin: admin, UUID: NewUUID()}
 	db.Users[email] = newUser
 	return
 }
@@ -152,7 +149,6 @@ func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (succ
 	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
 		return false, nil
 	}
-
 
 	return true, nil
 }
@@ -171,9 +167,6 @@ func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user *
 // Perform user login.
 func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success bool, err error) {
 	session, err := db.cookies.Get(r, "memory-share")
-	if err != nil {
-		return false, err
-	}
 
 	// get form data
 	if err = r.ParseForm(); err != nil {
@@ -186,7 +179,7 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 	matchFound := false
 	for email, user := range db.Users {
 		// compare stored hash against hash of input password
-		err := bcrypt.CompareHashAndPassword([]byte(user.password), []byte(passwordParam))
+		err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
 		if emailParam == email && err == nil {
 			matchFound = true
 			break
@@ -220,15 +213,16 @@ func (db *UserDB) logoutUser(w http.ResponseWriter, r *http.Request) (err error)
 
 	// Revoke users authentication
 	session.Values["authenticated"] = false
+	session.Options.MaxAge = -1
 	if err := session.Save(r, w); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Get session secure key from session.dat if one was created in the previous run, otherwise create a new one
+// Get session secure key from session_key.dat if one was created in the previous run, otherwise create a new one.
 func fetchSessionKey() (key []byte, err error) {
-	sessionFilePath := config.rootPath + "/config/session.dat"
+	sessionFilePath := config.rootPath + "/config/session_key.dat"
 
 	// check if file exists
 	ok, err := FileOrDirExists(sessionFilePath)
@@ -273,7 +267,6 @@ func fetchSessionKey() (key []byte, err error) {
 
 	return key, nil
 }
-
 
 // Serialize store map & transactions slice to a specified file.
 func (db *UserDB) serializeToFile() (err error) {

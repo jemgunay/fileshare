@@ -1,44 +1,46 @@
 <!-- navbar -->
 <nav class="navbar navbar-default">
 
-        <div class="navbar-header">
-            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
-                <span class="sr-only">Toggle navigation</span>
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <div id="nav-animated-icon">
                 <span class="icon-bar"></span>
                 <span class="icon-bar"></span>
                 <span class="icon-bar"></span>
-            </button>
-            <!-- brand -->
-            <a class="navbar-brand" href="/">{{ .BrandName }}</a>
-        </div>
-        <div id="navbar" class="navbar-collapse collapse">
-            <!-- left side -->
-            <ul class="nav navbar-nav">
-                <li {{ if eq .NavbarFocus "search" }}class="active"{{ end }}><a href="/">Memories</a></li>
+                <span class="icon-bar"></span>
+            </div>
+        </button>
+        <!-- brand -->
+        <a class="navbar-brand" href="/">{{ .BrandName }}</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+        <!-- left side -->
+        <ul class="nav navbar-nav">
+            <li {{ if eq .NavbarFocus "search" }}class="active"{{ end }}><a href="/">Memories</a></li>
 
-                <li {{ if eq .NavbarFocus "upload" }}class="active"{{ end }}><a href="/upload">Upload</a></li>
+            <li {{ if eq .NavbarFocus "upload" }}class="active"{{ end }}><a href="/upload">Upload</a></li>
 
-                <li class="dropdown">
-                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Account <span class="caret"></span></a>
-                    <ul class="dropdown-menu">
-                        <li {{ if eq .NavbarFocus "profile" }}}class="active"{{ end }}><a href="/user">Profile</a></li>
-                        <li {{ if eq .NavbarFocus "profile_2" }}}class="active"{{ end }}><a href="/user">Preferences</a></li>
-                    </ul>
-                </li>
-            </ul>
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Account <span class="caret"></span></a>
+                <ul class="dropdown-menu">
+                    <li {{ if eq .NavbarFocus "profile" }}}class="active"{{ end }}><a href="/user">Profile</a></li>
+                    <li {{ if eq .NavbarFocus "profile_2" }}}class="active"{{ end }}><a href="/user">Preferences</a></li>
+                </ul>
+            </li>
+        </ul>
 
-            <!-- right side -->
-            <ul class="nav navbar-nav navbar-right">
-                <li class="dropdown">
-                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Admin <span class="caret"></span></a>
-                    <ul class="dropdown-menu">
-                        <li {{ if eq .NavbarFocus "admin" }}}class="active"{{ end }}><a href="/admin">Config</a></li>
-                        <li {{ if eq .NavbarFocus "admin_2" }}}class="active"{{ end }}><a href="/admin">Setting</a></li>
-                    </ul>
-                </li>
+        <!-- right side -->
+        <ul class="nav navbar-nav navbar-right">
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Admin <span class="caret"></span></a>
+                <ul class="dropdown-menu">
+                    <li {{ if eq .NavbarFocus "admin" }}}class="active"{{ end }}><a href="/admin">Config</a></li>
+                    <li {{ if eq .NavbarFocus "admin_2" }}}class="active"{{ end }}><a href="/admin">Setting</a></li>
+                </ul>
+            </li>
 
-                <li><a href="/logout">Log Out</a></li>
-            </ul>
-        </div>
+            <li><a href="/logout">Log Out</a></li>
+        </ul>
+    </div>
 
 </nav>
