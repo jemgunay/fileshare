@@ -1,3 +1,17 @@
+/* typefaces */
+body, html {
+    font-family: 'Raleway', sans-serif;
+    letter-spacing: 0.04em;
+    line-height: 170%;
+}
+h1, h2, h3 {
+    font-family: 'Pacifico', cursive;
+}
+.navbar-brand {
+    font-family: 'Pacifico', cursive;
+    padding: 15px 25px;
+}
+
 /* generic */
 .container-fluid {
     margin-top: 50px;
@@ -8,6 +22,9 @@
 }
 #search-panel .panel-body, #results-panel-body {
     padding-bottom: 0;
+}
+#search-panel label {
+    margin-bottom: 0;
 }
 
 #results-window {
@@ -28,7 +45,56 @@
     width: 115px;
     height: 115px;
 }
+.btn-spinner {
+    display: none;
+}
 
+/* upload page */
+#upload-results-panel .upload-buttons {
+    text-align: right;
+}
+#upload-results-panel .img-details {
+    padding: 0 15px;
+}
+@media (max-width: 767px) {
+    #upload-results-panel .img-preview {
+        width: 100%;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    #upload-results-panel .img-preview img {
+        width: 50%;
+    }
+}
+@media (min-width: 768px) {
+    #upload-results-panel .upload-result-container {
+        display: table;
+        width: 100%
+    }
+    #upload-results-panel .img-preview {
+        width: 180px;
+        display: table-cell;
+        position: relative;
+    }
+    #upload-results-panel .img-preview img {
+        width: 100%;
+        margin: 0;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+    #upload-results-panel .img-details {
+        width: auto;
+        display: table-cell;
+    }
+    #upload-results-panel .img-details label {
+        padding-right: 0;
+    }
+    #upload-results-panel .upload-btn-container {
+        margin-bottom: 0;
+    }
+}
 
 /* bootstrap remove rounded corners */
 * {
@@ -56,15 +122,6 @@
 #login-container .alert {
     margin-top: 15px;
     margin-bottom: 0;
-}
-
-/* typefaces */
-h1, h2, h3 {
-    font-family: 'Pacifico', cursive;    
-}
-.navbar-brand {
-    font-family: 'Pacifico', cursive;
-    padding: 15px 25px;
 }
 
 /* loading spinner */

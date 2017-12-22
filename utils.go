@@ -7,6 +7,8 @@ import (
 	"time"
 	"github.com/twinj/uuid"
 	"fmt"
+	"crypto/sha256"
+	"io"
 )
 
 // Delete all files in a directory.
@@ -89,8 +91,31 @@ func NewUUID() (UUID string) {
 
 // Split file name into name & extension.
 func SplitFileName(file string) (name, extension string) {
-	extension = string([]rune(filepath.Ext(file)[1:]))
+	extensionWithDot := filepath.Ext(file)
+	if len(extensionWithDot) < 2 {
+		return
+	}
+	extension = string([]rune(extensionWithDot[1:]))
 	fileNameWithExt := []rune(filepath.Base(file))
-	name = string(fileNameWithExt[:len(fileNameWithExt)-len(extension)-1])
+	upperRange := len(fileNameWithExt)-len(extension)-1
+	if upperRange > len(fileNameWithExt) {
+		return "", ""
+	}
+	name = string(fileNameWithExt[:upperRange])
 	return
+}
+
+// Generate hash of file contents.
+func GenerateFileHash(file string) (hash string, err error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return string(h.Sum(nil)), nil
 }

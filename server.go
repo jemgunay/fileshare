@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"os"
 )
 
 // A server providing file sharing and access related services.
@@ -119,13 +120,18 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		response := <-userAR.response
 
 		// if already logged in, redirect these page requests
-		/*if response.success && (r.URL.String() == "/login" || r.URL.String() == "/request") {
-			if r.Method == "GET" {
-				http.Redirect(w, r, "/", 302)
+		if r.URL.String() == "/login" || r.URL.String() == "/request" {
+			if response.success {
+				if r.Method == "GET" {
+					http.Redirect(w, r, "/", 302)
+				} else {
+					s.writeResponse(w, "", nil)
+				}
 			} else {
-				s.writeResponse(w, "", nil)
+				h(w, r)
+				return
 			}
-		}*/
+		}
 
 		// if auth failed (error or wrong password)
 		if response.err != nil || response.success == false {
@@ -216,7 +222,6 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		s.writeResponse(w, "error", err)
 	}
 	http.Redirect(w, r, "/login", 302)
-	//s.writeResponse(w, "logged out", err)
 }
 
 // Search files by their properties.
@@ -321,7 +326,11 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	var err error
 	templateData.NavbarHTML, err = s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
 	templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/search_footer.html", templateData)
-	templateData.FilesHTML, err = s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
+	var filesHTMLTarget = "/dynamic/files_list.html"
+	if len(templateData.Files) == 0 {
+		filesHTMLTarget = "/static/no_match.html"
+	}
+	templateData.FilesHTML, err = s.completeTemplate(config.rootPath+filesHTMLTarget, templateData)
 	templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/dynamic/home.html", templateData)
 	result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
 
@@ -396,15 +405,15 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// file upload
 	case "POST":
-		// limit request size to prevent DOS (10MB) & get data from form
-		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
-		if err := r.ParseMultipartForm(0); err != nil {
-			s.writeResponse(w, "", err)
-		}
-
 		// store file in temp dir under user UUID subdir ready for processing
 		switch vars["type"] {
 		case "temp":
+			// limit request size to prevent DOS (10MB) & get data from form
+			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+			if err := r.ParseMultipartForm(0); err != nil {
+				s.writeResponse(w, "", err)
+			}
+			// move form file to temp dir
 			tempPath, tempName, err := s.fileDB.uploadFileToTemp(w, r, userResponse.user)
 			if err != nil {
 				s.writeResponse(w, "", err)
@@ -423,37 +432,92 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			result, err := s.completeTemplate(config.rootPath+"/dynamic/upload_form.html", templateData)
 			s.writeResponse(w, string(result), err)
 
-		case "store":
-
-			/*// process tags and people fields
-			tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
-			people := ProcessInputList(r.Form.Get("people-input"), ",", true)
-			metaData := MetaData{Description: r.Form.Get("description-input"), Tags: tags, People: people}
-
-			// add file to DB & move from db/temp dir to db/content dir
-			fileAR := FileAccessRequest{errorOut: make(chan error), operation: "storeFile", fileParam: tempFilePath, fileMetadata: metaData}
-			s.fileDB.requestPool <- fileAR
-			if err := <-fileAR.errorOut; err != nil {
-				// destroy temp file on add failure
-				os.Remove(tempFilePath)
+		// delete a file from user temp dir
+		case "temp_delete":
+			if err := r.ParseForm(); err != nil {
 				s.writeResponse(w, "", err)
 				return
 			}
 
-			// upload to db/temp success
-			s.writeResponse(w, "file uploaded", err)*/
+			// construct temp file path
+			targetTempDir := config.rootPath + "/db/temp/" + userResponse.user.UUID + "/"
+			targetFile := r.Form.Get("file")
+
+			// check if file exists
+			ok, err := FileOrDirExists(targetTempDir + targetFile)
+			if err != nil || !ok {
+				s.writeResponse(w, "", fmt.Errorf("invalid_file"))
+				return
+			}
+
+			// remove file
+			if err := os.Remove(targetTempDir + targetFile); err != nil {
+				s.writeResponse(w, "", err)
+				return
+			}
+
+			s.writeResponse(w, "success", nil)
+
+		// move temp file to DB with file details
+		case "store":
+			if err := r.ParseForm(); err != nil {
+				s.writeResponse(w, "", err)
+				return
+			}
+
+			// ensure access to target file is permitted
+			targetTempDir := config.rootPath + "/db/temp/" + userResponse.user.UUID + "/"
+			targetFile := r.Form.Get("file")
+			ok, err := FileOrDirExists(targetTempDir + targetFile)
+			if !ok || err != nil {
+				s.writeResponse(w, "", fmt.Errorf("temp file does not exist"))
+				return
+			}
+
+			// process tags and people fields
+			tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
+			people := ProcessInputList(r.Form.Get("people-input"), ",", true)
+			metaData := MetaData{Description: r.Form.Get("description-input"), Tags: tags, People: people}
+
+			// validate form field lengths
+			if len(tags) == 0 {
+				s.writeResponse(w, "", fmt.Errorf("no_tags"))
+			}
+			if len(people) == 0 {
+				s.writeResponse(w, "", fmt.Errorf("no_people"))
+			}
+
+			// add file to DB & move from db/temp dir to db/content dir
+			fileAR := FileAccessRequest{errorOut: make(chan error), operation: "storeFile", fileParam: targetTempDir + targetFile, fileMetadata: metaData}
+			s.fileDB.requestPool <- fileAR
+			if err := <-fileAR.errorOut; err != nil {
+				s.writeResponse(w, "", err)
+				return
+			}
+
+			// success
+			s.writeResponse(w, "success", err)
 		}
 	}
 }
 
 // Write a HTTP response to connection.
-func (s *HTTPServer) writeResponse(w http.ResponseWriter, response string, err error) {
+func (s *HTTPServer) writeSuccess(w http.ResponseWriter, response string) {
+	// write
+	_, err := fmt.Fprintf(w, "%v\n", response)
 	if err != nil {
 		log.Println(err)
-		response = err.Error()
-		w.WriteHeader(http.StatusInternalServerError)
 	}
-	_, err = fmt.Fprintf(w, "%v\n", response)
+}
+
+// Write a HTTP error response to connection.
+func (s *HTTPServer) writeError(w http.ResponseWriter, err error, enableLog bool) {
+	if enableLog {
+		log.Println(err)
+		w.WriteHeader(http.StatusForbidden)
+	}
+	// write
+	_, err = fmt.Fprintf(w, "%v\n", err.Error())
 	if err != nil {
 		log.Println(err)
 	}

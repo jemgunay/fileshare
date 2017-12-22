@@ -19,7 +19,7 @@ type Config struct {
 	rootPath     string
 	file         string
 	params       map[string]ConfigSet
-	fileFormats  map[MediaType]string
+	fileFormats  map[string]string
 	indexCounter int
 	commentLines []ConfigSet
 }
@@ -68,7 +68,7 @@ func (c *Config) LoadConfig(rootPath string) (err error) {
 	}
 
 	// set up media type pairings
-	c.fileFormats = make(map[MediaType]string)
+	c.fileFormats = make(map[string]string)
 	c.fileFormats[IMAGE] = c.params["image_formats"].val
 	c.fileFormats[VIDEO] = c.params["video_formats"].val
 	c.fileFormats[AUDIO] = c.params["audio_formats"].val
@@ -88,7 +88,7 @@ func (c *Config) Set(param string, value string) {
 }
 
 // Get the media type grouping for the provided file extension.
-func (c *Config) CheckMediaType(fileExtension string) (MediaType, error) {
+func (c *Config) CheckMediaType(fileExtension string) (string, error) {
 	// check for malicious commas before parsing
 	if strings.Contains(fileExtension, ",") {
 		return UNSUPPORTED, fmt.Errorf("'%s' is an unsupported file format", fileExtension)

@@ -9,12 +9,44 @@
             <div class="media">
                 <div class="media-left">
                     <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank">
-                        <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        {{ if eq $file.MediaType "image" }}
+                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        {{ end }}
+                        {{ if eq $file.MediaType "video" }}
+                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        {{ end }}
+                        {{ if eq $file.MediaType "audio" }}
+                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        {{ end }}
+                        {{ if eq $file.MediaType "text" }}
+                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        {{ end }}
+                        {{ if eq $file.MediaType "other" }}
+                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        {{ end }}
                     </a>
                 </div>
                 <div class="media-body">
-                    <h4 class="media-heading"><u>{{ $file.Name }}.{{ $file.Extension }}</u></h4>
-                    <p><strong>{{ $file.Description }}</strong></p>
+                    <h4 class="media-heading">
+                        {{ if eq $file.MediaType "image" }}
+                            <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq $file.MediaType "video" }}
+                            <span class="glyphicon glyphicon-video" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq $file.MediaType "audio" }}
+                            <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq $file.MediaType "text" }}
+                            <span class="glyphicon glyphicon-font" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq $file.MediaType "other" }}
+                            <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
+                        {{ end }}
+
+                        <strong>{{ $file.Description }}</strong>
+                    </h4>
+
                     
                     <!-- tags -->
                     {{ if $file.Tags }}

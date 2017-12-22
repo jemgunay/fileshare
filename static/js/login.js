@@ -1,5 +1,5 @@
 $(document).ready(function() {
-    resetInputs();
+    setButtonProcessing($("#login-btn"), false);
 
     // login form submit
     $("#login-form").submit(function(e) {
@@ -7,32 +7,24 @@ $(document).ready(function() {
 
         var data = $(this).serialize();
 
-        $("#login-btn").attr("disabled", true);
-        $("#login-btn strong").hide();
-        $("#login-btn span").show();
+        setButtonProcessing($("#login-btn"), true);
 
         performRequest(hostname + "/login", "post", data, function(result) {
             result = result.trim();
 
             if (result === "unauthorised") {
                 setAlertWindow("warning", "Incorrect email address or password.", "#error-window");
-                resetInputs();
+                $("#password-input").val("");
+                setButtonProcessing($("#login-btn"), false);
             }
             else if (result === "error") {
                 setAlertWindow("danger", "A server error occurred.", "#error-window");
-                resetInputs();
+                $("#password-input").val("");
+                setButtonProcessing($("#login-btn"), false);
             }
             else {
                 window.location = "/";
             }
         });
-    })
+    });
 });
-
-// Reset login inputs.
-function resetInputs() {
-    $("#password-input").val("");
-    $("#login-btn").attr("disabled", false);
-    $("#login-btn strong").show();
-    $("#login-btn span").hide();
-}

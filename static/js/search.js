@@ -1,46 +1,67 @@
 var maxAutoCompleteSuggestions = 5;
 
 $(document).ready(function() {
-    // init search/filter inputs
-    performRequest(hostname + "/data?fetch=tags,people,file_types,dates", "GET", "", function (result) {
-        var parsedData = JSON.parse(result);
-        initSearchInputs(parsedData);
-    });
+
+    if (window.location.pathname === "/") {
+        // init search/filter inputs
+        $("#desc-search-input").val("").on("input", performSearch);
+
+        performRequest(hostname + "/data?fetch=tags,people,file_types,dates", "GET", "", function (result) {
+            var tokenfieldSets = [["tags", "#tags-search-input", false], ["people", "#people-search-input", false], ["file_types", "#type-search-input", true]];
+            var parsedData = JSON.parse(result);
+
+            initMetaDataFields(parsedData, tokenfieldSets);
+
+            // date pickers
+            $("#min-date-picker, #max-date-picker").datetimepicker({
+                format: "DD/MM/YYYY"
+            });
+
+            if (parsedData["dates"] == null) {
+                var currentEpoch = Math.floor((new Date).getTime() / 1000);
+                parsedData["dates"] = [currentEpoch, currentEpoch];
+            }
+            $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][0]) * 1000));
+            $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][1]) * 1000));
+            $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
+        });
+    }
+
 });
 
 // Pull required data from server & initialise search/filter inputs.
-function initSearchInputs(inputDefaultData) {
-    // description
-    $("#desc-search-input").val("").on("input", performSearch);
-
+function initMetaDataFields(parsedData, tokenfieldSets) {
     // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield value will be populated pre-with all retrieved data.
-    var tokenfieldSets = [["tags", "#tags-search-input, #tags-input", false], ["people", "#people-search-input, #people-input", false], ["file_types", "#type-search-input", true]];
-
     for (var i = 0; i < tokenfieldSets.length; i++) {
         var metaType = tokenfieldSets[i][0];
         var tagIDs = tokenfieldSets[i][1];
         var populateValue = tokenfieldSets[i][2];
-        
-        var commaSeparatedData = inputDefaultData[metaType].join();
+
+        // check if data eists
+        if (parsedData[metaType] == null) {
+            continue;
+        }
+
+        var commaSeparatedData = parsedData[metaType].join();
         // set default input value
         if (populateValue) {
             $(tagIDs).val(commaSeparatedData);
         }
 
-        (function (tagIDs, inputDefaultData, metaType) {
+        (function (tagIDs, parsedData, metaType) {
             $(tagIDs).tokenfield({
                 autocomplete: {
                     source: function (request, response) {
-                        var results = $.ui.autocomplete.filter(inputDefaultData[metaType], request.term);
-                        
+                        var results = $.ui.autocomplete.filter(parsedData[metaType], request.term);
+
                         // remove already selected tokens from autocomplete results
                         var selectedTokens = $(tagIDs).tokenfield('getTokens', false);
                         var selectedTokenVals = [];
-                        for (var i in selectedTokens) { 
+                        for (var i in selectedTokens) {
                             selectedTokenVals.push(selectedTokens[i]["label"]);
                         }
                         var unselectedResults = $(results).not(selectedTokenVals).get();
-                        
+
                         // limit autocomplete results
                         response(unselectedResults.slice(0, maxAutoCompleteSuggestions))
                     },
@@ -49,17 +70,8 @@ function initSearchInputs(inputDefaultData) {
                 showAutocompleteOnFocus: true,
                 createTokensOnBlur: true
             }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
-        }(tagIDs, inputDefaultData, metaType));
+        }(tagIDs, parsedData, metaType));
     }
-
-    // date pickers
-    $("#min-date-picker, #max-date-picker").datetimepicker({
-        format: "DD/MM/YYYY"
-    });
-    
-    $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(inputDefaultData["dates"][0])*1000));
-    $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(inputDefaultData["dates"][1])*1000));
-    $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
 }
 
 // Perform search/filter request.

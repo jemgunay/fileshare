@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
@@ -15,43 +14,21 @@ import (
 
 	"github.com/sahilm/fuzzy"
 	"net/http"
+	"path/filepath"
 )
-
-// Media type of a file.
-type MediaType int
 
 const (
-	IMAGE MediaType = iota
-	VIDEO
-	AUDIO
-	TEXT
-	OTHER // zip/rar
-	UNSUPPORTED
+	IMAGE string = "image"
+	VIDEO string = "video"
+	AUDIO string = "audio"
+	TEXT string = "text"
+	OTHER string = "other" // zip/rar
+	UNSUPPORTED string = "unsupported"
 )
-
-// Convert media type to string representation.
-func (m MediaType) String() string {
-	switch m {
-	case IMAGE:
-		return "image"
-	case VIDEO:
-		return "video"
-	case AUDIO:
-		return "audio"
-	case TEXT:
-		return "text"
-	case OTHER:
-		return "other"
-	case UNSUPPORTED:
-		fallthrough
-	default:
-		return "unsupported"
-	}
-}
 
 type MetaData struct {
 	Description string
-	MediaType
+	MediaType string
 	Tags   []string
 	People []string
 }
@@ -77,12 +54,6 @@ type File struct {
 	MetaData
 	UUID string
 	Hash string
-}
-
-// Represents a clean
-type JSONFile struct {
-	File
-	FullFileName string
 }
 
 // Get full absolute path to file.
@@ -155,8 +126,8 @@ func (db *FileDB) StartFileAccessPoller() {
 	for req := range db.requestPool {
 		// process request
 		switch req.operation {
-		case "addFile":
-			req.errorOut <- db.addFile(req.fileParam, req.fileMetadata)
+		case "storeFile":
+			req.errorOut <- db.storeFile(req.fileParam, req.fileMetadata)
 			db.serializeToFile()
 		case "deleteFile":
 			req.errorOut <- db.deleteFile(req.fileParam, false)
@@ -204,15 +175,15 @@ func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 
-	// check if a file already exists with the same name in temp dir
-
-
 	// create new empty file
 	tempFile, err := os.OpenFile(tempFilePath+handler.Filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return
 	}
 	defer tempFile.Close()
+
+	// check if a file already exists with the same name in temp dir
+
 
 	// copy file from form to new local temp file
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
@@ -222,42 +193,53 @@ func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user 
 	// validate file name/extension
 	_, extension := SplitFileName(handler.Filename)
 	if _, err = config.CheckMediaType(extension); err != nil {
-		// delete temp file if unrecognised extension
-		os.Remove(tempFilePath+handler.Filename)
+		os.Remove(tempFilePath+handler.Filename) // delete temp file if unrecognised extension
 		return
+	}
+
+	// generate hash of file contents
+	newHash, err := GenerateFileHash(tempFilePath+handler.Filename)
+	if err != nil {
+		os.Remove(tempFilePath+handler.Filename) // delete temp file if already exists in DB
+		return
+	}
+	for _, file := range db.Data {
+		if file.Hash == newHash {
+			err = fmt.Errorf("an exact copy of this file already exists")
+			os.Remove(tempFilePath+handler.Filename) // delete temp file if already exists in DB
+			return
+		}
 	}
 
 	return "/temp_uploaded/" + user.UUID + "/", handler.Filename, nil
 }
 
 // Add a file to the DB.
-func (db *FileDB) addFile(tempFilePath string, metaData MetaData) (err error) {
+func (db *FileDB) storeFile(tempFilePath string, metaData MetaData) (err error) {
 	// create new file Data struct
 	newFile := File{AddedTimestamp: time.Now().Unix(), State: OK, MetaData: metaData, UUID: NewUUID()}
 
 	// validate file name/extension
-	newFile.Name, newFile.Extension = SplitFileName(tempFilePath)
-	if _, err = config.CheckMediaType(newFile.Extension); err != nil {
-		return
+	newFile.Name, newFile.Extension = SplitFileName(filepath.Base(tempFilePath))
+	if len(newFile.Name) == 0 || len(newFile.Extension) == 0 {
+		return fmt.Errorf("invalid file")
+	}
+	if newFile.MetaData.MediaType, err = config.CheckMediaType(newFile.Extension); err != nil {
+		os.Remove(tempFilePath) // destroy temp file on add failure
+		return err
 	}
 
 	// move file from db/temp dir to db/content dir
 	if err = os.Rename(tempFilePath, newFile.AbsolutePath()); err != nil {
+		os.Remove(tempFilePath) // destroy temp file on add failure
 		return err
 	}
 
 	// generate hash of file contents
-	f, err := os.Open(newFile.AbsolutePath())
-	if err != nil {
+	if newFile.Hash, err = GenerateFileHash(newFile.AbsolutePath()); err != nil {
+		os.Remove(newFile.AbsolutePath()) // destroy file on add failure
 		return err
 	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return err
-	}
-	newFile.Hash = string(h.Sum(nil))
 
 	db.Data[newFile.UUID] = newFile
 	// record transaction
@@ -273,10 +255,12 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 	// min/max dates data request
 	if target == "dates" {
 		sortedFiles := SortFilesByDate(db.toSlice())
-		minDate := fmt.Sprintf("%d", sortedFiles[len(sortedFiles)-1].AddedTimestamp)
-		maxDate := fmt.Sprintf("%d", sortedFiles[0].AddedTimestamp)
-		result = append(result, minDate)
-		result = append(result, maxDate)
+		if len(sortedFiles) > 0 {
+			minDate := fmt.Sprintf("%d", sortedFiles[len(sortedFiles)-1].AddedTimestamp)
+			maxDate := fmt.Sprintf("%d", sortedFiles[0].AddedTimestamp)
+			result = append(result, minDate)
+			result = append(result, maxDate)
+		}
 		return
 	}
 
@@ -292,7 +276,7 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 				resultMap[person] = true
 			}
 		case "file_types":
-			resultMap[strings.Title(file.MediaType.String())] = true
+			resultMap[strings.Title(file.MediaType)] = true
 		}
 	}
 
@@ -329,18 +313,12 @@ func (db *FileDB) deleteFile(fileUUID string, hardDelete bool) (err error) {
 
 // Get a filtered JSON representation of the File properties.
 func FilesToJSON(files []File, pretty bool) string {
-	filesJSON := make([]JSONFile, 0, len(files))
-
-	for _, file := range files {
-		filesJSON = append(filesJSON, JSONFile{File: file, FullFileName: file.Name + "." + file.Extension})
-	}
-
 	// jsonify
 	jsonBuffer := &bytes.Buffer{}
 	encoder := json.NewEncoder(jsonBuffer)
 	encoder.SetEscapeHTML(false)
 
-	if err := encoder.Encode(filesJSON); err != nil {
+	if err := encoder.Encode(files); err != nil {
 		return err.Error()
 	}
 
@@ -450,7 +428,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			typeMatched := false
 			// check each search request file type against current file file type
 			for _, fileType := range searchReq.fileTypes {
-				if fileType == searchResults[i].MediaType.String() {
+				if fileType == searchResults[i].MediaType {
 					typeMatched = true
 					break
 				}

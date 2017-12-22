@@ -1,48 +1,60 @@
-<div class="panel panel-default">
+<div class="panel panel-default upload-result-panel">
     <div class="panel-body">
-        <div class="row">
+        <div class="upload-result-container">
             <!-- temp uploaded image -->
-            <div class="col-sm-4">
-                <img src="{{ .FilePath }}{{ .FileName }}" width="100%">
+            <div class="img-preview">
+                <img src="{{ .FilePath }}{{ .FileName }}">
             </div>
 
-            <!--  -->
-            <div class="col-sm-8">
-
+            <!-- details for temp image -->
+            <div class="img-details">
                 <form action="/upload/store" method="post" enctype="multipart/form-data" class="form-horizontal">
-                    <input type="hidden" name="{{ .FileName }}">
 
-                    <!-- description field -->
-                    <div class="form-group">
-                        <div class="col-sm-12">
-                            <label for="description-input">Description</label>
-                            <input type="text" class="form-control" id="description-input" name="description-input">
+                    <div class="row">
+                        <input type="hidden" name="file" value="{{ .FileName }}">
+
+                        <!-- description field -->
+                        <div class="form-group">
+                            <label for="description-input" class="col-sm-3 col-lg-2 control-label">Description</label>
+                            <div class="col-sm-9 col-lg-10">
+                                <input type="text" class="form-control" id="description-input" name="description-input">
+                            </div>
+                        </div>
+
+                        <!-- tags field -->
+                        <div class="form-group">
+                            <label for="tags-input" class="col-sm-3 col-lg-2 control-label">Tags</label>
+                            <div class="col-sm-9 col-lg-10">
+                                <input type="text" class="form-control" id="tags-input" name="tags-input">
+                            </div>
+                        </div>
+
+                        <!-- people field -->
+                        <div class="form-group">
+                            <label for="people-input" class="col-sm-3 col-lg-2 control-label">People</label>
+                            <div class="col-sm-9 col-lg-10">
+                                <input type="text" class="form-control" id="people-input" name="people-input">
+                            </div>
+                        </div>
+
+                        <!-- buttons -->
+                        <div class="form-group upload-btn-container">
+                            <div class="col-sm-offset-3 col-sm-9 col-lg-offset-2 col-lg-10 upload-buttons">
+                                <button class="btn btn-danger pull-left">
+                                    <span class="btn-label glyphicon glyphicon-trash" aria-hidden="true"></span>
+                                    <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <strong class="btn-label">Publish Memory</strong>
+                                    <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <div class="col-sm-12">
-                            <label for="tags-input">Tags</label>
-                            <input type="text" class="form-control" id="tags-input" name="tags-input">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="col-sm-12">
-                            <label for="people-input">People</label>
-                            <input type="text" class="form-control" id="people-input" name="people-input">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="col-sm-12">
-                            <button type="submit" class="btn btn-danger"><span class="glyphicon glyphicon-trash" aria-hidden="true"></span></button>
-                            <button type="submit" class="btn btn-primary">Publish Memory</button>
-                        </div>
-                    </div>
                 </form>
-
             </div>
+
         </div>
     </div>
 </div>

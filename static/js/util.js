@@ -50,3 +50,16 @@ function setAlertWindow(type, msg, target) {
         $(target).hide().empty().append(replaced).fadeIn(400);
     });
 }
+
+// Toggle button enabled & spinner visibility.
+function setButtonProcessing(element, enabled) {
+    if (enabled === true) {
+        element.attr("disabled", true);
+        element.find(".btn-label").hide();
+        element.find(".btn-spinner").show();
+        return
+    }
+    element.find(".btn-label").show();
+    element.find(".btn-spinner").hide();
+    element.attr("disabled", false);
+}
