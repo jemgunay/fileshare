@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
 	"os"
+
+	"github.com/gorilla/mux"
 )
 
 // A server providing file sharing and access related services.
@@ -41,14 +42,12 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 
 	// start file manager http server
 	if config.params["http_host"].val == "" || config.params["http_port"].val == "" {
-		err = fmt.Errorf("host and port parameters must be specified in config")
-		log.Println(err)
+		log.Println(fmt.Errorf("host and port parameters must be specified in config"))
 		return
 	}
 	httpPort, err := strconv.Atoi(config.params["http_port"].val)
 	if err != nil {
-		err = fmt.Errorf("invalid port value found in config file")
-		log.Println(err)
+		log.Println(fmt.Errorf("invalid port value found in config file"))
 		return
 	}
 	httpServer = HTTPServer{host: config.params["http_host"].val, port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
@@ -79,16 +78,16 @@ func (s *HTTPServer) Start() {
 	router := mux.NewRouter()
 
 	// user
-	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods("GET", "POST")
-	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods("GET")
-	router.HandleFunc("/request", s.authHandler(s.requestAccessHandler)).Methods("GET", "POST")
+	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/request", s.authHandler(s.requestAccessHandler)).Methods(http.MethodGet, http.MethodPost)
 	// memory data viewing
-	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods("GET")
-	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods("GET")
-	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods("GET")
+	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods(http.MethodGet)
 	// upload
-	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods("GET")
-	router.HandleFunc("/upload/{type}", s.authHandler(s.uploadHandler)).Methods("POST")
+	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/upload/{type}", s.authHandler(s.uploadHandler)).Methods(http.MethodPost)
 	// static file servers
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/"))))
 	router.PathPrefix("/temp_uploaded/").Handler(http.StripPrefix("/temp_uploaded/", http.FileServer(http.Dir(config.rootPath+"/db/temp/"))))
@@ -122,10 +121,10 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// if already logged in, redirect these page requests
 		if r.URL.String() == "/login" || r.URL.String() == "/request" {
 			if response.success {
-				if r.Method == "GET" {
+				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
 				} else {
-					s.writeResponse(w, "", nil)
+					s.respond(w, "already authenticated", false)
 				}
 			} else {
 				h(w, r)
@@ -139,10 +138,10 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 				log.Println(response.err)
 			}
 
-			if r.Method == "GET" {
+			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/login", 302)
 			} else {
-				s.writeResponse(w, "unauthorised", response.err)
+				s.respond(w, "unauthorised", false)
 			}
 			return
 		}
@@ -164,14 +163,14 @@ type SearchRequest struct {
 
 // Handle user registration.
 func (s *HTTPServer) requestAccessHandler(w http.ResponseWriter, r *http.Request) {
-	s.writeResponse(w, "register page", nil)
+	s.respond(w, "register page", false)
 }
 
 // Handle login.
 func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch login form
-	case "GET":
+	case http.MethodGet:
 		// HTML template data
 		templateData := struct {
 			Title       string
@@ -186,14 +185,17 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/login_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/dynamic/login.html", templateData)
-		result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+		templateData.FooterHTML, err = s.completeTemplate("/static/login_footer.html", templateData)
+		templateData.ContentHTML, err = s.completeTemplate("/dynamic/login.html", templateData)
+		result, err := s.completeTemplate("/dynamic/main.html", templateData)
+		if err != nil {
+			s.respond(w, err.Error(), true)
+		}
 
-		s.writeResponse(w, string(result), err)
+		s.respond(w, string(result), false)
 
 	// submit login request
-	case "POST":
+	case http.MethodPost:
 		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "loginUser", writerIn: w, reqIn: r}
 		s.userDB.requestPool <- userAR
 		response := <-userAR.response
@@ -201,12 +203,11 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch {
 		case err != nil:
-			log.Println(err)
-			s.writeResponse(w, "error", nil)
+			s.respond(w, "error", false)
 		case ok == false:
-			s.writeResponse(w, "unauthorised", nil)
+			s.respond(w, "unauthorised", false)
 		case ok:
-			s.writeResponse(w, "success", nil)
+			s.respond(w, "success", false)
 		}
 	}
 }
@@ -215,11 +216,10 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "logoutUser", writerIn: w, reqIn: r}
 	s.userDB.requestPool <- userAR
-	err := (<-userAR.response).err
 
-	if err != nil {
-		log.Println(err)
-		s.writeResponse(w, "error", err)
+	if err := (<-userAR.response).err; err != nil {
+		s.respond(w, "error", true)
+		return
 	}
 	http.Redirect(w, r, "/login", 302)
 }
@@ -254,9 +254,13 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 		}{
 			files,
 		}
-		filesListResult, err := s.completeTemplate(config.rootPath+"/dynamic/files_list.html", templateData)
+		filesListResult, err := s.completeTemplate("/dynamic/files_list.html", templateData)
+		if err != nil {
+			s.respond(w, err.Error(), true)
+			return
+		}
 
-		s.writeResponse(w, string(filesListResult), err)
+		s.respond(w, string(filesListResult), false)
 		return
 	}
 
@@ -267,7 +271,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	// JSON formatted response
 	filesJSON := FilesToJSON(files, prettyPrint)
-	s.writeResponse(w, filesJSON, nil)
+	s.respond(w, filesJSON, false)
 }
 
 // Get specific JSON data such as all tags & people.
@@ -289,9 +293,10 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 	// parse query result to json
 	response, err := json.Marshal(resultsList)
 	if err != nil {
-		response = []byte(err.Error())
+		s.respond(w, err.Error(), true)
+		return
 	}
-	s.writeResponse(w, string(response), nil)
+	s.respond(w, string(response), false)
 }
 
 // Process HTTP view files request.
@@ -324,17 +329,21 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	var err error
-	templateData.NavbarHTML, err = s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
-	templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/search_footer.html", templateData)
+	templateData.NavbarHTML, err = s.completeTemplate("/dynamic/navbar.html", templateData)
+	templateData.FooterHTML, err = s.completeTemplate("/static/search_footer.html", templateData)
 	var filesHTMLTarget = "/dynamic/files_list.html"
 	if len(templateData.Files) == 0 {
 		filesHTMLTarget = "/static/no_match.html"
 	}
-	templateData.FilesHTML, err = s.completeTemplate(config.rootPath+filesHTMLTarget, templateData)
-	templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/dynamic/home.html", templateData)
-	result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+	templateData.FilesHTML, err = s.completeTemplate(filesHTMLTarget, templateData)
+	templateData.ContentHTML, err = s.completeTemplate("/dynamic/home.html", templateData)
+	result, err := s.completeTemplate("/dynamic/main.html", templateData)
+	if err != nil {
+		s.respond(w, err.Error(), true)
+		return
+	}
 
-	s.writeResponse(w, string(result), err)
+	s.respond(w, string(result), false)
 }
 
 // Process HTTP file upload request.
@@ -344,14 +353,14 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	s.userDB.requestPool <- userAR
 	userResponse := <-userAR.response
 	if userResponse.err != nil {
-		s.writeResponse(w, "", userResponse.err)
+		s.respond(w, userResponse.err.Error(), true)
 		return
 	}
 
 	vars := mux.Vars(r)
 
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		// fetch upload page
 		templateData := struct {
 			Title           string
@@ -386,9 +395,9 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				"/temp_uploaded/" + userResponse.user.UUID + "/",
 			}
 
-			result, err := s.completeTemplate(config.rootPath+"/dynamic/upload_form.html", uploadTemplateData)
+			result, err := s.completeTemplate("/dynamic/upload_form.html", uploadTemplateData)
 			if err != nil {
-				s.writeResponse(w, "", err)
+				s.respond(w, err.Error(), true)
 				return
 			}
 
@@ -396,27 +405,33 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//var err error
-		templateData.NavbarHTML, err = s.completeTemplate(config.rootPath+"/dynamic/navbar.html", templateData)
-		templateData.FooterHTML, err = s.completeTemplate(config.rootPath+"/static/upload_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate(config.rootPath+"/static/upload.html", templateData)
-		result, err := s.completeTemplate(config.rootPath+"/dynamic/main.html", templateData)
+		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/navbar.html", templateData)
+		templateData.FooterHTML, err = s.completeTemplate("/static/upload_footer.html", templateData)
+		templateData.ContentHTML, err = s.completeTemplate("/static/upload.html", templateData)
+		result, err := s.completeTemplate("/dynamic/main.html", templateData)
+		if err != nil {
+			s.respond(w, err.Error(), true)
+		}
 
-		s.writeResponse(w, string(result), err)
+		s.respond(w, string(result), false)
 
 	// file upload
-	case "POST":
+	case http.MethodPost:
 		// store file in temp dir under user UUID subdir ready for processing
 		switch vars["type"] {
 		case "temp":
 			// limit request size to prevent DOS (10MB) & get data from form
 			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 			if err := r.ParseMultipartForm(0); err != nil {
-				s.writeResponse(w, "", err)
+				w.WriteHeader(http.StatusBadRequest)
+				s.respond(w, err.Error(), true)
+				return
 			}
 			// move form file to temp dir
 			tempPath, tempName, err := s.fileDB.uploadFileToTemp(w, r, userResponse.user)
 			if err != nil {
-				s.writeResponse(w, "", err)
+				w.WriteHeader(http.StatusBadRequest)
+				s.respond(w, err.Error(), true)
 				return
 			}
 
@@ -429,13 +444,18 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				tempPath,
 			}
 
-			result, err := s.completeTemplate(config.rootPath+"/dynamic/upload_form.html", templateData)
-			s.writeResponse(w, string(result), err)
+			result, err := s.completeTemplate("/dynamic/upload_form.html", templateData)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				s.respond(w, err.Error(), true)
+				return
+			}
+			s.respond(w, string(result), false)
 
 		// delete a file from user temp dir
 		case "temp_delete":
 			if err := r.ParseForm(); err != nil {
-				s.writeResponse(w, "", err)
+				s.respond(w, err.Error(), true)
 				return
 			}
 
@@ -446,22 +466,22 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			// check if file exists
 			ok, err := FileOrDirExists(targetTempDir + targetFile)
 			if err != nil || !ok {
-				s.writeResponse(w, "", fmt.Errorf("invalid_file"))
+				s.respond(w, "invalid_file", false)
 				return
 			}
 
 			// remove file
 			if err := os.Remove(targetTempDir + targetFile); err != nil {
-				s.writeResponse(w, "", err)
+				s.respond(w, err.Error(), true)
 				return
 			}
 
-			s.writeResponse(w, "success", nil)
+			s.respond(w, "success", false)
 
 		// move temp file to DB with file details
 		case "store":
 			if err := r.ParseForm(); err != nil {
-				s.writeResponse(w, "", err)
+				s.respond(w, err.Error(), true)
 				return
 			}
 
@@ -470,7 +490,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			targetFile := r.Form.Get("file")
 			ok, err := FileOrDirExists(targetTempDir + targetFile)
 			if !ok || err != nil {
-				s.writeResponse(w, "", fmt.Errorf("temp file does not exist"))
+				s.respond(w, "temp file does not exist", false)
 				return
 			}
 
@@ -481,28 +501,33 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// validate form field lengths
 			if len(tags) == 0 {
-				s.writeResponse(w, "", fmt.Errorf("no_tags"))
+				s.respond(w, "no_tags", false)
+				return
 			}
 			if len(people) == 0 {
-				s.writeResponse(w, "", fmt.Errorf("no_people"))
+				s.respond(w, "no_people", false)
+				return
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
 			fileAR := FileAccessRequest{errorOut: make(chan error), operation: "storeFile", fileParam: targetTempDir + targetFile, fileMetadata: metaData}
 			s.fileDB.requestPool <- fileAR
 			if err := <-fileAR.errorOut; err != nil {
-				s.writeResponse(w, "", err)
+				s.respond(w, err.Error(), true)
 				return
 			}
 
 			// success
-			s.writeResponse(w, "success", err)
+			s.respond(w, "success", false)
 		}
 	}
 }
 
 // Write a HTTP response to connection.
-func (s *HTTPServer) writeSuccess(w http.ResponseWriter, response string) {
+func (s *HTTPServer) respond(w http.ResponseWriter, response string, enableLog bool) {
+	if enableLog {
+		log.Println(response)
+	}
 	// write
 	_, err := fmt.Fprintf(w, "%v\n", response)
 	if err != nil {
@@ -510,39 +535,25 @@ func (s *HTTPServer) writeSuccess(w http.ResponseWriter, response string) {
 	}
 }
 
-// Write a HTTP error response to connection.
-func (s *HTTPServer) writeError(w http.ResponseWriter, err error, enableLog bool) {
-	if enableLog {
-		log.Println(err)
-		w.WriteHeader(http.StatusForbidden)
-	}
-	// write
-	_, err = fmt.Fprintf(w, "%v\n", err.Error())
-	if err != nil {
-		log.Println(err)
-	}
-}
-
 // Replace variables in HTML templates with corresponding values in TemplateData.
 func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result template.HTML, err error) {
+	filePath = config.rootPath + filePath
+
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Println(err)
 		return
 	}
 
 	// parse HTML template
 	templateParsed, err := template.New("t").Parse(string(htmlTemplate))
 	if err != nil {
-		log.Println(err)
 		return
 	}
 
 	// perform template variable replacement
 	buffer := new(bytes.Buffer)
 	if err = templateParsed.Execute(buffer, data); err != nil {
-		log.Println(err)
 		return
 	}
 

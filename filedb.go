@@ -12,25 +12,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sahilm/fuzzy"
 	"net/http"
 	"path/filepath"
+
+	"github.com/sahilm/fuzzy"
 )
 
 const (
-	IMAGE string = "image"
-	VIDEO string = "video"
-	AUDIO string = "audio"
-	TEXT string = "text"
-	OTHER string = "other" // zip/rar
+	IMAGE       string = "image"
+	VIDEO       string = "video"
+	AUDIO       string = "audio"
+	TEXT        string = "text"
+	OTHER       string = "other" // zip/rar
 	UNSUPPORTED string = "unsupported"
 )
 
 type MetaData struct {
 	Description string
-	MediaType string
-	Tags   []string
-	People []string
+	MediaType   string
+	Tags        []string
+	People      []string
 }
 
 // State of a file:
@@ -175,15 +176,22 @@ func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 
+	// check if a file already exists with the same name in temp dir
+	ok, err := FileOrDirExists(tempFilePath + handler.Filename)
+	if err != nil {
+		return
+	}
+	if ok {
+		err = fmt.Errorf("already_stored")
+		return
+	}
+
 	// create new empty file
 	tempFile, err := os.OpenFile(tempFilePath+handler.Filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return
 	}
 	defer tempFile.Close()
-
-	// check if a file already exists with the same name in temp dir
-
 
 	// copy file from form to new local temp file
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
@@ -193,20 +201,20 @@ func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user 
 	// validate file name/extension
 	_, extension := SplitFileName(handler.Filename)
 	if _, err = config.CheckMediaType(extension); err != nil {
-		os.Remove(tempFilePath+handler.Filename) // delete temp file if unrecognised extension
+		os.Remove(tempFilePath + handler.Filename) // delete temp file if unrecognised extension
 		return
 	}
 
-	// generate hash of file contents
-	newHash, err := GenerateFileHash(tempFilePath+handler.Filename)
+	// generate hash of file contents & compare against the hashes of files stored in DB
+	newHash, err := GenerateFileHash(tempFilePath + handler.Filename)
 	if err != nil {
-		os.Remove(tempFilePath+handler.Filename) // delete temp file if already exists in DB
+		os.Remove(tempFilePath + handler.Filename) // delete temp file if already exists in DB
 		return
 	}
 	for _, file := range db.Data {
 		if file.Hash == newHash {
-			err = fmt.Errorf("an exact copy of this file already exists")
-			os.Remove(tempFilePath+handler.Filename) // delete temp file if already exists in DB
+			err = fmt.Errorf("already_stored")
+			os.Remove(tempFilePath + handler.Filename) // delete temp file if already exists in DB
 			return
 		}
 	}

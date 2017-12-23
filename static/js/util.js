@@ -8,24 +8,6 @@ $(document).ready(function() {
 
 var hostname = location.protocol + '//' + location.host;
 
-// Perform AJAX request for a form with a file upload.
-function performUploadRequest(URL, httpMethod, data, resultMethod) {
-    $.ajax({
-        url: URL,
-        type: httpMethod,
-        dataType: 'text',
-        data: data,
-        error: function(e) {
-            console.log(e);
-        },
-        success: function(e) {
-            resultMethod(e);
-        },
-        cache: false,
-        contentType: false,
-        processData: false
-    });
-}
 // Perform basic AJAX request.
 function performRequest(URL, httpMethod, data, resultMethod) {
     $.ajax({

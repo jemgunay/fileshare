@@ -10,7 +10,7 @@ $(document).ready(function() {
             var tokenfieldSets = [["tags", "#tags-search-input", false], ["people", "#people-search-input", false], ["file_types", "#type-search-input", true]];
             var parsedData = JSON.parse(result);
 
-            initMetaDataFields(parsedData, tokenfieldSets);
+            initMetaDataFields(parsedData, tokenfieldSets, performSearch);
 
             // date pickers
             $("#min-date-picker, #max-date-picker").datetimepicker({
@@ -30,14 +30,14 @@ $(document).ready(function() {
 });
 
 // Pull required data from server & initialise search/filter inputs.
-function initMetaDataFields(parsedData, tokenfieldSets) {
+function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
     // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield value will be populated pre-with all retrieved data.
     for (var i = 0; i < tokenfieldSets.length; i++) {
         var metaType = tokenfieldSets[i][0];
         var tagIDs = tokenfieldSets[i][1];
         var populateValue = tokenfieldSets[i][2];
 
-        // check if data eists
+        // check if data exists
         if (parsedData[metaType] == null) {
             continue;
         }
@@ -49,6 +49,7 @@ function initMetaDataFields(parsedData, tokenfieldSets) {
         }
 
         (function (tagIDs, parsedData, metaType) {
+            $(tagIDs).tokenfield('destroy');
             $(tagIDs).tokenfield({
                 autocomplete: {
                     source: function (request, response) {
@@ -69,7 +70,7 @@ function initMetaDataFields(parsedData, tokenfieldSets) {
                 },
                 showAutocompleteOnFocus: true,
                 createTokensOnBlur: true
-            }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", performSearch);
+            }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", changeTarget);
         }(tagIDs, parsedData, metaType));
     }
 }
