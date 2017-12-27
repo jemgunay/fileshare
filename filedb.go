@@ -200,7 +200,8 @@ func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user 
 
 	// validate file name/extension
 	_, extension := SplitFileName(handler.Filename)
-	if _, err = config.CheckMediaType(extension); err != nil {
+	if fileType := config.CheckMediaType(extension); fileType == UNSUPPORTED {
+		err =  fmt.Errorf("format_not_supported")
 		os.Remove(tempFilePath + handler.Filename) // delete temp file if unrecognised extension
 		return
 	}
@@ -230,9 +231,9 @@ func (db *FileDB) storeFile(tempFilePath string, metaData MetaData) (err error) 
 	// validate file name/extension
 	newFile.Name, newFile.Extension = SplitFileName(filepath.Base(tempFilePath))
 	if len(newFile.Name) == 0 || len(newFile.Extension) == 0 {
-		return fmt.Errorf("invalid file")
+		return fmt.Errorf("invalid_file")
 	}
-	if newFile.MetaData.MediaType, err = config.CheckMediaType(newFile.Extension); err != nil {
+	if newFile.MetaData.MediaType = config.CheckMediaType(newFile.Extension); newFile.MetaData.MediaType == UNSUPPORTED {
 		os.Remove(tempFilePath) // destroy temp file on add failure
 		return err
 	}

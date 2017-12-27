@@ -3,12 +3,30 @@ $(document).ready(function() {
     Dropzone.options.fileInput = {
         paramName: "file-input", // The name that will be used to transfer the file
         maxFilesize: 10, // MB
-
         init: function() {
             this.on("success", function(file, response) {
                 $("#upload-results-panel").append(response);
 
                 initUploadForm();
+            });
+            this.on('error', function(file, errorMessage) {
+                errorMessage = errorMessage.trim();
+                var refinedError = "";
+
+                console.log("upload error (" + file.name + "): " + errorMessage);
+                if (errorMessage === "already_stored") {
+                    refinedError = "A copy of '" + file.name + "' has already been uploaded."
+                }
+                else if (errorMessage === "format_not_supported") {
+                    refinedError = "The file type of '" + file.name + "' is unsupported."
+                }
+                else {
+                    refinedError = "A server file upload error occurred for '" + file.name + "'."
+                }
+                var msgEl = $(file.previewElement).find('.dz-error-message');
+                msgEl.text(refinedError);
+
+                setAlertWindow("warning", refinedError, "#error-window");
             });
         }
     };

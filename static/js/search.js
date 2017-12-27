@@ -90,7 +90,7 @@ function performSearch() {
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         if (html.length === 2) {
-            performRequest(hostname + "/static/no_match.html", "GET", "", function(htmlNoMatch) {
+            performRequest(hostname + "/static/templates/no_match.html", "GET", "", function(htmlNoMatch) {
                 $("#results-window").empty().append(htmlNoMatch)
             });
             return

@@ -16,9 +16,9 @@ import (
 type AccountState int
 
 const (
-	REGISTER_EMAIL AccountState = iota // waiting for email confirmation
-	REGISTER_CONFIRM
-	COMPLETE // waiting for admin to confirm user
+	REGISTER_CONFIRM AccountState = iota // waiting for admin to confirm user
+	REGISTER_EMAIL                       // waiting for email confirmation
+	COMPLETE
 	BLOCKED
 )
 
@@ -27,17 +27,20 @@ type User struct {
 	UUID     string
 	Password string
 	Admin    bool
+	Forename string
+	Surname  string
 	AccountState
 }
 
 // The DB where files are stored.
 type UserDB struct {
 	// email key, User object value
-	Users       map[string]User
-	cookies     *sessions.CookieStore
-	dir         string
-	file        string
-	requestPool chan UserAccessRequest
+	Users            map[string]User
+	cookies          *sessions.CookieStore
+	dir              string
+	file             string
+	requestPool      chan UserAccessRequest
+	RegisteringUsers map[string]User
 }
 
 // Create a new user DB.
@@ -58,8 +61,9 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	go userDB.StartUserAccessPoller()
 
 	// create default admin account if no users exist
+
 	if len(userDB.Users) == 0 {
-		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin", "admin"}, boolIn: true}
+		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin", "admin", "Admin", "Admin"}, boolIn: true}
 		userDB.requestPool <- userAR
 		if (<-userAR.response).err != nil {
 			return nil, fmt.Errorf("default admin account could not be created")
@@ -92,10 +96,10 @@ func (db *UserDB) StartUserAccessPoller() {
 		// process request
 		switch req.operation {
 		case "addUser":
-			if len(req.stringsIn) < 2 {
+			if len(req.stringsIn) < 4 {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
-				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.boolIn)
+				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.stringsIn[2], req.stringsIn[3], req.boolIn)
 				db.serializeToFile()
 			}
 
@@ -122,7 +126,7 @@ func (db *UserDB) StartUserAccessPoller() {
 }
 
 // Add a user to userDB.
-func (db *UserDB) addUser(email string, password string, admin bool) (err error) {
+func (db *UserDB) addUser(email string, password string, forename string, surname string, admin bool) (err error) {
 	// check if user exists already
 	if _, ok := db.Users[email]; ok {
 		return fmt.Errorf("an account already exists with this email address")
@@ -133,7 +137,7 @@ func (db *UserDB) addUser(email string, password string, admin bool) (err error)
 		return err
 	}
 
-	newUser := User{Password: string(hashedPassword), Admin: admin, UUID: NewUUID()}
+	newUser := User{Password: string(hashedPassword), Admin: admin, UUID: NewUUID(), Forename: forename, Surname: surname}
 	db.Users[email] = newUser
 	return
 }

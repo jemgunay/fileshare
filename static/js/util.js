@@ -17,16 +17,18 @@ function performRequest(URL, httpMethod, data, resultMethod) {
         data: data,
         error: function(e) {
             console.log(e);
+            setAlertWindow("danger", "Server error: " + e, "#error-window");
         },
         success: function(e) {
             resultMethod(e);
-        }
+        },
+        timeout: 10000
     });
 }
 
 // Get HTML for a warning/error HTML message.
 function setAlertWindow(type, msg, target) {
-    performRequest(hostname + "/static/alert.html", "GET", "", function(result) {
+    performRequest(hostname + "/static/templates/alert.html", "GET", "", function(result) {
         var replaced = result.replace("{{type}}", type);
         replaced = replaced.replace("{{msg}}", msg);
         $(target).hide().empty().append(replaced).fadeIn(400);

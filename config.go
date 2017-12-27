@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -88,18 +87,18 @@ func (c *Config) Set(param string, value string) {
 }
 
 // Get the media type grouping for the provided file extension.
-func (c *Config) CheckMediaType(fileExtension string) (string, error) {
+func (c *Config) CheckMediaType(fileExtension string) (string) {
 	// check for malicious commas before parsing
 	if strings.Contains(fileExtension, ",") {
-		return UNSUPPORTED, fmt.Errorf("'%s' is an unsupported file format", fileExtension)
+		return UNSUPPORTED
 	}
 
 	for mediaType, formats := range c.fileFormats {
 		if strings.Contains(formats, fileExtension) {
-			return mediaType, nil
+			return mediaType
 		}
 	}
-	return UNSUPPORTED, fmt.Errorf("'%s' is an unsupported file format", fileExtension)
+	return UNSUPPORTED
 }
 
 // Save server config to local file.
