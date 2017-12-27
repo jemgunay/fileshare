@@ -13,6 +13,7 @@
         <!-- brand -->
         <a class="navbar-brand" href="/">{{ .BrandName }}</a>
     </div>
+
     <div id="navbar" class="navbar-collapse collapse">
         <!-- left side -->
         <ul class="nav navbar-nav">
@@ -20,13 +21,15 @@
 
             <li {{ if eq .NavbarFocus "upload" }}class="active"{{ end }}><a href="/upload">Upload</a></li>
 
-            <li class="dropdown">
+            <li {{ if eq .NavbarFocus "users" }}class="active"{{ end }}><a href="/users">Users</a></li>
+
+            <!--<li class="dropdown">
                 <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Account <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                    <li {{ if eq .NavbarFocus "profile" }}}class="active"{{ end }}><a href="/user">Profile</a></li>
-                    <li {{ if eq .NavbarFocus "profile_2" }}}class="active"{{ end }}><a href="/user">Preferences</a></li>
+                    <li {{ if eq .NavbarFocus "profile" }} class="active"{{ end }}><a href="/user">Profile</a></li>
+                    <li {{ if eq .NavbarFocus "profile_2" }} class="active"{{ end }}><a href="/user">Preferences</a></li>
                 </ul>
-            </li>
+            </li>-->
         </ul>
 
         <!-- right side -->
@@ -34,10 +37,12 @@
             <li class="dropdown">
                 <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Admin <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                    <li {{ if eq .NavbarFocus "admin" }}}class="active"{{ end }}><a href="/admin">Config</a></li>
-                    <li {{ if eq .NavbarFocus "admin_2" }}}class="active"{{ end }}><a href="/admin">Setting</a></li>
+                    <li {{ if eq .NavbarFocus "admin" }} class="active"{{ end }}><a href="/admin">Add User</a></li>
+                    <li {{ if eq .NavbarFocus "admin_2" }} class="active"{{ end }}><a href="/admin">Settings</a></li>
                 </ul>
             </li>
+
+            <li {{ if eq .NavbarFocus "profile" }}class="active"{{ end }}><a href="/profile">Profile</a></li>
 
             <li><a href="/logout">Log Out</a></li>
         </ul>

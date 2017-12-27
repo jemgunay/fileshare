@@ -13,8 +13,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 // A server providing file sharing and access related services.
@@ -23,9 +24,8 @@ type ServerBase struct {
 	startTimestamp int64
 }
 
-// Initialise a new file server.
+// Initialise servers.
 func NewServerBase() (err error, httpServer HTTPServer) {
-	// start hosting HTTP server to access local file DB (via web app UI, with auth)
 	// create new file DB
 	fileDB, err := NewFileDB(config.rootPath + "/db")
 	if err != nil {
@@ -52,14 +52,6 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 	}
 	httpServer = HTTPServer{host: config.params["http_host"].val, port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
 	httpServer.Start()
-
-	// start hosting files to remote servers
-
-	// get a list of other currently online servers providing file updates (via C&C web server) + from local config file containing previously known servers/manually added servers
-
-	// provide these servers with a log of currently owned file hashes, requesting for files we do not own (everyone must have a complete log of all operations)
-
-	// retrieve all files we do not own from the server (one request at a time) + retrieve remote files marked for deletion also, and delete those locally
 
 	return
 }

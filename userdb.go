@@ -61,9 +61,8 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	go userDB.StartUserAccessPoller()
 
 	// create default admin account if no users exist
-
 	if len(userDB.Users) == 0 {
-		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin", "admin", "Admin", "Admin"}, boolIn: true}
+		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, boolIn: true}
 		userDB.requestPool <- userAR
 		if (<-userAR.response).err != nil {
 			return nil, fmt.Errorf("default admin account could not be created")
