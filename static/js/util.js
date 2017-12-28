@@ -22,7 +22,7 @@ function performRequest(URL, httpMethod, data, resultMethod) {
         success: function(e) {
             resultMethod(e);
         },
-        timeout: 10000
+        timeout: 6000
     });
 }
 

@@ -162,7 +162,7 @@ func (db *FileDB) fileExists(fileUUID string) bool {
 }
 
 // Upload file to temp dir in a subdir named as the UUID of the session user.
-func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user *User) (filePath, fileName string, err error) {
+func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user User) (filePath, fileName string, err error) {
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {

@@ -27,11 +27,9 @@ h1, h2, h3 {
     margin-bottom: 0;
 }
 
-#results-window {
-    min-height: 400px;
-}
 #results-window h3 {
     margin-top: 100px;
+    margin-bottom: 120px;
 }
 .section-header {
     margin-top: 25px;
@@ -103,23 +101,23 @@ h1, h2, h3 {
     border-radius: 0 !important;
 }
 
-/* login & register page */
-#login-container, #register-container {
+/* login & reset password page */
+#login-container, #reset-password-container {
     background-color: rgba(217, 237, 247, 0.63);
     height: 100vh;
     padding-top: 50px;
     overflow: hidden;
 }
-#login-container h2, #register-container h2 {
+#login-container h2, #reset-password-container h2 {
     margin-bottom: 25px;
     margin-top: 15px;
     text-align: center;
 }
-#login-container button, #register-container button {
+#login-container button, #reset-password-container button {
     width: 100%;
     margin-bottom: 15px;
 }
-#login-container .alert, #register-container .alert {
+#login-container .alert, #reset-password-container .alert {
     margin-top: 15px;
     margin-bottom: 0;
 }

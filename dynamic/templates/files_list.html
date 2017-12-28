@@ -13,16 +13,16 @@
                             <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
                         {{ end }}
                         {{ if eq $file.MediaType "video" }}
-                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                            <img class="media-object" src="/static/img/play.png">
                         {{ end }}
                         {{ if eq $file.MediaType "audio" }}
-                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                            <img class="media-object" src="/static/img/play.png">
                         {{ end }}
                         {{ if eq $file.MediaType "text" }}
-                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                            <img class="media-object" src="/static/content/img/read.png">
                         {{ end }}
                         {{ if eq $file.MediaType "other" }}
-                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                            <img class="media-object" src="/static/content/img/download.png">
                         {{ end }}
                     </a>
                 </div>
@@ -38,7 +38,7 @@
                             <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
                         {{ end }}
                         {{ if eq $file.MediaType "text" }}
-                            <span class="glyphicon glyphicon-font" aria-hidden="true"></span>
+                            <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
                         {{ end }}
                         {{ if eq $file.MediaType "other" }}
                             <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
@@ -47,7 +47,6 @@
                         <strong>{{ $file.Description }}</strong>
                     </h4>
 
-                    
                     <!-- tags -->
                     {{ if $file.Tags }}
                         <p>Tags:
@@ -67,7 +66,7 @@
                     {{ end }}
                 </div>
             </div>
-            
+
         </div>
     </div>
 </div>

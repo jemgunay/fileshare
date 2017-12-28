@@ -1,0 +1,55 @@
+{{ .NavbarHTML }}
+
+<div class="container-fluid">
+
+    <!-- display all uploaded files -->
+    <div class="row">
+        <div class="col-md-offset-2 col-md-8">
+
+            <h2 class="section-header">Users</h2>
+
+            <!-- search options -->
+            <div class="panel panel-default" id="results-panel">
+                <div class="panel-body" id="results-panel-body">
+                    <div class="row">
+
+                        {{ range $email, $user := .Users }}
+
+                            <div class="col-sm-6">
+
+                                <div class="panel panel-default result-panel">
+                                    <div class="panel-body">
+
+                                        <div class="media">
+                                            <div class="media-left">
+                                                {{ if eq $user.Image "" }}
+                                                    <img class="media-object" src="/static/img/user_default.png">
+                                                {{ end }}
+                                                {{ if not (eq $user.Image "") }}
+                                                    <img class="media-object" src="/dynamic/user/{{ $user.Image }}">
+                                                {{ end }}
+                                            </div>
+                                            <div class="media-body">
+                                                <h4 class="media-heading">
+                                                    {{ $user.Forename }} {{ $user.Surname }}
+                                                    {{ if eq $user.Type 1 }} (Admin) {{ end }}
+                                                    {{ if eq $user.Type 2 }} (Super Admin) {{ end }}
+                                                </h4>
+
+                                                <p>{{ $email }}</p>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                        {{ end }}
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>

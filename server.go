@@ -11,11 +11,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
-	"strings"
-
 	"github.com/gorilla/mux"
+	"gopkg.in/gomail.v2"
 )
 
 // A server providing file sharing and access related services.
@@ -72,8 +72,9 @@ func (s *HTTPServer) Start() {
 	// user
 	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods(http.MethodGet, http.MethodPost)
 	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/register", s.authHandler(s.registerHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/register/{type}", s.authHandler(s.registerHandler)).Methods(http.MethodPost)
+	router.HandleFunc("/reset", s.authHandler(s.resetHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/reset/{type}", s.authHandler(s.resetHandler)).Methods(http.MethodPost)
+	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
 	// memory data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods(http.MethodGet)
@@ -140,7 +141,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// if already logged in, redirect these page requests
-		if r.URL.String() == "/login" || r.URL.String() == "/register" {
+		if r.URL.String() == "/login" || r.URL.String() == "/reset" {
 			if response.success {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
@@ -178,8 +179,8 @@ func (s *HTTPServer) fileServerAuthHandler(h http.Handler) http.Handler {
 	}))
 }
 
-// Handle user registration.
-func (s *HTTPServer) registerHandler(w http.ResponseWriter, r *http.Request) {
+// Handle user password reset request.
+func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch login form
 	case http.MethodGet:
@@ -190,7 +191,7 @@ func (s *HTTPServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 			FooterHTML  template.HTML
 			ContentHTML template.HTML
 		}{
-			"Register",
+			"Reset Password",
 			config.params["brand_name"].val,
 			"",
 			"",
@@ -198,7 +199,7 @@ func (s *HTTPServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		var err error
 		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/register.html", templateData)
+		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/reset_password.html", templateData)
 		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 		if err != nil {
 			s.respond(w, err.Error(), true)
@@ -206,16 +207,17 @@ func (s *HTTPServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 
 		s.respond(w, string(result), false)
 
-		// submit login request
+	// submit login request
 	case http.MethodPost:
+		r.ParseForm()
 		vars := mux.Vars(r)
 		fmt.Println(vars)
-		/*userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "loginUser", writerIn: w, reqIn: r}
+		/*userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "resetPassword", writerIn: w, reqIn: r}
 		s.userDB.requestPool <- userAR
 		response := <-userAR.response
-		ok, err := response.success, response.err
+		ok, err := response.success, response.err*/
 
-		switch {
+		/*switch {
 		case err != nil:
 			s.respond(w, "error", false)
 		case ok == false:
@@ -223,6 +225,29 @@ func (s *HTTPServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 		case ok:
 			s.respond(w, "success", false)
 		}*/
+
+		// email new randomly generated temp password
+		msgBody := "this is your new temporary password: 'new password here'. It will expire in x number of hours."
+
+		msg := gomail.NewMessage()
+		msg.SetHeader("From", config.params["display_email_addr"].val)
+		msg.SetHeader("To", "bob@example.com")
+		msg.SetHeader("Subject", config.params["brand_name"].val + ": Password Reset")
+		msg.SetBody("text/html", msgBody)
+
+		port, err := strconv.Atoi(config.params["core_email_server"].val)
+		if err != nil {
+			s.respond(w, "error", true)
+			return
+		}
+
+		d := gomail.NewDialer(config.params["core_email_server"].val, port, config.params["core_email_addr"].val, config.params["core_email_password"].val)
+
+		// Send the email to Bob, Cora and Dan.
+		if err := d.DialAndSend(msg); err != nil {
+			s.respond(w, "error", true)
+			return
+		}
 	}
 }
 
@@ -282,6 +307,47 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/login", 302)
+}
+
+// Process HTTP view files request.
+func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
+	// get a list of all users from db
+	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "getUsers"}
+	s.userDB.requestPool <- userAR
+	response := <-userAR.response
+
+	// HTML template data
+	templateData := struct {
+		Title       string
+		BrandName   string
+		Users       map[string]User
+		NavbarHTML  template.HTML
+		NavbarFocus string
+		FooterHTML  template.HTML
+		FilesHTML   template.HTML
+		ContentHTML template.HTML
+	}{
+		"Users",
+		config.params["brand_name"].val,
+		response.users,
+		"",
+		"users",
+		"",
+		"",
+		"",
+	}
+
+	var err error
+	templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+	templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+	templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/users.html", templateData)
+	result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
+	if err != nil {
+		s.respond(w, err.Error(), true)
+		return
+	}
+
+	s.respond(w, string(result), false)
 }
 
 // Search request query container.
@@ -372,7 +438,7 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 // Process HTTP view files request.
 func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// get a list of all files from db
-	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio", ",", true)}
+	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
 	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
 	s.fileDB.requestPool <- fileAR
 	files := <-fileAR.filesOut
@@ -406,7 +472,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		filesHTMLTarget = "/static/templates/no_match.html"
 	}
 	templateData.FilesHTML, err = s.completeTemplate(filesHTMLTarget, templateData)
-	templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/home.html", templateData)
+	templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/search.html", templateData)
 	result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 	if err != nil {
 		s.respond(w, err.Error(), true)
@@ -610,18 +676,21 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
 	// parse HTML template
 	templateParsed, err := template.New("t").Parse(string(htmlTemplate))
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
 	// perform template variable replacement
 	buffer := new(bytes.Buffer)
 	if err = templateParsed.Execute(buffer, data); err != nil {
+		log.Println(err)
 		return
 	}
 

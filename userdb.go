@@ -22,13 +22,22 @@ const (
 	BLOCKED
 )
 
+type UserType int
+const (
+	STANDARD UserType = iota
+	ADMIN // can add/remove users
+	SUPER_ADMIN // cannot be removed, can change user details
+)
+
 // A user account.
 type User struct {
 	UUID     string
 	Password string
-	Admin    bool
+	ResetPassword string
 	Forename string
 	Surname  string
+	Type     UserType
+	Image    string
 	AccountState
 }
 
@@ -60,9 +69,9 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	// start request poller
 	go userDB.StartUserAccessPoller()
 
-	// create default admin account if no users exist
+	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, boolIn: true}
+		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN}
 		userDB.requestPool <- userAR
 		if (<-userAR.response).err != nil {
 			return nil, fmt.Errorf("default admin account could not be created")
@@ -75,7 +84,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
 	stringsIn []string
-	boolIn    bool
+	userType    UserType
 	writerIn  http.ResponseWriter
 	reqIn     *http.Request
 	operation string
@@ -84,7 +93,8 @@ type UserAccessRequest struct {
 type UserAccessResponse struct {
 	err     error
 	success bool
-	user    *User
+	user    User
+	users   map[string]User
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
@@ -98,7 +108,7 @@ func (db *UserDB) StartUserAccessPoller() {
 			if len(req.stringsIn) < 4 {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
-				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.stringsIn[2], req.stringsIn[3], req.boolIn)
+				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.stringsIn[2], req.stringsIn[3], req.userType)
 				db.serializeToFile()
 			}
 
@@ -107,6 +117,9 @@ func (db *UserDB) StartUserAccessPoller() {
 
 		case "getSessionUser":
 			response.user, response.err = db.getSessionUser(req.writerIn, req.reqIn)
+
+		case "getUsers":
+			response.users = db.getUsers()
 
 		case "loginUser":
 			response.success, response.err = db.loginUser(req.writerIn, req.reqIn)
@@ -125,7 +138,7 @@ func (db *UserDB) StartUserAccessPoller() {
 }
 
 // Add a user to userDB.
-func (db *UserDB) addUser(email string, password string, forename string, surname string, admin bool) (err error) {
+func (db *UserDB) addUser(email string, password string, forename string, surname string, admin UserType) (err error) {
 	// check if user exists already
 	if _, ok := db.Users[email]; ok {
 		return fmt.Errorf("an account already exists with this email address")
@@ -136,7 +149,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 		return err
 	}
 
-	newUser := User{Password: string(hashedPassword), Admin: admin, UUID: NewUUID(), Forename: forename, Surname: surname}
+	newUser := User{Password: string(hashedPassword), Type: admin, UUID: NewUUID(), Forename: forename, Surname: surname}
 	db.Users[email] = newUser
 	return
 }
@@ -157,14 +170,25 @@ func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (succ
 }
 
 // Get User object associated with request session.
-func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user *User, err error) {
+func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user User, err error) {
 	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	sessionUser := db.Users[session.Values["email"].(string)]
-	return &sessionUser, nil
+	return sessionUser, nil
+}
+
+// Get a copy of the users map.
+func (db *UserDB) getUsers() (users map[string]User) {
+	users = make(map[string]User, len(db.Users))
+
+	for email, user := range db.Users {
+		users[email] = user
+	}
+
+	return
 }
 
 // Perform user login.

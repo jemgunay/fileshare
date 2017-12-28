@@ -31,29 +31,29 @@ $(document).ready(function() {
         });
     }
 
-    // register page
-    else if (window.location.pathname === "/register") {
-        setButtonProcessing($("#register-btn"), false);
+    // reset page
+    else if (window.location.pathname === "/reset") {
+        setButtonProcessing($("#reset-btn"), false);
 
-        $("#register-form").submit(function (e) {
+        $("#reset-form").submit(function (e) {
             e.preventDefault();
 
             var data = $(this).serialize();
 
-            setButtonProcessing($("#register-btn"), true);
+            setButtonProcessing($("#reset-btn"), true);
 
-            performRequest(hostname + "/register/email", "post", data, function(result) {
+            performRequest(hostname + "/reset/request", "post", data, function(result) {
                 result = result.trim();
 
                 if (result === "success") {
-                    setAlertWindow("success", "Access request submitted for '" + $("#email-input").val() + "'! Check for an email once the request has been accepted by an administrator.", "#error-window");
+                    setAlertWindow("success", "Please check your email.", "#error-window");
                     $("#email-input").val("");
-                    setButtonProcessing($("#register-btn"), false);
+                    setButtonProcessing($("#reset-btn"), false);
                 }
                 else {
                     setAlertWindow("danger", "A server error occurred.", "#error-window");
-                    $("#password-input").val("");
-                    setButtonProcessing($("#register-btn"), false);
+                    $("#email-input").val("");
+                    setButtonProcessing($("#reset-btn"), false);
                 }
             });
         });
