@@ -22,11 +22,14 @@ const (
 	BLOCKED
 )
 
+// Determines the permissions owned by a user.
 type UserType int
+
 const (
 	STANDARD UserType = iota
 	ADMIN // can add/remove users
 	SUPER_ADMIN // cannot be removed, can change user details
+	GUEST // can search files only, cannot upload
 )
 
 // A user account.
@@ -71,10 +74,9 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "addUser", stringsIn: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN}
-		userDB.requestPool <- userAR
-		if (<-userAR.response).err != nil {
-			return nil, fmt.Errorf("default admin account could not be created")
+		response := userDB.PerformAccessRequest(UserAccessRequest{operation: "addUser", stringsIn: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userTypeIn: SUPER_ADMIN})
+		if response.err != nil {
+			return nil, fmt.Errorf("default super admin account could not be created")
 		}
 	}
 
@@ -84,7 +86,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
 	stringsIn []string
-	userType    UserType
+	userTypeIn    UserType
 	writerIn  http.ResponseWriter
 	reqIn     *http.Request
 	operation string
@@ -95,6 +97,17 @@ type UserAccessResponse struct {
 	success bool
 	user    User
 	users   map[string]User
+}
+
+// Create a blocking access request and provide an access response.
+func (db *UserDB) PerformAccessRequest(request UserAccessRequest) (response UserAccessResponse) {
+	responseChan := make(chan UserAccessResponse, 1)
+	request.response = responseChan
+	db.requestPool <- request
+	r := <-responseChan
+	//fmt.Println(r)
+	//fmt.Println(r.user.Forename)
+	return r
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
@@ -108,7 +121,7 @@ func (db *UserDB) StartUserAccessPoller() {
 			if len(req.stringsIn) < 4 {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
-				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.stringsIn[2], req.stringsIn[3], req.userType)
+				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.stringsIn[2], req.stringsIn[3], req.userTypeIn)
 				db.serializeToFile()
 			}
 

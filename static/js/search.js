@@ -91,10 +91,10 @@ function performSearch() {
     performRequest(hostname + request, "GET", "", function(html) {
         if (html.length === 2) {
             performRequest(hostname + "/static/templates/no_match.html", "GET", "", function(htmlNoMatch) {
-                $("#results-window").empty().append(htmlNoMatch)
+                $(".results-window").empty().append(htmlNoMatch)
             });
             return
         }
-        $("#results-window").empty().append(html)
+        $(".results-window").empty().append(html);
     });
 }

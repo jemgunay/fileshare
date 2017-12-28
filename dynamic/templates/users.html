@@ -12,9 +12,9 @@
             <div class="panel panel-default" id="results-panel">
                 <div class="panel-body" id="results-panel-body">
                     <div class="row">
+                        <div class="results-window">
 
                         {{ range $email, $user := .Users }}
-
                             <div class="col-sm-6">
 
                                 <div class="panel panel-default result-panel">
@@ -34,6 +34,7 @@
                                                     {{ $user.Forename }} {{ $user.Surname }}
                                                     {{ if eq $user.Type 1 }} (Admin) {{ end }}
                                                     {{ if eq $user.Type 2 }} (Super Admin) {{ end }}
+                                                    {{ if eq $user.Type 2 }} (Guest) {{ end }}
                                                 </h4>
 
                                                 <p>{{ $email }}</p>
@@ -43,9 +44,9 @@
                                     </div>
                                 </div>
                             </div>
-
                         {{ end }}
 
+                        </div>
                     </div>
                 </div>
             </div>

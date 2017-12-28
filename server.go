@@ -111,9 +111,7 @@ func (s *HTTPServer) Start() {
 func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// authenticate
-		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "authenticateUser", writerIn: w, reqIn: r}
-		s.userDB.requestPool <- userAR
-		response := <-userAR.response
+		authResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "authenticateUser", writerIn: w, reqIn: r})
 
 		// file servers
 		// prevent dir listings
@@ -130,11 +128,8 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
 			vars := mux.Vars(r)
 
-			userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "getSessionUser", writerIn: w, reqIn: r}
-			s.userDB.requestPool <- userAR
-			id := (<-userAR.response).user.UUID
-
-			if id != vars["user_id"] {
+			userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", writerIn: w, reqIn: r})
+			if userResponse.user.UUID != vars["user_id"] {
 				s.respond(w, "404 page not found", false)
 				return
 			}
@@ -142,7 +137,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 
 		// if already logged in, redirect these page requests
 		if r.URL.String() == "/login" || r.URL.String() == "/reset" {
-			if response.success {
+			if authResponse.success {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
 				} else {
@@ -154,9 +149,9 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 		// if auth failed (error or wrong password)
-		if response.err != nil || response.success == false {
-			if response.err != nil {
-				log.Println(response.err)
+		if authResponse.err != nil || authResponse.success == false {
+			if authResponse.err != nil {
+				log.Println(authResponse.err)
 			}
 
 			if r.Method == http.MethodGet {
@@ -212,9 +207,8 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		vars := mux.Vars(r)
 		fmt.Println(vars)
-		/*userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "resetPassword", writerIn: w, reqIn: r}
-		s.userDB.requestPool <- userAR
-		response := <-userAR.response
+
+		/*response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
 		ok, err := response.success, response.err*/
 
 		/*switch {
@@ -281,17 +275,14 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// submit login request
 	case http.MethodPost:
-		userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "loginUser", writerIn: w, reqIn: r}
-		s.userDB.requestPool <- userAR
-		response := <-userAR.response
-		ok, err := response.success, response.err
+		response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "loginUser", writerIn: w, reqIn: r})
 
 		switch {
-		case err != nil:
+		case response.err != nil:
 			s.respond(w, "error", false)
-		case ok == false:
+		case response.success == false:
 			s.respond(w, "unauthorised", false)
-		case ok:
+		case response.success:
 			s.respond(w, "success", false)
 		}
 	}
@@ -299,10 +290,9 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handle logout.
 func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "logoutUser", writerIn: w, reqIn: r}
-	s.userDB.requestPool <- userAR
+	response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "logoutUser", writerIn: w, reqIn: r})
 
-	if err := (<-userAR.response).err; err != nil {
+	if response.err != nil {
 		s.respond(w, "error", true)
 		return
 	}
@@ -311,10 +301,7 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
-	// get a list of all users from db
-	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "getUsers"}
-	s.userDB.requestPool <- userAR
-	response := <-userAR.response
+	response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getUsers"})
 
 	// HTML template data
 	templateData := struct {
@@ -395,7 +382,6 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 			s.respond(w, err.Error(), true)
 			return
 		}
-
 		s.respond(w, string(filesListResult), false)
 		return
 	}
@@ -485,9 +471,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 // Process HTTP file upload request.
 func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get user details
-	userAR := UserAccessRequest{response: make(chan UserAccessResponse), operation: "getSessionUser", writerIn: w, reqIn: r}
-	s.userDB.requestPool <- userAR
-	userResponse := <-userAR.response
+	userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", writerIn: w, reqIn: r})
 	if userResponse.err != nil {
 		s.respond(w, userResponse.err.Error(), true)
 		return
