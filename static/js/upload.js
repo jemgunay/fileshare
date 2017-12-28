@@ -6,6 +6,7 @@ $(document).ready(function() {
         init: function() {
             this.on("success", function(file, response) {
                 $("#upload-results-panel").append(response);
+                setAlertWindow("success", "'" + file.name + "' successfully uploaded!", "#error-window");
 
                 initUploadForm();
             });
@@ -72,7 +73,7 @@ function initUploadForm() {
                     panel.fadeOut(500, function () {
                         panel.remove();
                     });
-                    setAlertWindow("success", "File '" + fileName + "' successfully published!", "#error-window");
+                    setAlertWindow("success", fileName + "' successfully published!", "#error-window");
                 }
                 else if (result === "no_tags") {
                     setAlertWindow("warning", "Please specify at least one tag for '" + fileName + "'.", "#error-window");

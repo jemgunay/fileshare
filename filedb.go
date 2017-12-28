@@ -98,7 +98,7 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	}
 
 	// init file DB
-	fileDB = &FileDB{Data: make(map[string]File), dir: dbDir, file: dbDir + "/file_db.dat"}
+	fileDB = &FileDB{Data: make(map[string]File), dir: dbDir, file: dbDir + "/file_db.dat", requestPool: make(chan FileAccessRequest)}
 	err = fileDB.deserializeFromFile()
 
 	// start request poller
@@ -109,43 +109,61 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 
 // Structure for passing request and response data between poller.
 type FileAccessRequest struct {
-	stringOut    chan string
-	errorOut     chan error
-	filesOut     chan []File
-	stringsOut   chan []string
 	operation    string
 	fileParam    string
 	target       string
 	searchParams SearchRequest
 	fileMetadata MetaData
+	response     chan FileAccessResponse
+}
+type FileAccessResponse struct {
+	err      error
+	files    []File
+	metaData []string
+}
+
+// Create a blocking access request and provide an access response.
+func (db *FileDB) PerformAccessRequest(request FileAccessRequest) (response FileAccessResponse) {
+	request.response = make(chan FileAccessResponse, 1)
+	db.requestPool <- request
+	return <-request.response
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
 func (db *FileDB) StartFileAccessPoller() {
-	db.requestPool = make(chan FileAccessRequest)
-
 	for req := range db.requestPool {
+		response := FileAccessResponse{}
+
 		// process request
 		switch req.operation {
 		case "storeFile":
-			req.errorOut <- db.storeFile(req.fileParam, req.fileMetadata)
+			response.err = db.storeFile(req.fileParam, req.fileMetadata)
 			db.serializeToFile()
+
 		case "deleteFile":
-			req.errorOut <- db.deleteFile(req.fileParam, false)
+			response.err = db.deleteFile(req.fileParam, false)
 			db.serializeToFile()
+
 		case "getMetaData":
-			req.stringsOut <- db.getMetaData(req.target)
+			response.metaData = db.getMetaData(req.target)
+
 		case "search":
-			req.filesOut <- db.search(req.searchParams)
+			response.files = db.search(req.searchParams)
+
 		case "serialize":
-			req.errorOut <- db.serializeToFile()
+			response.err = db.serializeToFile()
+
 		case "deserialize":
-			req.errorOut <- db.deserializeFromFile()
+			response.err = db.deserializeFromFile()
+
 		case "destroy":
-			req.errorOut <- db.destroy()
+			response.err = db.destroy()
+
 		default:
-			req.errorOut <- fmt.Errorf("unsupported file access operation")
+			response.err = fmt.Errorf("unsupported file access operation")
 		}
+
+		req.response <- response
 	}
 }
 
@@ -201,7 +219,7 @@ func (db *FileDB) uploadFileToTemp(w http.ResponseWriter, r *http.Request, user 
 	// validate file name/extension
 	_, extension := SplitFileName(handler.Filename)
 	if fileType := config.CheckMediaType(extension); fileType == UNSUPPORTED {
-		err =  fmt.Errorf("format_not_supported")
+		err = fmt.Errorf("format_not_supported")
 		os.Remove(tempFilePath + handler.Filename) // delete temp file if unrecognised extension
 		return
 	}
@@ -495,35 +513,6 @@ func (db *FileDB) getFileHistory() (fileHistory string, err error) {
 	return buf.String(), nil
 }
 
-// Required parameters for providing history on file states to other servers.
-type FileHistoryResponse struct {
-	Type                  string
-	RequesterMissingUUIDS []string
-	ResponderMissingUUIDS []string
-}
-
-// Process the file history of another server and return a gob encoded list of responses.
-func (db *FileDB) processFileHistory(fileHistoryGob string) (err error) {
-	var fileHist []FileHistoryRequest
-
-	// decode string to file history
-	buf := new(bytes.Buffer)
-	decoder := gob.NewDecoder(buf)
-	err = decoder.Decode(fileHist)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	//response := FileHistoryResponse{}
-
-	// compare against current file Data...
-	// -> return file Data the requesting server does not have
-	// -> return a request for file Data we do not have
-
-	return nil
-}
-
 // Generate slice representation of file Data map.
 func (db *FileDB) toSlice() (files []File) {
 	files = make([]File, 0, len(db.Data))
@@ -583,8 +572,7 @@ func (db *FileDB) deserializeFromFile() (err error) {
 
 // Delete DB files and reset File DB.
 func (db *FileDB) destroy() (err error) {
-	err = os.Remove(db.file)
-	if err != nil {
+	if err = os.Remove(db.file); err != nil {
 		return
 	}
 

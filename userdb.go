@@ -26,21 +26,21 @@ const (
 type UserType int
 
 const (
-	STANDARD UserType = iota
-	ADMIN // can add/remove users
-	SUPER_ADMIN // cannot be removed, can change user details
-	GUEST // can search files only, cannot upload
+	STANDARD    UserType = iota
+	ADMIN                // can add/remove users
+	SUPER_ADMIN          // cannot be removed, can change user details
+	GUEST                // can search files only, cannot upload
 )
 
 // A user account.
 type User struct {
-	UUID     string
-	Password string
+	UUID          string
+	Password      string
 	ResetPassword string
-	Forename string
-	Surname  string
-	Type     UserType
-	Image    string
+	Forename      string
+	Surname       string
+	Type          UserType
+	Image         string
 	AccountState
 }
 
@@ -85,12 +85,12 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
-	stringsIn []string
-	userTypeIn    UserType
-	writerIn  http.ResponseWriter
-	reqIn     *http.Request
-	operation string
-	response  chan UserAccessResponse
+	stringsIn  []string
+	userTypeIn UserType
+	writerIn   http.ResponseWriter
+	reqIn      *http.Request
+	operation  string
+	response   chan UserAccessResponse
 }
 type UserAccessResponse struct {
 	err     error
@@ -101,13 +101,9 @@ type UserAccessResponse struct {
 
 // Create a blocking access request and provide an access response.
 func (db *UserDB) PerformAccessRequest(request UserAccessRequest) (response UserAccessResponse) {
-	responseChan := make(chan UserAccessResponse, 1)
-	request.response = responseChan
+	request.response = make(chan UserAccessResponse, 1)
 	db.requestPool <- request
-	r := <-responseChan
-	//fmt.Println(r)
-	//fmt.Println(r.user.Forename)
-	return r
+	return <-request.response
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.

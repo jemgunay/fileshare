@@ -226,7 +226,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		msg := gomail.NewMessage()
 		msg.SetHeader("From", config.params["display_email_addr"].val)
 		msg.SetHeader("To", "bob@example.com")
-		msg.SetHeader("Subject", config.params["brand_name"].val + ": Password Reset")
+		msg.SetHeader("Subject", config.params["brand_name"].val+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
 		port, err := strconv.Atoi(config.params["core_email_server"].val)
@@ -365,9 +365,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// perform search
-	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
-	s.fileDB.requestPool <- fileAR
-	files := <-fileAR.filesOut
+	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
 
 	// respond with JSON or HTML?
 	if q.Get("format") == "html" {
@@ -375,7 +373,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 		templateData := struct {
 			Files []File
 		}{
-			files,
+			response.files,
 		}
 		filesListResult, err := s.completeTemplate("/dynamic/templates/files_list.html", templateData)
 		if err != nil {
@@ -392,7 +390,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 		prettyPrint = false
 	}
 	// JSON formatted response
-	filesJSON := FilesToJSON(files, prettyPrint)
+	filesJSON := FilesToJSON(response.files, prettyPrint)
 	s.respond(w, filesJSON, false)
 }
 
@@ -403,13 +401,9 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 	resultsList := make(map[string][]string)
 
 	metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
-	for _, meta := range metaDataTypes {
-		// perform data request
-		fileAR := FileAccessRequest{stringsOut: make(chan []string), operation: "getMetaData", target: meta}
-		s.fileDB.requestPool <- fileAR
-		data := <-fileAR.stringsOut
-
-		resultsList[meta] = data
+	for _, dataType := range metaDataTypes {
+		response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "getMetaData", target: dataType})
+		resultsList[dataType] = response.metaData
 	}
 
 	// parse query result to json
@@ -425,9 +419,7 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// get a list of all files from db
 	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
-	fileAR := FileAccessRequest{filesOut: make(chan []File), operation: "search", searchParams: searchReq}
-	s.fileDB.requestPool <- fileAR
-	files := <-fileAR.filesOut
+	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
 
 	// HTML template data
 	templateData := struct {
@@ -442,7 +434,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	}{
 		"Memories",
 		config.params["brand_name"].val,
-		files,
+		response.files,
 		"",
 		"search",
 		"",
@@ -629,9 +621,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
-			fileAR := FileAccessRequest{errorOut: make(chan error), operation: "storeFile", fileParam: targetTempDir + targetFile, fileMetadata: metaData}
-			s.fileDB.requestPool <- fileAR
-			if err := <-fileAR.errorOut; err != nil {
+			response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "storeFile", fileParam: targetTempDir + targetFile, fileMetadata: metaData})
+			if response.err != nil {
 				s.respond(w, err.Error(), true)
 				return
 			}
@@ -688,9 +679,8 @@ func (s *HTTPServer) Stop() {
 		log.Println(err)
 	}
 
-	fileAR := FileAccessRequest{errorOut: make(chan error), operation: "serialize"}
-	s.fileDB.requestPool <- fileAR
-	if err := <-fileAR.errorOut; err != nil {
-		log.Println(err)
+	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "serialize"})
+	if response.err != nil {
+		log.Println(response.err)
 	}
 }

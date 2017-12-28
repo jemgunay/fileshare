@@ -34,10 +34,9 @@ func main() {
 		switch input {
 		// reset DB
 		case "destroy":
-			fileAR := FileAccessRequest{errorOut: make(chan error), operation: "destroy"}
-			httpServer.fileDB.requestPool <- fileAR
-			if err := <-fileAR.errorOut; err != nil {
-				log.Println(err)
+			response := httpServer.fileDB.PerformAccessRequest(FileAccessRequest{operation: "destroy"})
+			if response.err != nil {
+				log.Println(response.err)
 			}
 		// terminate
 		case "exit":
