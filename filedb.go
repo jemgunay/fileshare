@@ -103,7 +103,7 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	err = fileDB.deserializeFromFile()
 
 	// start request poller
-	go fileDB.StartFileAccessPoller()
+	go fileDB.startAccessPoller()
 
 	return
 }
@@ -129,14 +129,14 @@ type FileAccessResponse struct {
 }
 
 // Create a blocking access request and provide an access response.
-func (db *FileDB) PerformAccessRequest(request FileAccessRequest) (response FileAccessResponse) {
+func (db *FileDB) performAccessRequest(request FileAccessRequest) (response FileAccessResponse) {
 	request.response = make(chan FileAccessResponse, 1)
 	db.requestPool <- request
 	return <-request.response
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
-func (db *FileDB) StartFileAccessPoller() {
+func (db *FileDB) startAccessPoller() {
 	for req := range db.requestPool {
 		response := FileAccessResponse{}
 

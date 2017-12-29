@@ -76,6 +76,7 @@ func (s *HTTPServer) Start() {
 	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
 	// memory data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/view", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodPost)
 	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods(http.MethodGet)
 	// upload
@@ -110,7 +111,7 @@ func (s *HTTPServer) Start() {
 func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// authenticate
-		authResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "authenticateUser", w: w, r: r})
+		authResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "authenticateUser", w: w, r: r})
 
 		// file servers
 		// prevent dir listings
@@ -127,7 +128,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
 			vars := mux.Vars(r)
 
-			userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
+			userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 			if userResponse.user.UUID != vars["user_id"] {
 				s.respond(w, "404 page not found", false)
 				return
@@ -209,7 +210,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		return
 
-		/*response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
+		/*response := s.userDB.performAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
 		ok, err := response.success, response.err*/
 
 		/*switch {
@@ -276,7 +277,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// submit login request
 	case http.MethodPost:
-		response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "loginUser", w: w, r: r})
+		response := s.userDB.performAccessRequest(UserAccessRequest{operation: "loginUser", w: w, r: r})
 
 		switch {
 		case response.err != nil:
@@ -291,7 +292,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handle logout.
 func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "logoutUser", w: w, r: r})
+	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "logoutUser", w: w, r: r})
 
 	if response.err != nil {
 		s.respond(w, "error", true)
@@ -302,7 +303,7 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
-	response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getUsers"})
+	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUsers"})
 
 	// HTML template data
 	templateData := struct {
@@ -366,8 +367,8 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// perform search
-	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
-	
+	response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
+
 	// respond with JSON or HTML?
 	if q.Get("format") == "html" {
 		// HTML formatted response
@@ -403,7 +404,7 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 
 	metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
 	for _, dataType := range metaDataTypes {
-		response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "getMetaData", target: dataType})
+		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getMetaData", target: dataType})
 		resultsList[dataType] = response.metaData
 	}
 
@@ -418,53 +419,76 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
-	// get a list of all files from db
-	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
-	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
+	switch r.Method {
+	case http.MethodGet:
+		// get a list of all files from db
+		searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
+		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
 
-	// HTML template data
-	templateData := struct {
-		Title       string
-		BrandName   string
-		Files       []File
-		NavbarHTML  template.HTML
-		NavbarFocus string
-		FooterHTML  template.HTML
-		FilesHTML   template.HTML
-		ContentHTML template.HTML
-	}{
-		"Memories",
-		config.params["brand_name"].val,
-		response.files,
-		"",
-		"search",
-		"",
-		"",
-		"",
-	}
+		// HTML template data
+		templateData := struct {
+			Title       string
+			BrandName   string
+			Files       []File
+			NavbarHTML  template.HTML
+			NavbarFocus string
+			FooterHTML  template.HTML
+			FilesHTML   template.HTML
+			ContentHTML template.HTML
+		}{
+			"Memories",
+			config.params["brand_name"].val,
+			response.files,
+			"",
+			"search",
+			"",
+			"",
+			"",
+		}
 
-	var err error
-	templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-	templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-	var filesHTMLTarget = "/dynamic/templates/files_list.html"
-	if len(templateData.Files) == 0 {
-		filesHTMLTarget = "/static/templates/no_match.html"
-	}
-	templateData.FilesHTML, err = s.completeTemplate(filesHTMLTarget, templateData)
-	templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/search.html", templateData)
-	result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
-	if err != nil {
-		s.respond(w, err.Error(), true)
-		return
-	}
+		var err error
+		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+		var filesHTMLTarget= "/dynamic/templates/files_list.html"
+		if len(templateData.Files) == 0 {
+			filesHTMLTarget = "/static/templates/no_match.html"
+		}
+		templateData.FilesHTML, err = s.completeTemplate(filesHTMLTarget, templateData)
+		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/search.html", templateData)
+		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
+		if err != nil {
+			s.respond(w, err.Error(), true)
+			return
+		}
 
-	s.respond(w, string(result), false)
+		s.respond(w, string(result), false)
+
+	case http.MethodPost:
+		// get a list of all files from db
+		searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
+		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
+
+		// HTML template data
+		templateData := struct {
+
+		}{
+
+		}
+
+		result, err := s.completeTemplate("/dynamic/templates/overlay_window.html", templateData)
+		if err != nil {
+			s.respond(w, err.Error(), true)
+			return
+		}
+
+		s.respond(w, string(result), false)
+	}
 }
 
 // Process HTTP file upload request.
 func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get user details
-	userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
+	userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if userResponse.err != nil {
 		s.respond(w, userResponse.err.Error(), true)
 		return
@@ -496,7 +520,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// get all temp files for
-		files := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "getFilesByUser", UUID: userResponse.user.UUID, state: UPLOADED})
+		files := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFilesByUser", UUID: userResponse.user.UUID, state: UPLOADED})
 
 		// generate upload description forms for each unpublished image
 		for _, f := range files.files {
@@ -569,7 +593,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// remove file
-			response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "deleteFile", target: r.Form.Get("file")})
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "deleteFile", target: r.Form.Get("file")})
 			if response.err != nil {
 				s.respond(w, response.err.Error(), true)
 				return
@@ -600,7 +624,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
-			response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("file"), fileMetadata: metaData})
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("file"), fileMetadata: metaData})
 			if response.err != nil {
 				s.respond(w, response.err.Error(), true)
 				return
@@ -658,7 +682,7 @@ func (s *HTTPServer) Stop() {
 		log.Println(err)
 	}
 
-	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "serialize"})
+	response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "serialize"})
 	if response.err != nil {
 		log.Println(response.err)
 	}

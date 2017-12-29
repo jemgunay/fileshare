@@ -34,7 +34,7 @@ func main() {
 		switch input {
 		// reset DB
 		case "destroy":
-			response := httpServer.fileDB.PerformAccessRequest(FileAccessRequest{operation: "destroy"})
+			response := httpServer.fileDB.performAccessRequest(FileAccessRequest{operation: "destroy"})
 			if response.err != nil {
 				log.Println(response.err)
 			}

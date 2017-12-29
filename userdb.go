@@ -70,11 +70,11 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	userDB.deserializeFromFile()
 
 	// start request poller
-	go userDB.StartUserAccessPoller()
+	go userDB.startAccessPoller()
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		response := userDB.PerformAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN})
+		response := userDB.performAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN})
 		if response.err != nil {
 			return nil, fmt.Errorf("default super admin account could not be created")
 		}
@@ -100,14 +100,14 @@ type UserAccessResponse struct {
 }
 
 // Create a blocking access request and provide an access response.
-func (db *UserDB) PerformAccessRequest(request UserAccessRequest) (response UserAccessResponse) {
+func (db *UserDB) performAccessRequest(request UserAccessRequest) (response UserAccessResponse) {
 	request.response = make(chan UserAccessResponse, 1)
 	db.requestPool <- request
 	return <-request.response
 }
 
 // Poll for requests, process them & pass result/error back to requester via channels.
-func (db *UserDB) StartUserAccessPoller() {
+func (db *UserDB) startAccessPoller() {
 	for req := range db.requestPool {
 		response := UserAccessResponse{}
 
