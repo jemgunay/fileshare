@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -202,11 +201,13 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		s.respond(w, string(result), false)
 
-	// submit login request
+	// submit password reset request
 	case http.MethodPost:
 		r.ParseForm()
 		vars := mux.Vars(r)
 		fmt.Println(vars)
+
+		return
 
 		/*response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
 		ok, err := response.success, response.err*/
@@ -229,7 +230,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		msg.SetHeader("Subject", config.params["brand_name"].val+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
-		port, err := strconv.Atoi(config.params["core_email_server"].val)
+		port, err := strconv.Atoi(config.params["core_email_port"].val)
 		if err != nil {
 			s.respond(w, "error", true)
 			return
@@ -339,12 +340,12 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 
 // Search request query container.
 type SearchRequest struct {
-	description string
-	tags        []string
-	people      []string
-	minDate     int64
-	maxDate     int64
-	fileTypes   []string
+	description  string
+	tags         []string
+	people       []string
+	minDate      int64
+	maxDate      int64
+	fileTypes    []string
 }
 
 // Search files by their properties.
@@ -366,7 +367,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 
 	// perform search
 	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
-
+	fmt.Println(searchReq)
 	// respond with JSON or HTML?
 	if q.Get("format") == "html" {
 		// HTML formatted response
@@ -420,6 +421,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	// get a list of all files from db
 	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
 	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
+	fmt.Println(searchReq)
 
 	// HTML template data
 	templateData := struct {
@@ -494,17 +496,15 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			"",
 		}
 
-		// get all files in temp dir for current session user
-		files, err := ioutil.ReadDir(config.rootPath + "/db/temp/" + userResponse.user.UUID + "/")
+		// get all temp files for
+		files := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "getFilesByUser", UUID: userResponse.user.UUID, state: UPLOADED})
 
 		// generate upload description forms for each unpublished image
-		for _, f := range files {
+		for _, f := range files.files {
 			uploadTemplateData := struct {
-				FileName string
-				FilePath string
+				UploadedFile File
 			}{
-				f.Name(),
-				"/temp_uploaded/" + userResponse.user.UUID + "/",
+				f,
 			}
 
 			result, err := s.completeTemplate("/dynamic/templates/upload_form.html", uploadTemplateData)
@@ -516,6 +516,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			templateData.UploadFormsHTML += result
 		}
 
+		var err error
 		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/upload_footer.html", templateData)
 		templateData.ContentHTML, err = s.completeTemplate("/static/templates/upload.html", templateData)
@@ -528,18 +529,18 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// file upload
 	case http.MethodPost:
-		// store file in temp dir under user UUID subdir ready for processing
+		// upload file to temp dir under user UUID subdir ready for processing (only uploading user can access)
 		switch vars["type"] {
 		case "temp":
 			// limit request size to prevent DOS (10MB) & get data from form
 			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 			if err := r.ParseMultipartForm(0); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), false)
+				s.respond(w, err.Error(), true)
 				return
 			}
 			// move form file to temp dir
-			tempPath, tempName, err := s.fileDB.uploadFileToTemp(w, r, userResponse.user)
+			file, err := s.fileDB.uploadFile(w, r, userResponse.user)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				s.respond(w, err.Error(), false)
@@ -548,11 +549,9 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// html details form response
 			templateData := struct {
-				FileName string
-				FilePath string
+				UploadedFile File
 			}{
-				tempName,
-				tempPath,
+				file,
 			}
 
 			result, err := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
@@ -570,38 +569,19 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// construct temp file path
-			targetTempDir := config.rootPath + "/db/temp/" + userResponse.user.UUID + "/"
-			targetFile := r.Form.Get("file")
-
-			// check if file exists
-			ok, err := FileOrDirExists(targetTempDir + targetFile)
-			if err != nil || !ok {
-				s.respond(w, "invalid_file", false)
-				return
-			}
-
 			// remove file
-			if err := os.Remove(targetTempDir + targetFile); err != nil {
-				s.respond(w, err.Error(), true)
+			response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "deleteFile", target: r.Form.Get("file")})
+			if response.err != nil {
+				s.respond(w, response.err.Error(), true)
 				return
 			}
 
 			s.respond(w, "success", false)
 
-		// move temp file to DB with file details
-		case "store":
+		// move temp file to content dir (allow global user access)
+		case "publish":
 			if err := r.ParseForm(); err != nil {
 				s.respond(w, err.Error(), true)
-				return
-			}
-
-			// ensure access to target file is permitted
-			targetTempDir := config.rootPath + "/db/temp/" + userResponse.user.UUID + "/"
-			targetFile := r.Form.Get("file")
-			ok, err := FileOrDirExists(targetTempDir + targetFile)
-			if !ok || err != nil {
-				s.respond(w, "temp file does not exist", false)
 				return
 			}
 
@@ -621,9 +601,9 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
-			response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "storeFile", fileParam: targetTempDir + targetFile, fileMetadata: metaData})
+			response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("file"), fileMetadata: metaData})
 			if response.err != nil {
-				s.respond(w, err.Error(), true)
+				s.respond(w, response.err.Error(), true)
 				return
 			}
 

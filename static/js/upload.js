@@ -14,15 +14,28 @@ $(document).ready(function() {
                 errorMessage = errorMessage.trim();
                 var refinedError = "";
 
-                console.log("upload error (" + file.name + "): " + errorMessage);
-                if (errorMessage === "already_stored") {
-                    refinedError = "A copy of '" + file.name + "' has already been uploaded."
+                //console.log("upload error (" + file.name + "): " + errorMessage);
+
+                if (errorMessage === "already_uploaded") {
+                    refinedError = "A copy of '" + file.name + "' has already been uploaded by another user, but not yet published."
+                }
+                else if (errorMessage === "already_published") {
+                    refinedError = "A copy of '" + file.name + "' has already been published to memories by another user."
+                }
+                if (errorMessage === "already_uploaded_self") {
+                    refinedError = "You have already uploaded an unpublished copy of '" + file.name + "' below."
+                }
+                else if (errorMessage === "already_published_self") {
+                    refinedError = "You have already published a copy of '" + file.name + "' to memories."
                 }
                 else if (errorMessage === "format_not_supported") {
                     refinedError = "The file type of '" + file.name + "' is unsupported."
                 }
+                else if (errorMessage === "invalid_file") {
+                    refinedError = "The file '" + file.name + "' is invalid."
+                }
                 else {
-                    refinedError = "A server file upload error occurred for '" + file.name + "'."
+                    refinedError = "A file upload error occurred for '" + file.name + "'."
                 }
                 var msgEl = $(file.previewElement).find('.dz-error-message');
                 msgEl.text(refinedError);
@@ -64,7 +77,7 @@ function initUploadForm() {
             setButtonProcessing($(this), true);
 
             // perform request
-            performRequest(hostname + "/upload/store", "POST", $(".upload-result-container form").serialize(), function (result) {
+            performRequest(hostname + "/upload/publish", "POST", $(".upload-result-container form").serialize(), function (result) {
                 result = result.trim();
 
                 setButtonProcessing(panel.find("form .btn-primary"), false);
@@ -73,19 +86,19 @@ function initUploadForm() {
                     panel.fadeOut(500, function () {
                         panel.remove();
                     });
-                    setAlertWindow("success", fileName + "' successfully published!", "#error-window");
+                    setAlertWindow("success", "File successfully published!", "#error-window");
                 }
                 else if (result === "no_tags") {
-                    setAlertWindow("warning", "Please specify at least one tag for '" + fileName + "'.", "#error-window");
+                    setAlertWindow("warning", "Please specify at least one tag before publishing.", "#error-window");
                 }
                 else if (result === "no_people") {
-                    setAlertWindow("warning", "Please specify at least one person for '" + fileName + "'.", "#error-window");
+                    setAlertWindow("warning", "Please specify at least one person before publishing.", "#error-window");
                 }
                 else if (result === "already_stored") {
                     panel.fadeOut(500, function () {
                         panel.remove();
                     });
-                    setAlertWindow("warning", "A copy of '" + fileName + "' has already been stored!", "#error-window");
+                    setAlertWindow("warning", "A copy of this file has already been stored!", "#error-window");
                 }
                 else {
                     setAlertWindow("danger", "A server error occurred (" + fileName + ").", "#error-window");
@@ -108,13 +121,13 @@ function initUploadForm() {
                     panel.fadeOut(500, function() {
                         panel.remove();
                     });
-                    setAlertWindow("success", "File '" + fileName + "' deleted!", "#error-window");
+                    setAlertWindow("success", "File has been deleted!", "#error-window");
                 }
                 else if (result === "invalid_file") {
                     panel.fadeOut(500, function() {
                         panel.remove();
                     });
-                    setAlertWindow("success", "File '" + fileName + "' has already been deleted!", "#error-window");
+                    setAlertWindow("success", "File has already been deleted!", "#error-window");
                 }
                 else {
                     setAlertWindow("danger", "A server error occurred (" + fileName + ").", "#error-window");

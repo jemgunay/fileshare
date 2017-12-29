@@ -73,6 +73,15 @@ h1, h2, h3 {
         padding-left: 8px;
     }
 
+    #search-panel .form-group {
+        padding: 10px 10px 0 10px;
+        margin-bottom: 0;
+    }
+    #search-panel .panel-body {
+        padding-top: 0;
+        padding-bottom: 10px;
+    }
+
     #upload-results-panel .upload-result-container {
         display: table;
         width: 100%

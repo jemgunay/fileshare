@@ -38,14 +38,13 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
         var populateValue = tokenfieldSets[i][2];
 
         // check if data exists
-        if (parsedData[metaType] == null) {
-            continue;
-        }
+        if (parsedData[metaType] != null) {
+            var commaSeparatedData = parsedData[metaType].join();
 
-        var commaSeparatedData = parsedData[metaType].join();
-        // set default input value
-        if (populateValue) {
-            $(tagIDs).val(commaSeparatedData);
+            // set default input value
+            if (populateValue) {
+                $(tagIDs).val(commaSeparatedData);
+            }
         }
 
         (function (tagIDs, parsedData, metaType) {
@@ -53,18 +52,20 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
             $(tagIDs).tokenfield({
                 autocomplete: {
                     source: function (request, response) {
-                        var results = $.ui.autocomplete.filter(parsedData[metaType], request.term);
+                        if (parsedData[metaType] != null) {
+                            var results = $.ui.autocomplete.filter(parsedData[metaType], request.term);
 
-                        // remove already selected tokens from autocomplete results
-                        var selectedTokens = $(tagIDs).tokenfield('getTokens', false);
-                        var selectedTokenVals = [];
-                        for (var i in selectedTokens) {
-                            selectedTokenVals.push(selectedTokens[i]["label"]);
+                            // remove already selected tokens from autocomplete results
+                            var selectedTokens = $(tagIDs).tokenfield('getTokens', false);
+                            var selectedTokenVals = [];
+                            for (var i in selectedTokens) {
+                                selectedTokenVals.push(selectedTokens[i]["label"]);
+                            }
+                            var unselectedResults = $(results).not(selectedTokenVals).get();
+
+                            // limit autocomplete results
+                            response(unselectedResults.slice(0, maxAutoCompleteSuggestions))
                         }
-                        var unselectedResults = $(results).not(selectedTokenVals).get();
-
-                        // limit autocomplete results
-                        response(unselectedResults.slice(0, maxAutoCompleteSuggestions))
                     },
                     delay: 0
                 },

@@ -3,15 +3,15 @@
         <div class="upload-result-container">
             <!-- temp uploaded image -->
             <div class="img-preview">
-                <img src="{{ .FilePath }}{{ .FileName }}">
+                <img src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}">
             </div>
 
             <!-- details for temp image -->
             <div class="img-details">
-                <form action="/upload/store" method="post" enctype="multipart/form-data" class="form-horizontal">
+                <form action="/upload/publish" method="post" enctype="multipart/form-data" class="form-horizontal">
 
                     <div class="row">
-                        <input type="hidden" name="file" value="{{ .FileName }}">
+                        <input type="hidden" name="file" value="{{ .UploadedFile.UUID }}">
 
                         <!-- description field -->
                         <div class="form-group">

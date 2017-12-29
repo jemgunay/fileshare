@@ -89,6 +89,7 @@ type UserAccessRequest struct {
 	userTypeIn UserType
 	writerIn   http.ResponseWriter
 	reqIn      *http.Request
+	fileIn     File
 	operation  string
 	response   chan UserAccessResponse
 }
