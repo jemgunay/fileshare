@@ -74,7 +74,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		response := userDB.PerformAccessRequest(UserAccessRequest{operation: "addUser", stringsIn: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userTypeIn: SUPER_ADMIN})
+		response := userDB.PerformAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN})
 		if response.err != nil {
 			return nil, fmt.Errorf("default super admin account could not be created")
 		}
@@ -85,13 +85,12 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
-	stringsIn  []string
-	userTypeIn UserType
-	writerIn   http.ResponseWriter
-	reqIn      *http.Request
-	fileIn     File
-	operation  string
-	response   chan UserAccessResponse
+	attributes []string
+	userType  UserType
+	w         http.ResponseWriter
+	r         *http.Request
+	operation string
+	response  chan UserAccessResponse
 }
 type UserAccessResponse struct {
 	err     error
@@ -115,28 +114,28 @@ func (db *UserDB) StartUserAccessPoller() {
 		// process request
 		switch req.operation {
 		case "addUser":
-			if len(req.stringsIn) < 4 {
+			if len(req.attributes) < 4 {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
-				response.err = db.addUser(req.stringsIn[0], req.stringsIn[1], req.stringsIn[2], req.stringsIn[3], req.userTypeIn)
+				response.err = db.addUser(req.attributes[0], req.attributes[1], req.attributes[2], req.attributes[3], req.userType)
 				db.serializeToFile()
 			}
 
 		case "authenticateUser":
-			response.success, response.err = db.authenticateUser(req.writerIn, req.reqIn)
+			response.success, response.err = db.authenticateUser(req.w, req.r)
 
 		case "getSessionUser":
-			response.user, response.err = db.getSessionUser(req.writerIn, req.reqIn)
+			response.user, response.err = db.getSessionUser(req.w, req.r)
 
 		case "getUsers":
 			response.users = db.getUsers()
 
 		case "loginUser":
-			response.success, response.err = db.loginUser(req.writerIn, req.reqIn)
+			response.success, response.err = db.loginUser(req.w, req.r)
 			db.serializeToFile()
 
 		case "logoutUser":
-			response.err = db.logoutUser(req.writerIn, req.reqIn)
+			response.err = db.logoutUser(req.w, req.r)
 			db.serializeToFile()
 
 		default:

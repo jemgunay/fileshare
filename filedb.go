@@ -206,6 +206,10 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 
 	// separate & validate file name/extension
 	newTempFile.Name, newTempFile.Extension = SplitFileName(handler.Filename)
+	if newTempFile.Name == "" || newTempFile.Extension == "" {
+		err = fmt.Errorf("invalid_file")
+		return
+	}
 	if newTempFile.MediaType = config.CheckMediaType(newTempFile.Extension); newTempFile.MediaType == UNSUPPORTED {
 		err = fmt.Errorf("format_not_supported")
 		return

@@ -89,19 +89,15 @@ func NewUUID() (UUID string) {
 	return uuid.NewV4().String()
 }
 
-// Split file name into name & extension.
+// Split file name into name & extension components.
 func SplitFileName(file string) (name, extension string) {
-	extensionWithDot := filepath.Ext(file)
-	if len(extensionWithDot) < 2 {
+	components := strings.Split(file, ".")
+	if len(components) < 2 {
 		return
 	}
-	extension = string([]rune(extensionWithDot[1:]))
-	fileNameWithExt := []rune(filepath.Base(file))
-	upperRange := len(fileNameWithExt)-len(extension)-1
-	if upperRange > len(fileNameWithExt) {
-		return "", ""
-	}
-	name = string(fileNameWithExt[:upperRange])
+
+	name = components[0]
+	extension = strings.Join(components[1:], "")
 	return
 }
 

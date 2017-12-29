@@ -110,7 +110,7 @@ func (s *HTTPServer) Start() {
 func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// authenticate
-		authResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "authenticateUser", writerIn: w, reqIn: r})
+		authResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "authenticateUser", w: w, r: r})
 
 		// file servers
 		// prevent dir listings
@@ -127,7 +127,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
 			vars := mux.Vars(r)
 
-			userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", writerIn: w, reqIn: r})
+			userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 			if userResponse.user.UUID != vars["user_id"] {
 				s.respond(w, "404 page not found", false)
 				return
@@ -276,7 +276,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// submit login request
 	case http.MethodPost:
-		response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "loginUser", writerIn: w, reqIn: r})
+		response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "loginUser", w: w, r: r})
 
 		switch {
 		case response.err != nil:
@@ -291,7 +291,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handle logout.
 func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "logoutUser", writerIn: w, reqIn: r})
+	response := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "logoutUser", w: w, r: r})
 
 	if response.err != nil {
 		s.respond(w, "error", true)
@@ -367,7 +367,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 
 	// perform search
 	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
-	fmt.Println(searchReq)
+	
 	// respond with JSON or HTML?
 	if q.Get("format") == "html" {
 		// HTML formatted response
@@ -421,7 +421,6 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	// get a list of all files from db
 	searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
 	response := s.fileDB.PerformAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
-	fmt.Println(searchReq)
 
 	// HTML template data
 	templateData := struct {
@@ -465,7 +464,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 // Process HTTP file upload request.
 func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get user details
-	userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", writerIn: w, reqIn: r})
+	userResponse := s.userDB.PerformAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if userResponse.err != nil {
 		s.respond(w, userResponse.err.Error(), true)
 		return

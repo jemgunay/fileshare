@@ -34,7 +34,7 @@
                                                     {{ $user.Forename }} {{ $user.Surname }}
                                                     {{ if eq $user.Type 1 }} (Admin) {{ end }}
                                                     {{ if eq $user.Type 2 }} (Super Admin) {{ end }}
-                                                    {{ if eq $user.Type 2 }} (Guest) {{ end }}
+                                                    {{ if eq $user.Type 3 }} (Guest) {{ end }}
                                                 </h4>
 
                                                 <p>{{ $email }}</p>
