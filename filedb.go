@@ -41,7 +41,7 @@ const (
 	DELETED
 )
 
-// Represents a file and its state.
+// Represents a file's details and its state.
 type File struct {
 	Name               string
 	Extension          string
@@ -436,7 +436,7 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 	keepCounter := 0
 
 	for i := range searchResults {
-		// trim HH:MM:SS to filter by year/month/day only
+		// trim epoch to HH:MM:SS to filter by year/month/day only
 		minSearchDate := TrimUnixEpoch(searchReq.minDate)
 		maxSearchDate := TrimUnixEpoch(searchReq.maxDate)
 		fileDate := TrimUnixEpoch(searchResults[i].PublishedTimestamp)
@@ -519,6 +519,17 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 			currentFilterResult++
 		}
 	}
+
+	// limit number of results to pagination fields
+	func() {
+		if searchReq.resultsPerPage > 0 {
+			rangeBounds := [2]int64{searchReq.page * searchReq.resultsPerPage, (searchReq.page + 1) * searchReq.resultsPerPage}
+			if rangeBounds[1] > int64(len(filterResults)-1) {
+				return
+			}
+			filterResults = filterResults[rangeBounds[0]:rangeBounds[1]]
+		}
+	}()
 
 	return filterResults
 }

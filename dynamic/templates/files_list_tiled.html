@@ -1,0 +1,31 @@
+<!-- file list -->
+{{ range $key, $file := .Files }}
+
+<div class="col-sm-3">
+    <div class="panel panel-default">
+        <div class="panel-body">
+
+            <!-- temp uploaded image -->
+            <div class="img-preview">
+                {{ if eq $file.MediaType "image" }}
+                    <img class="img-responsive" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                {{ end }}
+                {{ if eq $file.MediaType "video" }}
+                    <img class="img-responsive" src="/static/img/play.png">
+                {{ end }}
+                {{ if eq $file.MediaType "audio" }}
+                    <img class="img-responsive" src="/static/img/play.png">
+                {{ end }}
+                {{ if eq $file.MediaType "text" }}
+                    <img class="img-responsive" src="/static/content/img/read.png">
+                {{ end }}
+                {{ if eq $file.MediaType "other" }}
+                    <img class="img-responsive" src="/static/content/img/download.png">
+                {{ end }}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{{ end }}

@@ -11,6 +11,16 @@ h1, h2, h3 {
     font-family: 'Pacifico', cursive;
     padding: 15px 25px;
 }
+.media-heading {
+    margin-bottom: 10px;
+}
+.media-body p {
+    margin-bottom: 8px;
+}
+.toggle-group label {
+    font-weight: bold;
+    padding-top: 9px;
+}
 
 /* generic */
 .container-fluid {
@@ -47,7 +57,7 @@ h1, h2, h3 {
 
 /* overlay window */
 #overlay-window {
-    /*display: none;*/
+    display: none;
     position: fixed;
     top: 0;
     left: 0;
@@ -80,7 +90,7 @@ h1, h2, h3 {
     padding-left: 10px;
 }
 
-/* upload page */
+/* upload & search pages */
 .dz-error-message, .dz-error-message:hover {
     opacity: 1;
 }
@@ -101,13 +111,19 @@ h1, h2, h3 {
     }
 }
 @media (min-width: 768px) {
-    .results-window .col-sm-6:nth-child(odd) {
+    /* search results */
+    .results-window .col-sm-6:nth-child(odd),
+    .results-window .col-sm-3:nth-child(4n+1),
+    .results-window .col-sm-3:nth-child(4n+2),
+    .results-window .col-sm-3:nth-child(4n+3) {
         padding-right: 7px;
     }
-    .results-window .col-sm-6:nth-child(even) {
+    .results-window .col-sm-6:nth-child(even),
+    .results-window .col-sm-3:nth-child(4n+2),
+    .results-window .col-sm-3:nth-child(4n+3),
+    .results-window .col-sm-3:nth-child(4n+4) {
         padding-left: 8px;
     }
-
     #search-panel .form-group {
         padding: 10px 10px 0 10px;
         margin-bottom: 0;
@@ -116,7 +132,17 @@ h1, h2, h3 {
         padding-top: 0;
         padding-bottom: 10px;
     }
+    .toggle.btn {
+        margin-top: 23px;
+    }
+    #search-results-panel .img-preview {
 
+    }
+    #search-results-panel .img-preview img {
+
+    }
+
+    /* upload results */
     #upload-results-panel .upload-result-container {
         display: table;
         width: 100%

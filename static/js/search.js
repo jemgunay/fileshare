@@ -1,4 +1,5 @@
-var maxAutoCompleteSuggestions = 5;
+var maxAutoCompleteSuggestions = 5; // Number of autocomplete results to show under tokenfield inputs.
+var currentPage = 0; // Current pagination page (start at 0th page).
 
 $(document).ready(function() {
 
@@ -25,6 +26,16 @@ $(document).ready(function() {
             $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][1]) * 1000));
             $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
         });
+
+        // init pagination dropdown
+        $("#count-search-input").change(performSearch);
+
+        // init view toggle
+        $("#view-search-input").bootstrapToggle({
+            on: "Tiled View",
+            off: "Detailed View",
+            width: "100%"
+        }).change(performSearch);
     }
 
 });
@@ -83,11 +94,17 @@ function performSearch() {
     if (dates[0]) { dates[0] = dates[0].unix() }
     if (dates[1]) { dates[1] = dates[1].unix() }
     var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
+    var format = "html_detailed";
+    if ($("#view-search-input").is(":checked")) {
+        format = "html_tiled";
+    }
+    var resultsPerPage = $("#count-search-input :selected").val();
+
+    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1];
+    request += "&file_types=" + tokenfieldTags[2] + "&format=" + format + "&results_per_page=" + resultsPerPage + "&page=" + currentPage;
     
-    var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1] + "&file_types=" + tokenfieldTags[2] + "&format=html";
-    
-    // console.log(request);
-    
+    console.log(request);
+
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         if (html.length === 2) {

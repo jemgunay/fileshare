@@ -341,16 +341,18 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 
 // Search request query container.
 type SearchRequest struct {
-	description  string
-	tags         []string
-	people       []string
-	minDate      int64
-	maxDate      int64
-	fileTypes    []string
+	description    string
+	tags           []string
+	people         []string
+	minDate        int64
+	maxDate        int64
+	fileTypes      []string
+	resultsPerPage int64
+	page           int64
 }
 
 // Search files by their properties.
-// URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html), pretty]
+// URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html_tiled/html_detailed), pretty]
 func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// construct search query from url params
@@ -365,19 +367,32 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 	if formattedDate, err := strconv.ParseInt(q.Get("max_date"), 10, 64); err == nil {
 		searchReq.maxDate = formattedDate
 	}
+	// parse pagination fields
+	if formattedResultsCount, err := strconv.ParseInt(q.Get("results_per_page"), 10, 64); err == nil {
+		searchReq.resultsPerPage = formattedResultsCount
+	}
+	if formattedResultsPage, err := strconv.ParseInt(q.Get("page"), 10, 64); err == nil {
+		searchReq.page = formattedResultsPage
+	}
 
 	// perform search
 	response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
 
 	// respond with JSON or HTML?
-	if q.Get("format") == "html" {
+	if q.Get("format") == "html_tiled" || q.Get("format") == "html_detailed" {
 		// HTML formatted response
 		templateData := struct {
 			Files []File
 		}{
 			response.files,
 		}
-		filesListResult, err := s.completeTemplate("/dynamic/templates/files_list.html", templateData)
+		// determine which template format to use
+		templateFile := "/dynamic/templates/files_list_detailed.html"
+		if q.Get("format") == "html_tiled" {
+			templateFile = "/dynamic/templates/files_list_tiled.html"
+		}
+
+		filesListResult, err := s.completeTemplate(templateFile, templateData)
 		if err != nil {
 			s.respond(w, err.Error(), true)
 			return
@@ -422,7 +437,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodGet:
 		// get a list of all files from db
-		searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
+		searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true), resultsPerPage: 10}
 		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
 
 		// HTML template data
@@ -449,7 +464,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		var err error
 		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-		var filesHTMLTarget= "/dynamic/templates/files_list.html"
+		var filesHTMLTarget = "/dynamic/templates/files_list_detailed.html"
 		if len(templateData.Files) == 0 {
 			filesHTMLTarget = "/static/templates/no_match.html"
 		}
@@ -465,7 +480,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 
 	case http.MethodPost:
 		// get a list of all files from db
-		searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
+		/*searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
 		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
 
 		// HTML template data
@@ -481,7 +496,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		s.respond(w, string(result), false)
+		s.respond(w, string(result), false)*/
 	}
 }
 
@@ -542,7 +557,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/upload_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate("/static/templates/upload.html", templateData)
+		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/upload.html", templateData)
 		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 		if err != nil {
 			s.respond(w, err.Error(), true)
@@ -658,8 +673,13 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		return
 	}
 
-	// parse HTML template
-	templateParsed, err := template.New("t").Parse(string(htmlTemplate))
+	// parse HTML template & register template functions
+	templateParsed, err := template.New("t").Funcs(template.FuncMap{
+		"formatEpoch": func(epoch int64) string {
+			t := time.Unix(epoch, 0)
+			return t.Format("02/01/2006 [15:04]")
+		},
+	}).Parse(string(htmlTemplate))
 	if err != nil {
 		log.Println(err)
 		return
