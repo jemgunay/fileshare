@@ -1,0 +1,15 @@
+version: "3"
+
+services:
+  web:
+    image: jemgunay/fileshare:v0.1
+    deploy:
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - ./config:/go/src/github.com/jemgunay/fileshare/config
+      - ./db:/go/src/github.com/jemgunay/fileshare/db
+      - ./static/content:/go/src/github.com/jemgunay/fileshare/static/content
+    ports:
+      - "8000:8000"
+    command: ["/go/bin/fileshare"]

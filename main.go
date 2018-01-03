@@ -7,11 +7,15 @@ import (
 	"os"
 	"strings"
 	"time"
+	"flag"
 )
 
 var config Config
 
 func main() {
+	// log level
+	config.SetLogVerbosity(*flag.Int("log-verbosity", 0, "0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)"))
+
 	// load system config
 	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare"
 	config.LoadConfig(rootPath)

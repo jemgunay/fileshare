@@ -21,6 +21,8 @@ type Config struct {
 	fileFormats  map[string]string
 	indexCounter int
 	commentLines []ConfigSet
+	// 0 = none, 1 = critical errors only, 2 = all errors, 3 = all responses
+	logVerbosity int
 }
 
 // Load server config from local file.
@@ -86,8 +88,17 @@ func (c *Config) Set(param string, value string) {
 	config.SaveConfig()
 }
 
+// Set logging verbosity.
+func (c *Config) SetLogVerbosity(level int) {
+	if level > 3 {
+		c.logVerbosity = 3
+		return
+	}
+	c.logVerbosity = level
+}
+
 // Get the media type grouping for the provided file extension.
-func (c *Config) CheckMediaType(fileExtension string) (string) {
+func (c *Config) CheckMediaType(fileExtension string) string {
 	// check for malicious commas before parsing
 	if strings.Contains(fileExtension, ",") {
 		return UNSUPPORTED
