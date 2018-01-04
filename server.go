@@ -116,7 +116,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// file servers
 		// prevent dir listings
 		if r.URL.String() != "/" && strings.HasSuffix(r.URL.String(), "/") {
-			s.respond(w, "404 page not found", false)
+			s.respond(w, "404 page not found", 3)
 			return
 		}
 		// prevent unauthorised access to /static/content
@@ -130,7 +130,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 
 			userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 			if userResponse.user.UUID != vars["user_id"] {
-				s.respond(w, "404 page not found", false)
+				s.respond(w, "404 page not found", 3)
 				return
 			}
 		}
@@ -141,7 +141,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
 				} else {
-					s.respond(w, "already authenticated", false)
+					s.respond(w, "already authenticated", 3)
 				}
 			} else {
 				h(w, r)
@@ -157,7 +157,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/login", 302)
 			} else {
-				s.respond(w, "unauthorised", false)
+				s.respond(w, "unauthorised", 3)
 			}
 			return
 		}
@@ -197,10 +197,10 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/reset_password.html", templateData)
 		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 		if err != nil {
-			s.respond(w, err.Error(), true)
+			s.respond(w, err.Error(), 1)
 		}
 
-		s.respond(w, string(result), false)
+		s.respond(w, string(result), 3)
 
 	// submit password reset request
 	case http.MethodPost:
@@ -215,11 +215,11 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		/*switch {
 		case err != nil:
-			s.respond(w, "error", false)
+			s.respond(w, "error", 2)
 		case ok == false:
-			s.respond(w, "unauthorised", false)
+			s.respond(w, "unauthorised", 3)
 		case ok:
-			s.respond(w, "success", false)
+			s.respond(w, "success", 3)
 		}*/
 
 		// email new randomly generated temp password
@@ -233,7 +233,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		port, err := strconv.Atoi(config.params["core_email_port"].val)
 		if err != nil {
-			s.respond(w, "error", true)
+			s.respond(w, "error", 2)
 			return
 		}
 
@@ -241,9 +241,11 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Send the email to Bob, Cora and Dan.
 		if err := d.DialAndSend(msg); err != nil {
-			s.respond(w, "error", true)
+			s.respond(w, "error", 2)
 			return
 		}
+
+		s.respond(w, "success", 3)
 	}
 }
 
@@ -270,10 +272,10 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/login.html", templateData)
 		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 		if err != nil {
-			s.respond(w, err.Error(), true)
+			s.respond(w, err.Error(), 1)
 		}
 
-		s.respond(w, string(result), false)
+		s.respond(w, string(result), 3)
 
 	// submit login request
 	case http.MethodPost:
@@ -281,11 +283,11 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch {
 		case response.err != nil:
-			s.respond(w, "error", false)
+			s.respond(w, "error", 2)
 		case response.success == false:
-			s.respond(w, "unauthorised", false)
+			s.respond(w, "unauthorised", 3)
 		case response.success:
-			s.respond(w, "success", false)
+			s.respond(w, "success", 3)
 		}
 	}
 }
@@ -295,7 +297,7 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "logoutUser", w: w, r: r})
 
 	if response.err != nil {
-		s.respond(w, "error", true)
+		s.respond(w, "error", 2)
 		return
 	}
 	http.Redirect(w, r, "/login", 302)
@@ -332,11 +334,11 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/users.html", templateData)
 	result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 	if err != nil {
-		s.respond(w, err.Error(), true)
+		s.respond(w, err.Error(), 1)
 		return
 	}
 
-	s.respond(w, string(result), false)
+	s.respond(w, string(result), 3)
 }
 
 // Search request query container.
@@ -394,10 +396,10 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 
 		filesListResult, err := s.completeTemplate(templateFile, templateData)
 		if err != nil {
-			s.respond(w, err.Error(), true)
+			s.respond(w, err.Error(), 1)
 			return
 		}
-		s.respond(w, string(filesListResult), false)
+		s.respond(w, string(filesListResult), 3)
 		return
 	}
 
@@ -408,7 +410,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	// JSON formatted response
 	filesJSON := FilesToJSON(response.files, prettyPrint)
-	s.respond(w, filesJSON, false)
+	s.respond(w, filesJSON, 3)
 }
 
 // Get specific JSON data such as all tags & people.
@@ -426,10 +428,10 @@ func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) 
 	// parse query result to json
 	response, err := json.Marshal(resultsList)
 	if err != nil {
-		s.respond(w, err.Error(), true)
+		s.respond(w, err.Error(), 1)
 		return
 	}
-	s.respond(w, string(response), false)
+	s.respond(w, string(response), 3)
 }
 
 // Process HTTP view files request.
@@ -472,11 +474,11 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/search.html", templateData)
 		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 		if err != nil {
-			s.respond(w, err.Error(), true)
+			s.respond(w, err.Error(), 2)
 			return
 		}
 
-		s.respond(w, string(result), false)
+		s.respond(w, string(result), 3)
 
 	case http.MethodPost:
 		// get a list of all files from db
@@ -492,11 +494,11 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 
 		result, err := s.completeTemplate("/dynamic/templates/overlay_window.html", templateData)
 		if err != nil {
-			s.respond(w, err.Error(), true)
+			s.respond(w, err.Error(), 1)
 			return
 		}
 
-		s.respond(w, string(result), false)*/
+		s.respond(w, string(result), 3)*/
 	}
 }
 
@@ -505,7 +507,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get user details
 	userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if userResponse.err != nil {
-		s.respond(w, userResponse.err.Error(), true)
+		s.respond(w, userResponse.err.Error(), 2)
 		return
 	}
 
@@ -547,7 +549,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			result, err := s.completeTemplate("/dynamic/templates/upload_form.html", uploadTemplateData)
 			if err != nil {
-				s.respond(w, err.Error(), true)
+				s.respond(w, err.Error(), 1)
 				return
 			}
 
@@ -560,10 +562,10 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/upload.html", templateData)
 		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
 		if err != nil {
-			s.respond(w, err.Error(), true)
+			s.respond(w, err.Error(), 1)
 		}
 
-		s.respond(w, string(result), false)
+		s.respond(w, string(result), 3)
 
 	// file upload
 	case http.MethodPost:
@@ -574,14 +576,14 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 			if err := r.ParseMultipartForm(0); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), true)
+				s.respond(w, err.Error(), 2)
 				return
 			}
 			// move form file to temp dir
 			file, err := s.fileDB.uploadFile(w, r, userResponse.user)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), false)
+				s.respond(w, err.Error(), 2)
 				return
 			}
 
@@ -595,31 +597,31 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			result, err := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), true)
+				s.respond(w, err.Error(), 1)
 				return
 			}
-			s.respond(w, string(result), false)
+			s.respond(w, string(result), 3)
 
 		// delete a file from user temp dir
 		case "temp_delete":
 			if err := r.ParseForm(); err != nil {
-				s.respond(w, err.Error(), true)
+				s.respond(w, err.Error(), 2)
 				return
 			}
 
 			// remove file
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "deleteFile", target: r.Form.Get("file")})
 			if response.err != nil {
-				s.respond(w, response.err.Error(), true)
+				s.respond(w, response.err.Error(), 2)
 				return
 			}
 
-			s.respond(w, "success", false)
+			s.respond(w, "success", 3)
 
 		// move temp file to content dir (allow global user access)
 		case "publish":
 			if err := r.ParseForm(); err != nil {
-				s.respond(w, err.Error(), true)
+				s.respond(w, err.Error(), 2)
 				return
 			}
 
@@ -630,30 +632,30 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// validate form field lengths
 			if len(tags) == 0 {
-				s.respond(w, "no_tags", false)
+				s.respond(w, "no_tags", 3)
 				return
 			}
 			if len(people) == 0 {
-				s.respond(w, "no_people", false)
+				s.respond(w, "no_people", 3)
 				return
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("file"), fileMetadata: metaData})
 			if response.err != nil {
-				s.respond(w, response.err.Error(), true)
+				s.respond(w, response.err.Error(), 2)
 				return
 			}
 
 			// success
-			s.respond(w, "success", false)
+			s.respond(w, "success", 3)
 		}
 	}
 }
 
 // Write a HTTP response to connection.
-func (s *HTTPServer) respond(w http.ResponseWriter, response string, enableLog bool) {
-	if enableLog {
+func (s *HTTPServer) respond(w http.ResponseWriter, response string, logLevel int) {
+	if logLevel <= config.logVerbosity && logLevel > 0 {
 		log.Println(response)
 	}
 	// write

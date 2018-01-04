@@ -21,7 +21,7 @@ type Config struct {
 	fileFormats  map[string]string
 	indexCounter int
 	commentLines []ConfigSet
-	// 0 = none, 1 = critical errors only, 2 = all errors, 3 = all responses
+	// 0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)
 	logVerbosity int
 }
 
@@ -95,6 +95,7 @@ func (c *Config) SetLogVerbosity(level int) {
 		return
 	}
 	c.logVerbosity = level
+	log.Printf("log_verbosity set to %d", c.logVerbosity)
 }
 
 // Get the media type grouping for the provided file extension.
