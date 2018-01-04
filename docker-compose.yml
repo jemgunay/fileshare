@@ -2,7 +2,7 @@ version: "3"
 
 services:
   web:
-    image: jemgunay/fileshare:v0.1
+    image: jemgunay/fileshare:v0.2
     deploy:
       restart_policy:
         condition: on-failure
@@ -12,4 +12,4 @@ services:
       - ./static/content:/go/src/github.com/jemgunay/fileshare/static/content
     ports:
       - "8000:8000"
-    command: ["/go/bin/fileshare"]
+    command: ["/go/bin/fileshare", "-log_verbosity", "3"]

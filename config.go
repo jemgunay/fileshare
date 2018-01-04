@@ -98,6 +98,13 @@ func (c *Config) SetLogVerbosity(level int) {
 	log.Printf("log_verbosity set to %d", c.logVerbosity)
 }
 
+// Perform logging based on verbosity level.
+func (c *Config) Log(response string, logLevel int) {
+	if logLevel <= config.logVerbosity && logLevel > 0 {
+		log.Println(response)
+	}
+}
+
 // Get the media type grouping for the provided file extension.
 func (c *Config) CheckMediaType(fileExtension string) string {
 	// check for malicious commas before parsing

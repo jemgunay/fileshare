@@ -192,13 +192,9 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 			"",
 		}
 
-		var err error
-		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/reset_password.html", templateData)
-		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
-		if err != nil {
-			s.respond(w, err.Error(), 1)
-		}
+		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
+		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/reset_password.html", templateData)
+		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 		s.respond(w, string(result), 3)
 
@@ -267,13 +263,9 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 			"",
 		}
 
-		var err error
-		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/login.html", templateData)
-		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
-		if err != nil {
-			s.respond(w, err.Error(), 1)
-		}
+		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
+		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/login.html", templateData)
+		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 		s.respond(w, string(result), 3)
 
@@ -328,15 +320,10 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 		"",
 	}
 
-	var err error
-	templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-	templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-	templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/users.html", templateData)
-	result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
-	if err != nil {
-		s.respond(w, err.Error(), 1)
-		return
-	}
+	templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+	templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+	templateData.ContentHTML = s.completeTemplate("/dynamic/templates/users.html", templateData)
+	result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 	s.respond(w, string(result), 3)
 }
@@ -394,11 +381,7 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 			templateFile = "/dynamic/templates/files_list_tiled.html"
 		}
 
-		filesListResult, err := s.completeTemplate(templateFile, templateData)
-		if err != nil {
-			s.respond(w, err.Error(), 1)
-			return
-		}
+		filesListResult := s.completeTemplate(templateFile, templateData)
 		s.respond(w, string(filesListResult), 3)
 		return
 	}
@@ -463,20 +446,15 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 			"",
 		}
 
-		var err error
-		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
 		var filesHTMLTarget = "/dynamic/templates/files_list_detailed.html"
 		if len(templateData.Files) == 0 {
 			filesHTMLTarget = "/static/templates/no_match.html"
 		}
-		templateData.FilesHTML, err = s.completeTemplate(filesHTMLTarget, templateData)
-		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/search.html", templateData)
-		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
-		if err != nil {
-			s.respond(w, err.Error(), 2)
-			return
-		}
+		templateData.FilesHTML = s.completeTemplate(filesHTMLTarget, templateData)
+		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/search.html", templateData)
+		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 		s.respond(w, string(result), 3)
 
@@ -492,12 +470,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 
 		}
 
-		result, err := s.completeTemplate("/dynamic/templates/overlay_window.html", templateData)
-		if err != nil {
-			s.respond(w, err.Error(), 1)
-			return
-		}
-
+		result := s.completeTemplate("/dynamic/templates/overlay_window.html", templateData)
 		s.respond(w, string(result), 3)*/
 	}
 }
@@ -547,23 +520,14 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				f,
 			}
 
-			result, err := s.completeTemplate("/dynamic/templates/upload_form.html", uploadTemplateData)
-			if err != nil {
-				s.respond(w, err.Error(), 1)
-				return
-			}
-
+			result := s.completeTemplate("/dynamic/templates/upload_form.html", uploadTemplateData)
 			templateData.UploadFormsHTML += result
 		}
 
-		var err error
-		templateData.NavbarHTML, err = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-		templateData.FooterHTML, err = s.completeTemplate("/dynamic/templates/footers/upload_footer.html", templateData)
-		templateData.ContentHTML, err = s.completeTemplate("/dynamic/templates/upload.html", templateData)
-		result, err := s.completeTemplate("/dynamic/templates/main.html", templateData)
-		if err != nil {
-			s.respond(w, err.Error(), 1)
-		}
+		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/upload_footer.html", templateData)
+		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/upload.html", templateData)
+		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 		s.respond(w, string(result), 3)
 
@@ -594,8 +558,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				file,
 			}
 
-			result, err := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
-			if err != nil {
+			result := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
+			if result == "" {
 				w.WriteHeader(http.StatusBadRequest)
 				s.respond(w, err.Error(), 1)
 				return
@@ -655,9 +619,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 // Write a HTTP response to connection.
 func (s *HTTPServer) respond(w http.ResponseWriter, response string, logLevel int) {
-	if logLevel <= config.logVerbosity && logLevel > 0 {
-		log.Println(response)
-	}
+	config.Log(response, logLevel)
+
 	// write
 	if _, err := fmt.Fprintf(w, "%v\n", response); err != nil {
 		log.Println(err)
@@ -665,13 +628,13 @@ func (s *HTTPServer) respond(w http.ResponseWriter, response string, logLevel in
 }
 
 // Replace variables in HTML templates with corresponding values in TemplateData.
-func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result template.HTML, err error) {
+func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result template.HTML) {
 	filePath = config.rootPath + filePath
 
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Println(err)
+		config.Log(err.Error(), 1)
 		return
 	}
 
@@ -683,18 +646,18 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		},
 	}).Parse(string(htmlTemplate))
 	if err != nil {
-		log.Println(err)
+		config.Log(err.Error(), 1)
 		return
 	}
 
 	// perform template variable replacement
 	buffer := new(bytes.Buffer)
 	if err = templateParsed.Execute(buffer, data); err != nil {
-		log.Println(err)
+		config.Log(err.Error(), 1)
 		return
 	}
 
-	return template.HTML(buffer.String()), nil
+	return template.HTML(buffer.String())
 }
 
 // Gracefully stop the server and save DB to file.
