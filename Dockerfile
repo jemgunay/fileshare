@@ -1,9 +1,9 @@
 FROM golang
 LABEL maintainer="Jem Gunay"
 
+# set up go components
 ADD . /go/src/github.com/jemgunay/memoryshare
-RUN go get github.com/jemgunay/memoryshare/...
-RUN go install github.com/jemgunay/memoryshare
-CMD ["/go/bin/memoryshare", "-log_verbosity=1"]
+RUN mv /go/src/github.com/jemgunay/memoryshare/memoryshare /go/bin/
+CMD ["/go/bin/memoryshare", "-log_verbosity=3"]
 
 EXPOSE 8000

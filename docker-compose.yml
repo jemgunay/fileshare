@@ -2,7 +2,7 @@ version: "3"
 
 services:
   web:
-    image: jemgunay/memoryshare:v0.2
+    image: jemgunay/memoryshare:v0.3
     deploy:
       restart_policy:
         condition: on-failure
@@ -13,9 +13,3 @@ services:
     ports:
       - "8000:8000"
 
-  smtp:
-      image: namshi/smtp
-      environment:
-        - MAILNAME=memoryshare
-      ports:
-        - 25:25

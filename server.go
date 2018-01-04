@@ -71,8 +71,8 @@ func (s *HTTPServer) Start() {
 	// user
 	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods(http.MethodGet, http.MethodPost)
 	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/reset", s.authHandler(s.resetHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/reset/{type}", s.authHandler(s.resetHandler)).Methods(http.MethodPost)
+	router.HandleFunc("/reset", s.resetHandler).Methods(http.MethodGet)
+	router.HandleFunc("/reset/{type}", s.resetHandler).Methods(http.MethodPost)
 	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
 	// memory data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
@@ -136,7 +136,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// if already logged in, redirect these page requests
-		if r.URL.String() == "/login" || r.URL.String() == "/reset" {
+		if r.URL.String() == "/login" {
 			if authResponse.success {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
@@ -204,8 +204,6 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		fmt.Println(vars)
 
-		return
-
 		/*response := s.userDB.performAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
 		ok, err := response.success, response.err*/
 
@@ -219,24 +217,27 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		}*/
 
 		// email new randomly generated temp password
-		msgBody := "this is your new temporary password: 'new password here'. It will expire in x number of hours."
+		msgBody := "This is your new temporary password: 'new password here'. Use it to log in and change your password. It will expire in 30 minutes."
 
 		msg := gomail.NewMessage()
-		msg.SetHeader("From", config.params["display_email_addr"].val)
-		msg.SetHeader("To", "bob@example.com")
+		msg.SetHeader("From", "admin@memoryshare.com") // config.params["display_email_addr"].val
+		msg.SetHeader("To", "jemgunay@yahoo.co.uk")
 		msg.SetHeader("Subject", config.params["brand_name"].val+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
-		port, err := strconv.Atoi(config.params["core_email_port"].val)
+		/*port, err := strconv.Atoi(config.params["core_email_port"].val)
 		if err != nil {
 			s.respond(w, "error", 2)
 			return
-		}
+		}*/
 
-		d := gomail.NewDialer(config.params["core_email_server"].val, port, config.params["core_email_addr"].val, config.params["core_email_password"].val)
+		//d := gomail.NewDialer(config.params["core_email_server"].val, port, config.params["core_email_addr"].val, config.params["core_email_password"].val)
+
+		d := gomail.NewDialer("127.0.0.1", 2525, "", "")
 
 		// Send the email to Bob, Cora and Dan.
 		if err := d.DialAndSend(msg); err != nil {
+			log.Println(err)
 			s.respond(w, "error", 2)
 			return
 		}
