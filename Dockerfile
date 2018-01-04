@@ -4,6 +4,6 @@ LABEL maintainer="Jem Gunay"
 ADD . /go/src/github.com/jemgunay/fileshare
 RUN go get github.com/jemgunay/fileshare/...
 RUN go install github.com/jemgunay/fileshare
-ENTRYPOINT /go/bin/fileshare
+CMD ["/go/bin/fileshare", "-log_verbosity=3"]
 
 EXPOSE 8000

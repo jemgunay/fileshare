@@ -12,4 +12,3 @@ services:
       - ./static/content:/go/src/github.com/jemgunay/fileshare/static/content
     ports:
       - "8000:8000"
-    command: ["/go/bin/fileshare", "-log_verbosity", "3"]

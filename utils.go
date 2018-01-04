@@ -84,6 +84,42 @@ func EnsureDirExists(path string) error {
 	return nil
 }
 
+// Move a file to a new location (works across drives, unlike os.Rename).
+func MoveFile(src, dst string) error {
+	// copy
+	err := CopyFile(src, dst)
+	if err != nil {
+		return err
+	}
+
+	// delete src file
+	return os.Remove(src)
+}
+
+// Copy a file to a new location (works across drives, unlike os.Rename).
+func CopyFile(src, dst string) error {
+	// open src file
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	// create dst file
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// copy from src to dst
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Generate new UUID.
 func NewUUID() (UUID string) {
 	return uuid.NewV4().String()

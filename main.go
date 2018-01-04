@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
-	"flag"
 )
 
 var config Config
@@ -34,23 +34,28 @@ func main() {
 	}
 
 	// process command line input
-	time.Sleep(time.Millisecond * 300)
-	for {
-		input := getConsoleInput("Enter command")
-		switch input {
-		// reset DB
-		case "destroy":
-			response := httpServer.fileDB.performAccessRequest(FileAccessRequest{operation: "destroy"})
-			if response.err != nil {
-				log.Println(response.err)
+	if config.params["enable_console_commands"].val == "true" {
+		time.Sleep(time.Millisecond * 300)
+		for {
+			input := getConsoleInput("Enter command")
+			switch input {
+			// reset DB
+			case "destroy":
+				response := httpServer.fileDB.performAccessRequest(FileAccessRequest{operation: "destroy"})
+				if response.err != nil {
+					log.Println(response.err)
+				}
+				// terminate
+			case "exit":
+				httpServer.Stop()
+				return
+			default:
+				fmt.Printf("Unsupported command.\n")
 			}
-		// terminate
-		case "exit":
-			httpServer.Stop()
-			return
-		default:
-			fmt.Printf("Unsupported command.\n")
 		}
+	} else {
+		var exit chan bool
+		<-exit
 	}
 }
 

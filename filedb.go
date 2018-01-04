@@ -288,7 +288,12 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	delete(db.UploadedFiles, fileUUID)
 
 	// move file from db/temp dir to db/content dir
-	if err = os.Rename(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
+	/*if err = os.Rename(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
+		os.Remove(tempFilePath) // destroy temp file on add failure
+		return err
+	}*/
+
+	if err = MoveFile(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
 		os.Remove(tempFilePath) // destroy temp file on add failure
 		return err
 	}
