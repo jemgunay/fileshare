@@ -19,7 +19,7 @@ func main() {
 	config.SetLogVerbosity(*logVerbosityFlag)
 
 	// load system config
-	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/fileshare"
+	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/memoryshare"
 	config.LoadConfig(rootPath)
 
 	err := config.SaveConfig()

@@ -2,13 +2,20 @@ version: "3"
 
 services:
   web:
-    image: jemgunay/fileshare:v0.2
+    image: jemgunay/memoryshare:v0.2
     deploy:
       restart_policy:
         condition: on-failure
     volumes:
-      - ./config:/go/src/github.com/jemgunay/fileshare/config
-      - ./db:/go/src/github.com/jemgunay/fileshare/db
-      - ./static/content:/go/src/github.com/jemgunay/fileshare/static/content
+      - ./config:/go/src/github.com/jemgunay/memoryshare/config
+      - ./db:/go/src/github.com/jemgunay/memoryshare/db
+      - ./static/content:/go/src/github.com/jemgunay/memoryshare/static/content
     ports:
       - "8000:8000"
+
+  smtp:
+      image: namshi/smtp
+      environment:
+        - MAILNAME=memoryshare
+      ports:
+        - 25:25

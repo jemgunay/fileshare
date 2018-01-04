@@ -1,9 +1,9 @@
 FROM golang
 LABEL maintainer="Jem Gunay"
 
-ADD . /go/src/github.com/jemgunay/fileshare
-RUN go get github.com/jemgunay/fileshare/...
-RUN go install github.com/jemgunay/fileshare
-CMD ["/go/bin/fileshare", "-log_verbosity=3"]
+ADD . /go/src/github.com/jemgunay/memoryshare
+RUN go get github.com/jemgunay/memoryshare/...
+RUN go install github.com/jemgunay/memoryshare
+CMD ["/go/bin/memoryshare", "-log_verbosity=1"]
 
 EXPOSE 8000

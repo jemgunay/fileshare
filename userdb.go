@@ -74,7 +74,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		response := userDB.performAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"admin@fileshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN})
+		response := userDB.performAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"admin@memoryshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN})
 		if response.err != nil {
 			return nil, fmt.Errorf("default super admin account could not be created")
 		}

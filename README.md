@@ -1,4 +1,4 @@
-### fileshare
+### memoryshare
 
 Memories documented in the form of photos and videos will eventually become saturated over time, making finding a specific memory like finding a needle in a haystack. A further issue is that people have different collections of memories which are not always accessible to all who share the memories.
 
