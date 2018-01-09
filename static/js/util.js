@@ -2,7 +2,6 @@ $(document).ready(function() {
     //animate burger menu button
     $('#navbar').on('hide.bs.collapse show.bs.collapse', function () {
         $('#nav-animated-icon').toggleClass('open');
-        console.log("t")
     });
 });
 

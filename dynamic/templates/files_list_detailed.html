@@ -5,8 +5,8 @@
     <div class="col-sm-6">
         <div class="wall-tile">
 
-            <div class="wall-tile-media">
-                <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank">
+            <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
+                <div class="wall-tile-media">
                     {{ if eq $file.MediaType "image" }}
                         <img class="img-responsive" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
                     {{ end }}
@@ -22,8 +22,8 @@
                     {{ if eq $file.MediaType "other" }}
                         <img class="img-responsive" src="/static/content/img/download.png">
                     {{ end }}
-                </a>
-            </div>
+                </div>
+            </a>
 
             <div class="wall-tile-desc">
                 <div class="tile-desc-scroll">
@@ -48,25 +48,25 @@
                     </h4>
 
                     <!-- tags -->
-                    {{ if $file.Tags }}
-                        <p>Tags:
+                    <p>
+                        <span class="glyphicon glyphicon-tags" aria-hidden="true"></span>
                         {{ range $key, $tag := $file.Tags }}
                             <span class="label label-success">{{ $tag }}</span>
                         {{ end }}
-                        </p>
-                    {{ end }}
 
-                    <!-- people -->
-                    {{ if $file.People }}
-                        <p>People:
+
+                        <!-- people -->
+                        <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
                         {{ range $key, $person := $file.People }}
                             <span class="label label-primary">{{ $person }}</span>
                         {{ end }}
-                        </p>
-                    {{ end }}
+                    </p>
 
                     <!-- date -->
-                    <p>Date Published: {{ formatEpoch $file.PublishedTimestamp }}</p>
+                    <p>
+                        <span class="glyphicon glyphicon-time" aria-hidden="true"></span>
+                        <strong>{{ formatEpoch $file.PublishedTimestamp }}</strong>
+                    </p>
                 </div>
             </div>
 

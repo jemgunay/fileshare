@@ -1,6 +1,6 @@
 var maxAutoCompleteSuggestions = 5; // Number of autocomplete results to show under tokenfield inputs.
 var currentPage = 0; // Current pagination page (start at 0th page).
-var tokenfieldTargetTriggerEnabled = true;
+var tokenfieldTargetTrigger = true; // Prevents window resizing from triggering performSearch() by temporarily ignoring event listeners.
 
 $(document).ready(function() {
 
@@ -35,8 +35,11 @@ $(document).ready(function() {
         $("#view-search-input").bootstrapToggle({
             on: "Tiled View",
             off: "Detailed View",
-            width: "100%"
+            width: "100%",
+            height: "21px"
         }).change(performSearch);
+
+        initSearchTiles();
     }
 });
 
@@ -83,18 +86,18 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
                 showAutocompleteOnFocus: true,
                 createTokensOnBlur: true
             }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", function() {
-                if (tokenfieldTargetTriggerEnabled) {
+                if (tokenfieldTargetTrigger && changeTarget != null) {
                     changeTarget();
                 }
             });
 
             // fix tokenfield newline bug on resize
             $(window).on("resize", function() {
-                tokenfieldTargetTriggerEnabled = false;
+                tokenfieldTargetTrigger = false;
                 var tokens = $(tagIDs).tokenfield('getTokens');
                 $(tagIDs).tokenfield('setTokens', []);
                 $(tagIDs).tokenfield('setTokens', tokens);
-                tokenfieldTargetTriggerEnabled = true;
+                tokenfieldTargetTrigger = true;
             });
         }(tagIDs, parsedData, metaType));
     }
@@ -143,10 +146,57 @@ function initSearchTiles() {
             wall.fitWidth();
         }
     });
-
     wall.container.find('.free-wall-tile img').load(function() {
         wall.fitWidth();
     });
 
+    // view overlay window on click
+    $("#search-results-panel a").on("click", function(e) {
+        e.preventDefault();
+        $("#overlay-window").attr("opacity", 0).attr("display", "initial").fadeIn(100);
+        $('body').css('overflow', 'hidden'); // prevent background scroll
 
+        setOverlayMemory($(this).attr("data-UUID"));
+
+        // key presses
+        $(document).keyup(function(e) {
+            // escape key
+            if (e.which === 27) {
+                if ($("#overlay-window").attr("display") !== "none") {
+                    $(document).unbind("keyup");
+                    $('body').css('overflow','auto');
+
+                    $("#overlay-window").fadeOut(100, function() {
+                        $("#overlay-window").attr("display", "none");
+                    });
+                }
+            }
+            // left key (previous memory)
+            else if (e.which === 37) {
+
+            }
+            // right key (next memory)
+            else if (e.which === 39) {
+
+            }
+        });
+
+        // close button
+        $("#overlay-window #overlay-close-btn").on("click", function() {
+            $(document).unbind("keyup");
+            $('body').css('overflow','auto');
+
+            $("#overlay-window").fadeOut(100, function() {
+                $("#overlay-window").attr("display", "none");
+            });
+        });
+    });
+}
+
+// Set overlay window current memory.
+function setOverlayMemory(memoryUUID) {
+
+    performRequest(hostname + "", "POST", "", function(html) {
+
+    });
 }

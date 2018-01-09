@@ -1,26 +1,25 @@
 <!-- file list -->
-<div id="freewall" class="free-wall">
+<div class="free-wall" id="freewall">
     {{ range $key, $file := .Files }}
 
+    <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
         <div class="free-wall-tile">
-
-            <!-- temp uploaded image -->
-                {{ if eq $file.MediaType "image" }}
-                    <img class="img-responsive" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
-                {{ end }}
-                {{ if eq $file.MediaType "video" }}
-                    <img class="img-responsive" src="/static/img/play.png">
-                {{ end }}
-                {{ if eq $file.MediaType "audio" }}
-                    <img class="img-responsive" src="/static/img/play.png">
-                {{ end }}
-                {{ if eq $file.MediaType "text" }}
-                    <img class="img-responsive" src="/static/content/img/read.png">
-                {{ end }}
-                {{ if eq $file.MediaType "other" }}
-                    <img class="img-responsive" src="/static/content/img/download.png">
-                {{ end }}
+            {{ if eq $file.MediaType "image" }}
+                <img class="img-responsive" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+            {{ end }}
+            {{ if eq $file.MediaType "video" }}
+                <img class="img-responsive" src="/static/img/play.png">
+            {{ end }}
+            {{ if eq $file.MediaType "audio" }}
+                <img class="img-responsive" src="/static/img/play.png">
+            {{ end }}
+            {{ if eq $file.MediaType "text" }}
+                <img class="img-responsive" src="/static/content/img/read.png">
+            {{ end }}
+            {{ if eq $file.MediaType "other" }}
+                <img class="img-responsive" src="/static/content/img/download.png">
+            {{ end }}
         </div>
-
+    </a>
     {{ end }}
 </div>

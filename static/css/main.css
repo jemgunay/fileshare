@@ -41,6 +41,12 @@ h1, h2, h3 {
 #search-results-panel #results-panel-body {
     padding-bottom: 0;
 }
+#search-results-panel a {
+    opacity: 1.0;
+}
+#search-results-panel a:hover {
+    opacity: 0.6;
+}
 .detail-wall .wall-tile {
     width: 100%;
     height: 115px;
@@ -49,10 +55,9 @@ h1, h2, h3 {
 }
 .detail-wall .wall-tile-media {
     width: 113px;
-    height: 113px;
+    height: 112px;
     float: left;
     position: relative;
-    margin-right: 2px;
 }
 .detail-wall .wall-tile-media img {
     margin: 0;
@@ -62,7 +67,7 @@ h1, h2, h3 {
 }
 .detail-wall .wall-tile-desc {
     height: 100%;
-    padding: 5px;
+    padding: 5px 5px 5px 10px;
 
     white-space: nowrap;
     position: relative;
@@ -75,11 +80,21 @@ h1, h2, h3 {
     display: inline-block;
 }
 .detail-wall .wall-tile-desc h4 {
-    margin-top: 0;
-    margin-bottom: 5px;
+    margin-top: 2px;
+    margin-bottom: 12px;
 }
 .detail-wall .wall-tile-desc p {
-    margin-bottom: 2px;
+    margin-bottom: 5px;
+}
+.detail-wall .wall-tile-desc p span.glyphicon {
+    margin-right: 5px;
+}
+.detail-wall .wall-tile-desc span.glyphicon {
+    position: relative;
+    top: 3px;
+}
+.detail-wall .wall-tile-desc span.glyphicon-user {
+    margin-left: 5px;
 }
 
 .results-window h3 {
@@ -193,7 +208,7 @@ h1, h2, h3 {
         padding-bottom: 10px;
     }
     .toggle.btn {
-        margin-top: 23px;
+        margin-top: 28px;
     }
 
     /* upload results */

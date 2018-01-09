@@ -464,19 +464,16 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		s.respond(w, string(result), 3)
 
 	case http.MethodPost:
-		// get a list of all files from db
-		/*searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true)}
-		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
-
-		// HTML template data
-		templateData := struct {
-
-		}{
-
+		vars := mux.Vars(r)
+		if vars["UUID"] == "" {
+			s.respond(w, "no file UUID provided", 3)
+			return
 		}
 
-		result := s.completeTemplate("/dynamic/templates/overlay_window.html", templateData)
-		s.respond(w, string(result), 3)*/
+		// get a list of all files from db
+		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "fetchMemory", target: vars["UUID"]})
+
+		s.respond(w, respo, 3)
 	}
 }
 

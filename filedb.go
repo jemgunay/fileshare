@@ -49,6 +49,7 @@ type File struct {
 	PublishedTimestamp int64
 	State
 	MetaData
+	Size         int64
 	UUID         string
 	Hash         string
 	UploaderUUID string
@@ -222,10 +223,19 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	}
 	defer tempFile.Close()
 
-	// copy file from form to new local temp file (must now delete file if a failure occurs after copy)
+	// copy file from form to new local temp file (must from now on delete file if a failure occurs after copy)
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
 		return
 	}
+
+	// get file size
+	fileStat, err := tempFile.Stat()
+	if err != nil {
+		err = fmt.Errorf("error")
+		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
+		return
+	}
+	newTempFile.Size = fileStat.Size()
 
 	// generate hash of file contents
 	newTempFile.Hash, err = GenerateFileHash(newTempFile.AbsolutePath())
