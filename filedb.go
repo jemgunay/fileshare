@@ -161,6 +161,9 @@ func (db *FileDB) startAccessPoller() {
 		case "search":
 			response.files = db.search(req.searchParams)
 
+		case "getFile":
+			response.file = db.PublishedFiles[req.target]
+
 		case "getFilesByUser":
 			response.files = db.getFilesByUser(req.UUID, req.state)
 

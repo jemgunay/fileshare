@@ -45,7 +45,7 @@ h1, h2, h3 {
     opacity: 1.0;
 }
 #search-results-panel a:hover {
-    opacity: 0.6;
+    opacity: 0.8;
 }
 .detail-wall .wall-tile {
     width: 100%;
@@ -55,9 +55,10 @@ h1, h2, h3 {
 }
 .detail-wall .wall-tile-media {
     width: 113px;
-    height: 112px;
+    height: 100%;
     float: left;
     position: relative;
+    overflow: hidden;
 }
 .detail-wall .wall-tile-media img {
     margin: 0;

@@ -182,7 +182,7 @@ function initSearchTiles() {
         });
 
         // close button
-        $("#overlay-window #overlay-close-btn").on("click", function() {
+        $("#overlay-close-btn").on("click", function() {
             $(document).unbind("keyup");
             $('body').css('overflow','auto');
 
@@ -195,8 +195,33 @@ function initSearchTiles() {
 
 // Set overlay window current memory.
 function setOverlayMemory(memoryUUID) {
+    // hide media UI
+    $("#overlay-window img, #overlay-window audio, #overlay-window video").hide();
 
-    performRequest(hostname + "", "POST", "", function(html) {
+    performRequest(hostname + "/view", "POST", {UUID: memoryUUID}, function(json) {
+        file = JSON.parse(json)[0];
+        console.log(file)
 
+        $("#overlay-window p").empty().append(json);
+
+        // image
+        if (file["MediaType"] === "image") {
+            $("#overlay-window img").attr("src", "/static/content/" + file["UUID"] + "." + file["Extension"]).show();
+
+        }
+        // audio
+        else if (file["MediaType"] === "audio") {
+            $("#overlay-window audio").attr("src", "/static/content/" + file["UUID"] + "." + file["Extension"]).show();
+
+        }
+        // video
+        else if (file["MediaType"] === "video") {
+            $("#overlay-window video").attr("src", "/static/content/" + file["UUID"] + "." + file["Extension"]).show();
+
+        }
+        // other
+        else {
+
+        }
     });
 }

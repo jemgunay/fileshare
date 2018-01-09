@@ -464,16 +464,33 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		s.respond(w, string(result), 3)
 
 	case http.MethodPost:
-		vars := mux.Vars(r)
-		if vars["UUID"] == "" {
-			s.respond(w, "no file UUID provided", 3)
+		if err := r.ParseForm(); err != nil {
+			s.respond(w, err.Error(), 2)
+			return
+		}
+
+		searchUUID := r.Form.Get("UUID")
+		if searchUUID == "" {
+			s.respond(w, "no_UUID_provided", 3)
 			return
 		}
 
 		// get a list of all files from db
-		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "fetchMemory", target: vars["UUID"]})
+		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFile", target: searchUUID})
+		// check file with UUID exists
+		if response.file.Name == "" {
+			s.respond(w, "no_UUID_match", 3)
+			return
+		}
+		tempFiles := []File{response.file}
 
-		s.respond(w, respo, 3)
+		// pretty print
+		pretty := false
+		if r.Form.Get("pretty") == "true" {
+			pretty = true
+		}
+
+		s.respond(w, FilesToJSON(tempFiles, pretty), 3)
 	}
 }
 
