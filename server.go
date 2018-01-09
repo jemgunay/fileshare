@@ -77,7 +77,7 @@ func (s *HTTPServer) Start() {
 	// memory data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/view", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodPost)
-	router.HandleFunc("/search", s.authHandler(s.searchFilesHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/search", s.authHandler(s.searchMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods(http.MethodGet)
 	// upload
 	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods(http.MethodGet)
@@ -233,7 +233,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		//d := gomail.NewDialer(config.params["core_email_server"].val, port, config.params["core_email_addr"].val, config.params["core_email_password"].val)
 
-		d := gomail.NewDialer("127.0.0.1", 2525, "", "")
+		d := gomail.NewDialer("smtp.gmail.com", 465, config.params["core_email_addr"].val, config.params["core_email_password"].val)
 
 		// Send the email to Bob, Cora and Dan.
 		if err := d.DialAndSend(msg); err != nil {
@@ -343,7 +343,7 @@ type SearchRequest struct {
 
 // Search files by their properties.
 // URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html_tiled/html_detailed), pretty]
-func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// construct search query from url params
 	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
@@ -380,6 +380,10 @@ func (s *HTTPServer) searchFilesHandler(w http.ResponseWriter, r *http.Request) 
 		templateFile := "/dynamic/templates/files_list_detailed.html"
 		if q.Get("format") == "html_tiled" {
 			templateFile = "/dynamic/templates/files_list_tiled.html"
+		}
+
+		if len(response.files) == 0 {
+			templateFile = "/static/templates/no_match.html"
 		}
 
 		filesListResult := s.completeTemplate(templateFile, templateData)

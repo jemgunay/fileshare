@@ -1,32 +1,33 @@
-<!-- file list -->
-{{ range $key, $file := .Files }}
+<div class="detail-wall">
+    <!-- file list -->
+    {{ range $key, $file := .Files }}
 
-<div class="col-sm-6">
-    <div class="panel panel-default result-panel">
-        <div class="panel-body">
-            
-            <div class="media">
-                <div class="media-left">
-                    <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank">
-                        {{ if eq $file.MediaType "image" }}
-                            <img class="media-object" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
-                        {{ end }}
-                        {{ if eq $file.MediaType "video" }}
-                            <img class="media-object" src="/static/img/play.png">
-                        {{ end }}
-                        {{ if eq $file.MediaType "audio" }}
-                            <img class="media-object" src="/static/img/play.png">
-                        {{ end }}
-                        {{ if eq $file.MediaType "text" }}
-                            <img class="media-object" src="/static/content/img/read.png">
-                        {{ end }}
-                        {{ if eq $file.MediaType "other" }}
-                            <img class="media-object" src="/static/content/img/download.png">
-                        {{ end }}
-                    </a>
-                </div>
-                <div class="media-body">
-                    <h4 class="media-heading">
+    <div class="col-sm-6">
+        <div class="wall-tile">
+
+            <div class="wall-tile-media">
+                <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank">
+                    {{ if eq $file.MediaType "image" }}
+                        <img class="img-responsive" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                    {{ end }}
+                    {{ if eq $file.MediaType "video" }}
+                        <img class="img-responsive" src="/static/img/play.png">
+                    {{ end }}
+                    {{ if eq $file.MediaType "audio" }}
+                        <img class="img-responsive" src="/static/img/play.png">
+                    {{ end }}
+                    {{ if eq $file.MediaType "text" }}
+                        <img class="img-responsive" src="/static/content/img/read.png">
+                    {{ end }}
+                    {{ if eq $file.MediaType "other" }}
+                        <img class="img-responsive" src="/static/content/img/download.png">
+                    {{ end }}
+                </a>
+            </div>
+
+            <div class="wall-tile-desc">
+                <div class="tile-desc-scroll">
+                    <h4>
                         {{ if eq $file.MediaType "image" }}
                             <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
                         {{ end }}
@@ -54,7 +55,7 @@
                         {{ end }}
                         </p>
                     {{ end }}
-        
+
                     <!-- people -->
                     {{ if $file.People }}
                         <p>People:
@@ -71,6 +72,6 @@
 
         </div>
     </div>
-</div>
 
-{{ end }}
+    {{ end }}
+</div>

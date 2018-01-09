@@ -11,12 +11,6 @@ h1, h2, h3 {
     font-family: 'Pacifico', cursive;
     padding: 15px 25px;
 }
-.media-heading {
-    margin-bottom: 10px;
-}
-.media-body p {
-    margin-bottom: 8px;
-}
 .toggle-group label {
     font-weight: bold;
     padding-top: 9px;
@@ -31,28 +25,66 @@ h1, h2, h3 {
     overflow: hidden;
     margin-bottom: 15px;
 }
-#search-panel .panel-body, #results-panel-body {
-    padding-bottom: 0;
-}
-#search-panel label {
-    margin-bottom: 0;
-}
-
-.results-window h3 {
-    margin-top: 100px;
-    margin-bottom: 120px;
-}
 .section-header {
     margin-top: 25px;
     margin-bottom: 25px;
 }
-
 .help-block {
     display: inline;
 }
 .media img {
     width: 115px;
     height: 115px;
+}
+
+/* search */
+#search-results-panel #results-panel-body {
+    padding-bottom: 0;
+}
+.detail-wall .wall-tile {
+    width: 100%;
+    height: 115px;
+    border: 1px solid #ddd;
+    margin-bottom: 15px;
+}
+.detail-wall .wall-tile-media {
+    width: 113px;
+    height: 113px;
+    float: left;
+    position: relative;
+    margin-right: 2px;
+}
+.detail-wall .wall-tile-media img {
+    margin: 0;
+    position: absolute;
+    top: 50%;
+    transform: translate(0%, -50%);
+}
+.detail-wall .wall-tile-desc {
+    height: 100%;
+    padding: 5px;
+
+    white-space: nowrap;
+    position: relative;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+.detail-wall .tile-desc-scroll {
+    float: none;
+    display: inline-block;
+}
+.detail-wall .wall-tile-desc h4 {
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+.detail-wall .wall-tile-desc p {
+    margin-bottom: 2px;
+}
+
+.results-window h3 {
+    margin-top: 100px;
+    margin-bottom: 120px;
 }
 
 /* overlay window */
@@ -99,6 +131,37 @@ h1, h2, h3 {
 #upload-results-panel .img-details {
     padding: 0 15px;
 }
+
+#search-results-panel .results-window .panel-body {
+    padding: 0;
+}
+#search-results-panel .results-window .media-left {
+    padding: 0;
+}
+.free-wall-tile {
+    background: white;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.33);
+    border-radius: 3px;
+    color: #333;
+    border: none;
+}
+.free-wall-tile .img {
+    width: 100%;
+    max-width: 100%;
+    display: block;
+}
+.free-wall {
+    margin: 0 15px 15px 15px;
+}
+.free-wall-tile {
+    width: 221.2px;
+}
+.free-wall-tile img {
+    margin: 0;
+    padding: 0;
+    display: block;
+}
+
 @media (max-width: 767px) {
     #upload-results-panel .img-preview {
         width: 100%;
@@ -133,12 +196,6 @@ h1, h2, h3 {
     }
     .toggle.btn {
         margin-top: 23px;
-    }
-    #search-results-panel .img-preview {
-
-    }
-    #search-results-panel .img-preview img {
-
     }
 
     /* upload results */

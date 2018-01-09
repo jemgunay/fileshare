@@ -89,7 +89,19 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
 
 // Perform search/filter request.
 function performSearch() {
-    // collect & format parameters from inputs
+    var request = constructSearchURL();
+
+    // perform search request
+    performRequest(hostname + request, "GET", "", function(html) {
+        $(".results-window").fadeOut(100, function () {
+            $(this).empty().append(html).fadeIn(100);
+            initSearchTiles();
+        });
+    });
+}
+
+// Collect & format parameters from inputs, then construct URL for search request.
+function constructSearchURL() {
     var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
     if (dates[0]) { dates[0] = dates[0].unix() }
     if (dates[1]) { dates[1] = dates[1].unix() }
@@ -102,17 +114,26 @@ function performSearch() {
 
     var request = "/search?desc=" + $("#desc-search-input").val() + "&min_date=" + dates[0] + "&max_date=" + dates[1] + "&tags=" + tokenfieldTags[0] + "&people=" + tokenfieldTags[1];
     request += "&file_types=" + tokenfieldTags[2] + "&format=" + format + "&results_per_page=" + resultsPerPage + "&page=" + currentPage;
-    
-    console.log(request);
+    return request;
+}
 
-    // perform search request
-    performRequest(hostname + request, "GET", "", function(html) {
-        if (html.length === 2) {
-            performRequest(hostname + "/static/templates/no_match.html", "GET", "", function(htmlNoMatch) {
-                $(".results-window").empty().append(htmlNoMatch)
-            });
-            return
+// Init search result tiles.
+function initSearchTiles() {
+    // freewall tiled images
+    var wall = new Freewall("#freewall");
+    wall.reset({
+        selector: '.free-wall-tile',
+        animate: true,
+        cellW: 200,
+        cellH: 'auto',
+        onResize: function() {
+            wall.fitWidth();
         }
-        $(".results-window").empty().append(html);
     });
+
+    wall.container.find('.free-wall-tile img').load(function() {
+        wall.fitWidth();
+    });
+
+
 }
