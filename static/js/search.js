@@ -1,5 +1,6 @@
 var maxAutoCompleteSuggestions = 5; // Number of autocomplete results to show under tokenfield inputs.
 var currentPage = 0; // Current pagination page (start at 0th page).
+var tokenfieldTargetTriggerEnabled = true;
 
 $(document).ready(function() {
 
@@ -37,7 +38,6 @@ $(document).ready(function() {
             width: "100%"
         }).change(performSearch);
     }
-
 });
 
 // Pull required data from server & initialise search/filter inputs.
@@ -82,7 +82,20 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
                 },
                 showAutocompleteOnFocus: true,
                 createTokensOnBlur: true
-            }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", changeTarget);
+            }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", function() {
+                if (tokenfieldTargetTriggerEnabled) {
+                    changeTarget();
+                }
+            });
+
+            // fix tokenfield newline bug on resize
+            $(window).on("resize", function() {
+                tokenfieldTargetTriggerEnabled = false;
+                var tokens = $(tagIDs).tokenfield('getTokens');
+                $(tagIDs).tokenfield('setTokens', []);
+                $(tagIDs).tokenfield('setTokens', tokens);
+                tokenfieldTargetTriggerEnabled = true;
+            });
         }(tagIDs, parsedData, metaType));
     }
 }
