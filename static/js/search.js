@@ -85,14 +85,15 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
                 },
                 showAutocompleteOnFocus: true,
                 createTokensOnBlur: true
-            }).on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", function() {
+            }).off("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken")
+                .on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", function() {
                 if (tokenfieldTargetTrigger && changeTarget != null) {
                     changeTarget();
                 }
             });
 
             // fix tokenfield newline bug on resize
-            $(window).on("resize", function() {
+            $(window).off("resize").on("resize", function() {
                 tokenfieldTargetTrigger = false;
                 var tokens = $(tagIDs).tokenfield('getTokens');
                 $(tagIDs).tokenfield('setTokens', []);
@@ -195,33 +196,9 @@ function initSearchTiles() {
 
 // Set overlay window current memory.
 function setOverlayMemory(memoryUUID) {
-    // hide media UI
-    $("#overlay-window img, #overlay-window audio, #overlay-window video").hide();
+    $("#overlay-content").empty();
 
-    performRequest(hostname + "/view", "POST", {UUID: memoryUUID}, function(json) {
-        file = JSON.parse(json)[0];
-        console.log(file)
-
-        $("#overlay-window p").empty().append(json);
-
-        // image
-        if (file["MediaType"] === "image") {
-            $("#overlay-window img").attr("src", "/static/content/" + file["UUID"] + "." + file["Extension"]).show();
-
-        }
-        // audio
-        else if (file["MediaType"] === "audio") {
-            $("#overlay-window audio").attr("src", "/static/content/" + file["UUID"] + "." + file["Extension"]).show();
-
-        }
-        // video
-        else if (file["MediaType"] === "video") {
-            $("#overlay-window video").attr("src", "/static/content/" + file["UUID"] + "." + file["Extension"]).show();
-
-        }
-        // other
-        else {
-
-        }
+    performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
+        $("#overlay-content").empty().append(response);
     });
 }

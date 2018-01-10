@@ -74,11 +74,10 @@ func (s *HTTPServer) Start() {
 	router.HandleFunc("/reset", s.resetHandler).Methods(http.MethodGet)
 	router.HandleFunc("/reset/{type}", s.resetHandler).Methods(http.MethodPost)
 	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
-	// memory data viewing
+	// memory/file data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/view", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodPost)
 	router.HandleFunc("/search", s.authHandler(s.searchMemoriesHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/data", s.authHandler(s.getMetaDataHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/data", s.authHandler(s.getDataHandler)).Methods(http.MethodGet, http.MethodPost)
 	// upload
 	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/upload/{type}", s.authHandler(s.uploadHandler)).Methods(http.MethodPost)
@@ -323,7 +322,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 
 	templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 	templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-	templateData.ContentHTML = s.completeTemplate("/dynamic/templates/users.html", templateData)
+	templateData.ContentHTML = s.completeTemplate("/dynamic/templates/users_list.html", templateData)
 	result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 	s.respond(w, string(result), 3)
@@ -350,6 +349,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 	searchReq.tags = ProcessInputList(q.Get("tags"), ",", true)
 	searchReq.people = ProcessInputList(q.Get("people"), ",", true)
 	searchReq.fileTypes = ProcessInputList(q.Get("file_types"), ",", true)
+
 	// parse date to int unix timestamp
 	if formattedDate, err := strconv.ParseInt(q.Get("min_date"), 10, 64); err == nil {
 		searchReq.minDate = formattedDate
@@ -397,29 +397,109 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 		prettyPrint = false
 	}
 	// JSON formatted response
-	filesJSON := FilesToJSON(response.files, prettyPrint)
+	filesJSON := ToJSON(response.files, prettyPrint)
 	s.respond(w, filesJSON, 3)
 }
 
 // Get specific JSON data such as all tags & people.
 // URL params (data is returned for metadata types included in the fetch param): ?fetch=tags,people,file_types,dates
-func (s *HTTPServer) getMetaDataHandler(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	resultsList := make(map[string][]string)
+func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	// get groups of meta data
+	case http.MethodGet:
+		q := r.URL.Query()
+		resultsList := make(map[string][]string)
 
-	metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
-	for _, dataType := range metaDataTypes {
-		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getMetaData", target: dataType})
-		resultsList[dataType] = response.metaData
-	}
+		metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
+		for _, dataType := range metaDataTypes {
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getMetaData", target: dataType})
+			resultsList[dataType] = response.metaData
+		}
 
-	// parse query result to json
-	response, err := json.Marshal(resultsList)
-	if err != nil {
-		s.respond(w, err.Error(), 1)
-		return
+		// parse query result to json
+		response, err := json.Marshal(resultsList)
+		if err != nil {
+			config.Log(err.Error(), 1)
+			s.respond(w, "error", 3)
+			return
+		}
+		s.respond(w, string(response), 3)
+
+	// get specific item by UUID (a file or user): ?UUID=X&type=file|user&format=html|json_pretty|json)
+	case http.MethodPost:
+		if err := r.ParseForm(); err != nil {
+			config.Log(err.Error(), 2)
+			s.respond(w, "error", 3)
+			return
+		}
+
+		// check UUID provided
+		targetUUID := r.Form.Get("UUID")
+		if targetUUID == "" {
+			s.respond(w, "no_UUID_provided", 3)
+			return
+		}
+
+		switch r.Form.Get("type") {
+		// get specific file
+		case "file":
+			// fetch file from DB
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFile", target: targetUUID})
+			if response.file.UUID == "" {
+				s.respond(w, "no_UUID_match", 3)
+				return
+			}
+
+			// pretty print
+			switch r.Form.Get("format") {
+			case "html":
+				// get user
+				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUser", target: response.file.UploaderUUID})
+				templateData := struct {
+					File
+					User
+				}{
+					response.file,
+					userResponse.user,
+				}
+
+				result := s.completeTemplate("/dynamic/templates/overlay_content.html", templateData)
+				s.respond(w, string(result), 3)
+
+			case "json_pretty":
+				s.respond(w, ToJSON(response.file, true), 3)
+
+			case "json":
+				fallthrough
+			default:
+				s.respond(w, ToJSON(response.file, false), 3)
+			}
+
+		// get specific user from DB
+		case "user":
+			// fetch file from DB
+			response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUser", target: targetUUID})
+			if response.user.UUID == "" {
+				s.respond(w, "no_UUID_match", 3)
+				return
+			}
+
+			switch r.Form.Get("format") {
+			case "html":
+				s.respond(w, "html_not_supported", 3)
+			case "json_pretty":
+				s.respond(w, ToJSON(response.user, true), 3)
+
+			case "json":
+				fallthrough
+			default:
+				s.respond(w, ToJSON(response.user, false), 3)
+			}
+
+		default:
+			s.respond(w, "no_type_provided", 3)
+		}
 	}
-	s.respond(w, string(response), 3)
 }
 
 // Process HTTP view files request.
@@ -462,35 +542,6 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 		s.respond(w, string(result), 3)
-
-	case http.MethodPost:
-		if err := r.ParseForm(); err != nil {
-			s.respond(w, err.Error(), 2)
-			return
-		}
-
-		searchUUID := r.Form.Get("UUID")
-		if searchUUID == "" {
-			s.respond(w, "no_UUID_provided", 3)
-			return
-		}
-
-		// get a list of all files from db
-		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFile", target: searchUUID})
-		// check file with UUID exists
-		if response.file.Name == "" {
-			s.respond(w, "no_UUID_match", 3)
-			return
-		}
-		tempFiles := []File{response.file}
-
-		// pretty print
-		pretty := false
-		if r.Form.Get("pretty") == "true" {
-			pretty = true
-		}
-
-		s.respond(w, FilesToJSON(tempFiles, pretty), 3)
 	}
 }
 
@@ -499,7 +550,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get user details
 	userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if userResponse.err != nil {
-		s.respond(w, userResponse.err.Error(), 2)
+		config.Log(userResponse.err.Error(), 2)
+		s.respond(w, "error", 3)
 		return
 	}
 
@@ -559,14 +611,15 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 			if err := r.ParseMultipartForm(0); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), 2)
+				config.Log(err.Error(), 3)
+				s.respond(w, "error", 3)
 				return
 			}
 			// move form file to temp dir
-			file, err := s.fileDB.uploadFile(w, r, userResponse.user)
-			if err != nil {
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "uploadFile", w: w, r: r, user: userResponse.user})
+			if response.err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), 2)
+				s.respond(w, response.err.Error(), 3)
 				return
 			}
 
@@ -574,13 +627,13 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			templateData := struct {
 				UploadedFile File
 			}{
-				file,
+				response.file,
 			}
 
 			result := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
 			if result == "" {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err.Error(), 1)
+				s.respond(w, "error", 3)
 				return
 			}
 			s.respond(w, string(result), 3)
@@ -588,12 +641,13 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// delete a file from user temp dir
 		case "temp_delete":
 			if err := r.ParseForm(); err != nil {
-				s.respond(w, err.Error(), 2)
+				config.Log(err.Error(), 3)
+				s.respond(w, "error", 3)
 				return
 			}
 
 			// remove file
-			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "deleteFile", target: r.Form.Get("file")})
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "deleteFile", UUID: r.Form.Get("fileUUID")})
 			if response.err != nil {
 				s.respond(w, response.err.Error(), 2)
 				return
@@ -604,16 +658,22 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// move temp file to content dir (allow global user access)
 		case "publish":
 			if err := r.ParseForm(); err != nil {
-				s.respond(w, err.Error(), 2)
+				config.Log(err.Error(), 3)
+				s.respond(w, "error", 3)
 				return
 			}
 
 			// process tags and people fields
+			desc := r.Form.Get("description-input")
 			tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
 			people := ProcessInputList(r.Form.Get("people-input"), ",", true)
-			metaData := MetaData{Description: r.Form.Get("description-input"), Tags: tags, People: people}
+			metaData := MetaData{Description: desc, Tags: tags, People: people}
 
 			// validate form field lengths
+			if len(desc) == 0 {
+				s.respond(w, "no_description", 3)
+				return
+			}
 			if len(tags) == 0 {
 				s.respond(w, "no_tags", 3)
 				return
@@ -624,7 +684,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
-			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("file"), fileMetadata: metaData})
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("fileUUID"), fileMetadata: metaData})
 			if response.err != nil {
 				s.respond(w, response.err.Error(), 2)
 				return
@@ -662,6 +722,12 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		"formatEpoch": func(epoch int64) string {
 			t := time.Unix(epoch, 0)
 			return t.Format("02/01/2006 [15:04]")
+		},
+		"formatByteCount": func(bytes int64, si bool) string {
+			return FormatByteCount(bytes, si)
+		},
+		"toTitleCase": func(text string) string {
+			return strings.Title(text)
 		},
 	}).Parse(string(htmlTemplate))
 	if err != nil {

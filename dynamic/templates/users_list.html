@@ -1,0 +1,76 @@
+{{ .NavbarHTML }}
+
+<div class="container-fluid">
+
+    <!-- display all uploaded files -->
+    <div class="row">
+        <div class="col-md-offset-2 col-md-8">
+
+            <h2 class="section-header">Users</h2>
+
+            <!-- search options -->
+            <div class="detail-wall">
+
+                <div class="row">
+                    {{ range $email, $user := .Users }}
+                    <div class="col-sm-6">
+                        <div class="wall-tile">
+
+                            <a href="/user/{{ $user.UUID }}" target="_blank" data-UUID="{{ $user.UUID }}">
+                                <div class="wall-tile-media">
+                                    {{ if eq $user.Image "" }}
+                                        <img class="img-responsive" src="/static/img/user_default.png">
+                                    {{ end }}
+                                    {{ if not (eq $user.Image "") }}
+                                        <img class="img-responsive" src="/dynamic/user/{{ $user.Image }}">
+                                    {{ end }}
+                                </div>
+                            </a>
+
+                            <div class="wall-tile-desc">
+                                <div class="tile-desc-scroll">
+                                    <h4>
+                                        <strong>
+                                            {{ $user.Forename }} {{ $user.Surname }}
+                                            {{ if eq $user.Type 1 }} (Admin) {{ end }}
+                                            {{ if eq $user.Type 2 }} (Super Admin) {{ end }}
+                                            {{ if eq $user.Type 3 }} (Guest) {{ end }}
+                                        </strong>
+                                    </h4>
+
+                                    <p>
+                                        <span class="glyphicon glyphicon-envelope" aria-hidden="true"></span>
+                                        {{ $email }}
+                                    </p>
+
+                                    <p>
+                                        {{ if eq $user.AccountState 0 }}
+                                            <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+                                            Awaiting admin confirmation
+                                        {{ end }}
+                                        {{ if eq $user.AccountState 1 }}
+                                            <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+                                            Awaiting email confirmation
+                                        {{ end }}
+                                        {{ if eq $user.AccountState 2 }}
+                                            <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+                                            Registered
+                                        {{ end }}
+                                        {{ if eq $user.AccountState 3 }}
+                                            <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                                            Blocked
+                                        {{ end }}
+                                    </p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    {{ end }}
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</div>

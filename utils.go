@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"crypto/sha256"
 	"io"
+	"math"
 )
 
 // Delete all files in a directory.
@@ -149,5 +150,31 @@ func GenerateFileHash(file string) (hash string, err error) {
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
 	}
-	return string(h.Sum(nil)), nil
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// Format bytes to human readable representation.
+func FormatByteCount(bytes int64, si bool) string {
+	unit := 1000
+	pre := "kMGTPE"
+	if si {
+		unit = 1024
+		pre = "KMGTPE"
+	}
+
+	// less than KB/KiB
+	if bytes < int64(unit) {
+		return fmt.Sprintf("%d B", bytes)
+	}
+
+	// get corresponding letter from pre
+	exp := (int64)(math.Log(float64(bytes)) / math.Log(float64(unit)))
+	pre = string([]rune(pre)[exp-1])
+	if !si {
+		pre += "i"
+	}
+
+	// format result
+	result := float64(bytes) / math.Pow(float64(unit), float64(exp))
+	return fmt.Sprintf("%.1f %sB", result, pre)
 }

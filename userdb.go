@@ -35,6 +35,7 @@ const (
 // A user account.
 type User struct {
 	UUID          string
+	Email         string
 	Password      string
 	ResetPassword string
 	Forename      string
@@ -52,7 +53,6 @@ type UserDB struct {
 	dir              string
 	file             string
 	requestPool      chan UserAccessRequest
-	RegisteringUsers map[string]User
 }
 
 // Create a new user DB.
@@ -86,11 +86,12 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
 	attributes []string
-	userType  UserType
-	w         http.ResponseWriter
-	r         *http.Request
-	operation string
-	response  chan UserAccessResponse
+	userType   UserType
+	w          http.ResponseWriter
+	r          *http.Request
+	operation  string
+	target     string
+	response   chan UserAccessResponse
 }
 type UserAccessResponse struct {
 	err     error
@@ -130,6 +131,13 @@ func (db *UserDB) startAccessPoller() {
 		case "getUsers":
 			response.users = db.getUsers()
 
+		case "getUser":
+			for _, user := range db.Users {
+				if user.UUID == req.target {
+					response.user = user
+				}
+			}
+
 		case "loginUser":
 			response.success, response.err = db.loginUser(req.w, req.r)
 			db.serializeToFile()
@@ -158,7 +166,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 		return err
 	}
 
-	newUser := User{Password: string(hashedPassword), Type: admin, UUID: NewUUID(), Forename: forename, Surname: surname}
+	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, UUID: NewUUID(), Forename: forename, Surname: surname}
 	db.Users[email] = newUser
 	return
 }

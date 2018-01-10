@@ -195,6 +195,8 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {
+		config.Log(err.Error(), 2)
+		err = fmt.Errorf("error")
 		return
 	}
 	defer newFormFile.Close()
@@ -202,6 +204,8 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// if a temp file for the user does not exist, create one named by their UUID
 	tempFilePath := config.rootPath + "/db/temp/" + user.UUID + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
+		config.Log(err.Error(), 1)
+		err = fmt.Errorf("error")
 		return
 	}
 
@@ -222,12 +226,16 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// create new empty file
 	tempFile, err := os.OpenFile(newTempFile.AbsolutePath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
+		config.Log(err.Error(), 1)
+		err = fmt.Errorf("error")
 		return
 	}
 	defer tempFile.Close()
 
 	// copy file from form to new local temp file (must from now on delete file if a failure occurs after copy)
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
+		config.Log(err.Error(), 1)
+		err = fmt.Errorf("error")
 		return
 	}
 
@@ -243,6 +251,8 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// generate hash of file contents
 	newTempFile.Hash, err = GenerateFileHash(newTempFile.AbsolutePath())
 	if err != nil {
+		config.Log(err.Error(), 1)
+		err = fmt.Errorf("error")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
 	}
@@ -285,7 +295,7 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	// append new details to file object
 	uploadedFile, ok := db.UploadedFiles[fileUUID]
 	if !ok {
-		return fmt.Errorf("file does not exist")
+		return fmt.Errorf("file_not_found")
 	}
 
 	uploadedFile.PublishedTimestamp = time.Now().Unix()
@@ -300,15 +310,10 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	// delete from temp DB
 	delete(db.UploadedFiles, fileUUID)
 
-	// move file from db/temp dir to db/content dir
-	/*if err = os.Rename(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
-		os.Remove(tempFilePath) // destroy temp file on add failure
-		return err
-	}*/
-
 	if err = MoveFile(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
 		os.Remove(tempFilePath) // destroy temp file on add failure
-		return err
+		config.Log(err.Error(), 1)
+		return fmt.Errorf("file_processing_error")
 	}
 
 	// add to file DB & record transaction
@@ -361,11 +366,11 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 // Mark a file in the DB for deletion, or delete the actual local copy of the file and remove reference from DB in order to redownload.
 func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	// check if file exists in either published or temp/uploaded DB
-	file, ok := db.PublishedFiles[fileUUID]
+	file, ok := db.UploadedFiles[fileUUID]
 	if !ok {
 		file, ok = db.PublishedFiles[fileUUID]
 		if !ok {
-			return fmt.Errorf("file does not exist")
+			return fmt.Errorf("file_not_found")
 		}
 	}
 
@@ -373,7 +378,8 @@ func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	switch file.State {
 	case UPLOADED:
 		if err = os.Remove(file.AbsolutePath()); err != nil {
-			return err
+			config.Log(err.Error(), 1)
+			return fmt.Errorf("file_processing_error")
 		}
 		delete(db.UploadedFiles, fileUUID)
 
@@ -383,20 +389,20 @@ func (db *FileDB) deleteFile(fileUUID string) (err error) {
 		db.recordTransaction(DELETE, file.UUID)
 
 	case DELETED:
-		return fmt.Errorf("file already deleted")
+		return fmt.Errorf("file_already_deleted")
 	}
 
 	return nil
 }
 
 // Get a filtered JSON representation of the File properties.
-func FilesToJSON(files []File, pretty bool) string {
+func ToJSON(obj interface{}, pretty bool) string {
 	// jsonify
 	jsonBuffer := &bytes.Buffer{}
 	encoder := json.NewEncoder(jsonBuffer)
 	encoder.SetEscapeHTML(false)
 
-	if err := encoder.Encode(files); err != nil {
+	if err := encoder.Encode(obj); err != nil {
 		return err.Error()
 	}
 

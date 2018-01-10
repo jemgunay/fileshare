@@ -21,7 +21,7 @@
                             </div>
 
                             <!-- date inputs -->
-                            <div class="col-sm-3 form-group">
+                            <div class="col-xs-6 col-sm-3 form-group">
                                 <label for="min-date-search-input">Min Date</label>
                                 <div class='input-group date' id='min-date-picker'>
                                     <input type='text' class="form-control" id="min-date-search-input">
@@ -30,7 +30,7 @@
                                     </span>
                                 </div>
                             </div>
-                            <div class="col-sm-3 form-group">
+                            <div class="col-xs-6 col-sm-3 form-group">
                                 <label for="max-date-search-input">Max Date</label>
                                 <div class='input-group date' id='max-date-picker'>
                                     <input type='text' class="form-control" id="max-date-search-input">
@@ -63,7 +63,7 @@
                             </div>
 
                             <!-- number of results per page -->
-                            <div class="col-sm-3 form-group">
+                            <div class="col-xs-6 col-sm-3 form-group">
                                 <label for="count-search-input">Memories Per Page</label><br>
                                 <select id="count-search-input" class="form-control">
                                     <option value="10">10</option>
@@ -75,7 +75,7 @@
                             </div>
 
                             <!-- results view format (detailed or tiled) -->
-                            <div class="col-sm-3 form-group">
+                            <div class="col-xs-6 col-sm-3 form-group">
                                 <input type="checkbox" id="view-search-input">
                             </div>
                         </form>
@@ -84,16 +84,14 @@
                 </div>
             </div>
 
-            <div class="panel panel-default" id="search-results-panel">
-                <div class="panel-body" id="results-panel-body">
-                    <div class="row">
+            <div id="search-results-panel">
+                <div class="row">
 
-                        <!-- file list -->
-                        <div class="results-window">
-                            {{ .FilesHTML }}
-                        </div>
-
+                    <!-- file list -->
+                    <div class="results-window">
+                        {{ .FilesHTML }}
                     </div>
+
                 </div>
             </div>
 
