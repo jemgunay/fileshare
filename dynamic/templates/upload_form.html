@@ -1,60 +1,94 @@
-<div class="panel panel-default upload-result-panel">
-    <div class="panel-body">
-        <div class="upload-result-container">
-            <!-- temp uploaded image -->
-            <div class="img-preview">
-                <img src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}">
-            </div>
+<div class="col-xs-12 col-sm-6 col-md-4 col-lg-3 upload-masonry-item">
 
-            <!-- details for temp image -->
-            <div class="img-details">
-                <form action="/upload/publish" method="post" enctype="multipart/form-data" class="form-horizontal">
+    <div class="panel panel-default upload-result-panel">
+        <div class="panel-body">
+            <div class="upload-result-container">
 
-                    <div class="row">
-                        <input type="hidden" name="fileUUID" value="{{ .UploadedFile.UUID }}">
+                <!-- temp uploaded file -->
+                <div class="row">
+                    <div class="col-sm-12">
 
-                        <!-- description field -->
-                        <div class="form-group">
-                            <label for="description-input" class="col-sm-3 col-lg-2 control-label">Description</label>
-                            <div class="col-sm-9 col-lg-10">
-                                <input type="text" class="form-control description-input" name="description-input">
-                            </div>
-                        </div>
+                        <div class="media-container">
+                            <!-- file name title -->
+                            <h4>
+                            {{ if eq .UploadedFile.MediaType "image" }}
+                                <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
+                            {{ end }}
+                            {{ if eq .UploadedFile.MediaType "video" }}
+                                <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
+                            {{ end }}
+                            {{ if eq .UploadedFile.MediaType "audio" }}
+                                <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
+                            {{ end }}
+                            {{ if eq .UploadedFile.MediaType "text" }}
+                                <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
+                            {{ end }}
+                            {{ if eq .UploadedFile.MediaType "other" }}
+                                <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
+                            {{ end }}
 
-                        <!-- tags field -->
-                        <div class="form-group">
-                            <label for="tags-input" class="col-sm-3 col-lg-2 control-label">Tags</label>
-                            <div class="col-sm-9 col-lg-10">
-                                <input type="text" class="form-control tags-input" name="tags-input">
-                            </div>
-                        </div>
+                                <strong>{{ .UploadedFile.Name }}.{{ .UploadedFile.Extension }}</strong>
+                            </h4>
 
-                        <!-- people field -->
-                        <div class="form-group">
-                            <label for="people-input" class="col-sm-3 col-lg-2 control-label">People</label>
-                            <div class="col-sm-9 col-lg-10">
-                                <input type="text" class="form-control people-input" name="people-input">
-                            </div>
-                        </div>
+                            <!-- contents -->
+                            {{ if eq .UploadedFile.MediaType "image" }}
+                                <img src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" class="img-responsive">
+                            {{ end }}
 
-                        <!-- buttons -->
-                        <div class="form-group upload-btn-container">
-                            <div class="col-sm-offset-3 col-sm-9 col-lg-offset-2 col-lg-10 upload-buttons">
-                                <button type="submit" class="btn btn-danger pull-left">
-                                    <span class="btn-label glyphicon glyphicon-trash" aria-hidden="true"></span>
-                                    <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
-                                </button>
-                                <button type="submit" class="btn btn-primary">
-                                    <strong class="btn-label">Publish Memory</strong>
-                                    <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
-                                </button>
-                            </div>
+                            {{ if eq .UploadedFile.MediaType "audio" }}
+                                <audio src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" controls>
+                                    Your browser does not support the audio element.
+                                </audio>
+                            {{ end }}
+
+                            {{ if eq .UploadedFile.MediaType "video" }}
+                                <video src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" controls controlsList="nodownload">
+                                    Your browser does not support HTML5 video.
+                                </video>
+                            {{ end }}
                         </div>
                     </div>
 
-                </form>
-            </div>
+                    <!-- details for temp image -->
+                    <form action="/upload/publish" method="post" enctype="multipart/form-data">
 
+                        <input type="hidden" name="fileUUID" value="{{ .UploadedFile.UUID }}">
+
+                        <!-- description field -->
+                        <div class="col-sm-12 form-group">
+                            <label for="description-input">Description Search</label>
+                            <input type="text" class="form-control description-input" name="description-input">
+                        </div>
+
+                        <!-- tags -->
+                        <div class="col-sm-12 form-group">
+                            <label for="tags-input">Tags Filter</label>
+                            <input type="text" class="form-control tags-input" name="tags-input">
+                        </div>
+
+                        <!-- people -->
+                        <div class="col-sm-12 form-group">
+                            <label for="people-input">People Filter</label>
+                            <input type="text" class="form-control people-input" name="people-input">
+                        </div>
+
+                        <!-- buttons -->
+                        <div class="col-sm-12 form-group">
+                            <button type="button" class="btn btn-danger pull-left">
+                                <span class="btn-label glyphicon glyphicon-trash" aria-hidden="true"></span>
+                                <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
+                            </button>
+                            <button type="button" class="btn btn-primary pull-right" data-toggle="tooltip" title="">
+                                <strong class="btn-label">Publish Memory</strong>
+                                <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
+
+            </div>
         </div>
     </div>
+
 </div>

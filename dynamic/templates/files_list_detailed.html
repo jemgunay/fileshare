@@ -17,10 +17,10 @@
                         <img class="img-responsive" src="/static/img/play.png">
                     {{ end }}
                     {{ if eq $file.MediaType "text" }}
-                        <img class="img-responsive" src="/static/content/img/read.png">
+                        <img class="img-responsive" src="/static/img/read.png">
                     {{ end }}
                     {{ if eq $file.MediaType "other" }}
-                        <img class="img-responsive" src="/static/content/img/download.png">
+                        <img class="img-responsive" src="/static/img/download.png">
                     {{ end }}
                 </div>
             </a>
@@ -32,7 +32,7 @@
                             <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
                         {{ end }}
                         {{ if eq $file.MediaType "video" }}
-                            <span class="glyphicon glyphicon-video" aria-hidden="true"></span>
+                            <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
                         {{ end }}
                         {{ if eq $file.MediaType "audio" }}
                             <span class="glyphicon glyphicon-music" aria-hidden="true"></span>

@@ -1,0 +1,120 @@
+<div class="row">
+    <div class="col-sm-4">
+        <div class="overlay-media">
+            {{ if eq .File.MediaType "image" }}
+            <img src="/static/content/{{ .File.UUID }}.{{ .File.Extension }}">
+            {{ end }}
+
+            {{ if eq .File.MediaType "audio" }}
+            <audio src="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" controls>
+                Your browser does not support the audio element.
+            </audio>
+            {{ end }}
+
+            {{ if eq .File.MediaType "video" }}
+            <video src="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" controls controlsList="nodownload">
+                Your browser does not support HTML5 video.
+            </video>
+            {{ end }}
+        </div>
+    </div>
+
+    <div class="col-sm-8">
+        <div class="wall-tile-desc">
+            <div class="tile-desc-scroll">
+
+                <h4>
+                {{ if eq .File.MediaType "image" }}
+                    <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
+                {{ end }}
+                {{ if eq .File.MediaType "video" }}
+                    <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
+                {{ end }}
+                {{ if eq .File.MediaType "audio" }}
+                    <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
+                {{ end }}
+                {{ if eq .File.MediaType "text" }}
+                    <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
+                {{ end }}
+                {{ if eq .File.MediaType "other" }}
+                    <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
+                {{ end }}
+
+                    <strong>{{ .File.Description }}</strong>
+                </h4>
+
+                <hr>
+
+                <!-- tags -->
+                <p>
+                    <span class="glyphicon glyphicon-tags" aria-hidden="true"></span>
+                    Tags: {{ range $key, $tag := .File.Tags }}
+                    <span class="label label-success">{{ $tag }}</span>
+                    {{ end }}
+                </p>
+
+                <!-- people -->
+                <p>
+                    <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+                    People: {{ range $key, $person := .File.People }}
+                    <span class="label label-primary">{{ $person }}</span>
+                    {{ end }}
+                </p>
+
+                <!-- date -->
+                <p>
+                    <span class="glyphicon glyphicon-time" aria-hidden="true"></span>
+                    Publish Date: <strong>{{ formatEpoch .File.PublishedTimestamp }}</strong>
+                </p>
+                <p>
+                    <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                    Upload Date: <strong>{{ formatEpoch .File.UploadedTimestamp }}</strong>
+                </p>
+
+                <hr>
+
+                <!-- file -->
+                <p>
+                    <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
+                    Original File Name: <strong>{{ .File.Name }}.{{ .File.Extension }}</strong>
+                </p>
+                <p>
+                    <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                    File Type: <strong>{{ toTitleCase .File.MediaType }}</strong>
+                </p>
+                <p>
+                    <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                    File Size: <strong>{{ formatByteCount .File.Size true }}</strong>
+                </p>
+                <p>
+                    <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                    File Hash: <strong>{{ .File.Hash }}</strong>
+                </p>
+                <p>
+                    <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                    Uploaded By: <a href="/user/{{ .User.Email }}"><strong>{{ .User.Forename }} {{ .User.Surname }} ({{ .User.Email }})</strong></a>
+                </p>
+
+                <hr>
+
+                <!-- operations -->
+                <p>
+                    <a href="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" target="_blank">
+                        <span class="glyphicon glyphicon-new-window" aria-hidden="true"></span>Open in new tab
+                    </a>
+                </p>
+                <p>
+                    <a href="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" download>
+                        <span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span>Download
+                    </a>
+                </p>
+                <p>
+                    <a href="#">
+                        <span class="glyphicon glyphicon-link" aria-hidden="true"></span>Copy URL to clipboard
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+</div>

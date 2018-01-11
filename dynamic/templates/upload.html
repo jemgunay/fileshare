@@ -6,6 +6,14 @@
         <div class="col-md-offset-2 col-md-8">
             <h2 class="section-header">File Upload</h2>
 
+            <!-- help -->
+            <div class="panel panel-default">
+                <div class="panel-body">
+                    <p></p>
+                </div>
+            </div>
+
+            <!-- dropzone -->
             <div class="panel panel-default">
                 <div class="panel-body">
 
@@ -21,14 +29,18 @@
                 </div>
             </div>
 
-            <div id="error-window"></div>
-
-            <!-- unpublished files -->
-            <div id="upload-results-panel">
-                {{ .UploadFormsHTML }}
-            </div>
+            <!--<div id="error-window"></div>-->
 
         </div>
+
+        <div class="col-md-12">
+
+            <!-- unpublished files -->
+            <div class="row" id="upload-results-panel">
+                {{ .UploadFormsHTML }}
+            </div>
+        </div>
+
     </div>
 
 </div>

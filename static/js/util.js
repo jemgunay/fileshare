@@ -16,7 +16,8 @@ function performRequest(URL, httpMethod, data, resultMethod) {
         data: data,
         error: function(e) {
             console.log(e);
-            setAlertWindow("danger", "Server error: " + e, "#error-window");
+            //setAlertWindow("danger", "Server error: " + e, "#error-window");
+            notifyAlert("A server error occurred.", "danger");
         },
         success: function(e) {
             resultMethod(e);
@@ -30,7 +31,19 @@ function setAlertWindow(type, msg, target) {
     performRequest(hostname + "/static/templates/alert.html", "GET", "", function(result) {
         var replaced = result.replace("{{type}}", type);
         replaced = replaced.replace("{{msg}}", msg);
-        $(target).hide().empty().append(replaced).fadeIn(400);
+        if (typeof target === 'string' || target instanceof String) {
+            target = $(target);
+        }
+        target.hide().empty().append(replaced).fadeIn(400);
+    });
+}
+
+// Create a notify alert.
+function notifyAlert(msg, type) {
+    $.notify({
+        message: "<strong>" + msg + "</strong>"
+    },{
+        type: type
     });
 }
 

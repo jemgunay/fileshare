@@ -137,7 +137,7 @@ function constructSearchURL() {
 // Init search result tiles.
 function initSearchTiles() {
     // freewall tiled images
-    var wall = new Freewall("#freewall");
+    var wall = new Freewall("#search-freewall");
     wall.reset({
         selector: '.free-wall-tile',
         animate: true,

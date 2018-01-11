@@ -74,6 +74,7 @@ func (s *HTTPServer) Start() {
 	router.HandleFunc("/reset", s.resetHandler).Methods(http.MethodGet)
 	router.HandleFunc("/reset/{type}", s.resetHandler).Methods(http.MethodPost)
 	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/user/{email}", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
 	// memory/file data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/search", s.authHandler(s.searchMemoriesHandler)).Methods(http.MethodGet)
@@ -297,6 +298,48 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	// get specific user details
+	if vars["email"] != "" {
+		response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByEmail", target: vars["email"]})
+		if response.err != nil {
+			s.respond(w, response.err.Error(), 3)
+			return
+		}
+
+		// HTML template data
+		templateData := struct {
+			Title       string
+			BrandName   string
+			User       User
+			NavbarHTML  template.HTML
+			NavbarFocus string
+			FooterHTML  template.HTML
+			FilesHTML   template.HTML
+			ContentHTML template.HTML
+		}{
+			"Memories",
+			config.params["brand_name"].val,
+			response.user,
+			"",
+			"users",
+			"",
+			"",
+			"",
+		}
+
+
+		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/user_content.html", templateData)
+		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+
+		s.respond(w, string(result), 3)
+		return
+	}
+
+	// get list of all users
 	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUsers"})
 
 	// HTML template data
@@ -454,7 +497,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			switch r.Form.Get("format") {
 			case "html":
 				// get user
-				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUser", target: response.file.UploaderUUID})
+				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUUID", target: response.file.UploaderUUID})
 				templateData := struct {
 					File
 					User
@@ -463,7 +506,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 					userResponse.user,
 				}
 
-				result := s.completeTemplate("/dynamic/templates/overlay_content.html", templateData)
+				result := s.completeTemplate("/dynamic/templates/file_content_overlay.html", templateData)
 				s.respond(w, string(result), 3)
 
 			case "json_pretty":
@@ -478,7 +521,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		// get specific user from DB
 		case "user":
 			// fetch file from DB
-			response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUser", target: targetUUID})
+			response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUUID", target: targetUUID})
 			if response.user.UUID == "" {
 				s.respond(w, "no_UUID_match", 3)
 				return
@@ -607,11 +650,11 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// upload file to temp dir under user UUID subdir ready for processing (only uploading user can access)
 		switch vars["type"] {
 		case "temp":
-			// limit request size to prevent DOS (10MB) & get data from form
-			r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+			// limit request size to prevent DOS (50MB) & get data from form
+			r.Body = http.MaxBytesReader(w, r.Body, 50*1024*1024)
 			if err := r.ParseMultipartForm(0); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				config.Log(err.Error(), 3)
+				config.Log(err.Error(), 2)
 				s.respond(w, "error", 3)
 				return
 			}

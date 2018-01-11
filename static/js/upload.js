@@ -2,11 +2,11 @@ $(document).ready(function() {
     // init dropzone
     Dropzone.options.fileInput = {
         paramName: "file-input", // The name that will be used to transfer the file
-        maxFilesize: 10, // MB
+        maxFilesize: 50, // MB
         init: function() {
             this.on("success", function(file, response) {
                 $("#upload-results-panel").append(response);
-                setAlertWindow("success", "'" + file.name + "' successfully uploaded!", "#error-window");
+                $('#upload-results-panel').masonry('reloadItems').masonry();
 
                 initUploadForm();
             });
@@ -21,7 +21,7 @@ $(document).ready(function() {
                     refinedError = "A copy of '" + file.name + "' has already been published to memories by another user."
                 }
                 if (errorMessage === "already_uploaded_self") {
-                    refinedError = "You have already uploaded an unpublished copy of '" + file.name + "' - it can be found below."
+                    refinedError = "You have already uploaded an unpublished copy of '" + file.name + "' - scroll down to find it."
                 }
                 else if (errorMessage === "already_published_self") {
                     refinedError = "You have already published a copy of '" + file.name + "' to memories."
@@ -39,10 +39,20 @@ $(document).ready(function() {
                 var msgEl = $(file.previewElement).find('.dz-error-message');
                 msgEl.text(refinedError);
 
-                setAlertWindow("warning", refinedError, "#error-window");
+                notifyAlert(refinedError, "warning");
+
             });
         }
     };
+
+    // allow mixed-height column stacking
+    $('#upload-results-panel').masonry({
+        itemSelector: '.upload-masonry-item'
+    });
+    // reload masonry when all images have loaded
+    $(window).on("load", function() {
+        $('#upload-results-panel').masonry('reloadItems').masonry();
+    });
 
     initUploadForm();
 });
@@ -58,12 +68,7 @@ function initUploadForm() {
     // for each panel, destroy old events and set up new events
     $(".upload-result-panel").each(function() {
         var panel = $(this);
-        var fileName = panel.find(".img-details input[type=hidden]").val();
-
-        panel.find("form").off("submit").on("submit", function(e) {
-            e.preventDefault();
-            return false;
-        });
+        var fileName = panel.find("form input[type=hidden]").val();
 
         // perform publish file request
         panel.find("form .btn-primary").off("click").on("click", function(e) {
@@ -77,30 +82,34 @@ function initUploadForm() {
                 setButtonProcessing(panel.find("form .btn-primary"), false);
 
                 if (result === "success") {
+                    // show success msg then remove panel
+                    notifyAlert("Memory successfully published (" + panel.find("h4").text().trim() + ")!", "success");
                     panel.fadeOut(500, function () {
                         panel.remove();
+                        $('#upload-results-panel').masonry('reloadItems').masonry();
                     });
-                    setAlertWindow("success", "File successfully published!", "#error-window");
+
                     initUploadTokenfields();
                 }
                 else if (result === "no_description") {
-                    setAlertWindow("warning", "Please write a description before publishing.", "#error-window");
+                    panel.find(".btn-primary").attr("title", "Please write a description before publishing.").tooltip('show');
                 }
                 else if (result === "no_tags") {
-                    setAlertWindow("warning", "Please specify at least one tag before publishing.", "#error-window");
+                    panel.find(".btn-primary").attr("title", "Please specify at least one tag before publishing.").tooltip('show');
                 }
                 else if (result === "no_people") {
-                    setAlertWindow("warning", "Please specify at least one person before publishing.", "#error-window");
+                    panel.find(".btn-primary").attr("title", "Please specify at least one person before publishing.").tooltip('show');
                 }
                 else if (result === "already_stored") {
+                    notifyAlert("A copy of this file has already been stored!", "warning");
                     panel.fadeOut(500, function () {
                         panel.remove();
+                        $('#upload-results-panel').masonry('reloadItems').masonry();
                     });
-                    setAlertWindow("warning", "A copy of this file has already been stored!", "#error-window");
                 }
                 else {
-                    console.log(result);
-                    setAlertWindow("danger", "A server error occurred (" + fileName + ").", "#error-window");
+                    //console.log(result);
+                    notifyAlert("A server error occurred (" + fileName + ").", "danger");
                 }
             });
         });
@@ -117,25 +126,30 @@ function initUploadForm() {
                 setButtonProcessing(panel.find("form .btn-danger"), false);
 
                 if (result === "success") {
+                    notifyAlert("The file has been deleted " + panel.find("h4").text().trim() + "!", "success");
+
                     panel.fadeOut(500, function() {
                         panel.remove();
+                        $('#upload-results-panel').masonry('reloadItems').masonry();
                     });
-                    setAlertWindow("success", "File has been deleted!", "#error-window");
                 }
                 else if (result === "invalid_file" || result === "file_not_found" || result === "file_already_deleted") {
+                    console.log(result);
+                    notifyAlert("File has already been deleted!", "success")
+
                     panel.fadeOut(500, function() {
                         panel.remove();
+                        $('#upload-results-panel').masonry('reloadItems').masonry();
                     });
-                    console.log(result);
-                    setAlertWindow("success", "File has already been deleted!", "#error-window");
                 }
                 else {
                     console.log(result);
-                    setAlertWindow("danger", "A server error occurred (" + fileName + ").", "#error-window");
+                    notifyAlert("A server error occurred (" + fileName + ").", "danger");
                 }
             });
         });
     });
+
 }
 
 // Populate tokenfields with up to date autocomplete suggestions.

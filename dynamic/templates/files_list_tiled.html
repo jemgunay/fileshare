@@ -1,5 +1,5 @@
 <!-- file list -->
-<div class="free-wall" id="freewall">
+<div id="search-freewall">
     {{ range $key, $file := .Files }}
 
     <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
@@ -14,10 +14,10 @@
                 <img class="img-responsive" src="/static/img/play.png">
             {{ end }}
             {{ if eq $file.MediaType "text" }}
-                <img class="img-responsive" src="/static/content/img/read.png">
+                <img class="img-responsive" src="/static/img/read.png">
             {{ end }}
             {{ if eq $file.MediaType "other" }}
-                <img class="img-responsive" src="/static/content/img/download.png">
+                <img class="img-responsive" src="/static/img/download.png">
             {{ end }}
         </div>
     </a>

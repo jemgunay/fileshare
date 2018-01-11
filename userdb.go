@@ -131,11 +131,21 @@ func (db *UserDB) startAccessPoller() {
 		case "getUsers":
 			response.users = db.getUsers()
 
-		case "getUser":
+		case "getUserByEmail":
+			user, ok := db.Users[req.target]
+			response.user = user
+			if !ok {
+				response.err = fmt.Errorf("user not found")
+			}
+
+		case "getUserByUUID":
 			for _, user := range db.Users {
 				if user.UUID == req.target {
 					response.user = user
 				}
+			}
+			if response.user.UUID == "" {
+				response.err = fmt.Errorf("user not found")
 			}
 
 		case "loginUser":
