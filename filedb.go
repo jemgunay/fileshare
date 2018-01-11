@@ -186,7 +186,7 @@ func (db *FileDB) startAccessPoller() {
 
 // Create transaction and add to DB.
 func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileUUID string) {
-	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.params["version"].val}
+	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.get("version")}
 	db.Transactions = append(db.Transactions, newTransaction)
 }
 
@@ -567,7 +567,7 @@ func (db *FileDB) getFilesByUser(userUUID string, state State) (files []File) {
 				files = append(files, file)
 			}
 		}
-		return
+		return SortFilesByDate(files)
 	}
 
 	// get published files only
@@ -578,7 +578,8 @@ func (db *FileDB) getFilesByUser(userUUID string, state State) (files []File) {
 			}
 		}
 	}
-	return
+
+	return SortFilesByDate(files)
 }
 
 // Generate slice representation of file PublishedFiles map.

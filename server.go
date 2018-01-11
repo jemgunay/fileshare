@@ -39,19 +39,23 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 		return
 	}
 
-	// start file manager http server
-	if config.params["http_host"].val == "" || config.params["http_port"].val == "" {
-		log.Println(fmt.Errorf("host and port parameters must be specified in config"))
-		return
+	// start http server
+	httpServer = HTTPServer{host: "localhost", port: 8000, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
+	// set host (allow_public_webapp)
+	if config.getBool("allow_public_webapp") {
+		httpServer.host = "0.0.0.0"
 	}
-	httpPort, err := strconv.Atoi(config.params["http_port"].val)
-	if err != nil {
-		log.Println(fmt.Errorf("invalid port value found in config file"))
-		return
+	// set port (http_port)
+	if httpServer.port, err = config.getInt("http_port"); err != nil {
+		log.Printf("Server error: %v", "invalid port value found in config file - using default")
 	}
-	httpServer = HTTPServer{host: config.params["http_host"].val, port: httpPort, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
-	httpServer.Start()
+	// set maxFileUploadSize (default maxFileUploadSize of 50MB)
+	if httpServer.maxFileUploadSize, err = config.getInt("max_file_upload_size"); err != nil {
+		httpServer.maxFileUploadSize = 50
+	}
+	httpServer.maxFileUploadSize *= 1024 * 1024
 
+	httpServer.Start()
 	return
 }
 
@@ -59,8 +63,9 @@ type HTTPServer struct {
 	host string
 	port int
 	ServerBase
-	server *http.Server
-	userDB *UserDB
+	server            *http.Server
+	userDB            *UserDB
+	maxFileUploadSize int
 }
 
 // Start listening for HTTP requests.
@@ -187,7 +192,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Reset Password",
-			config.params["brand_name"].val,
+			config.get("brand_name"),
 			"",
 			"",
 		}
@@ -220,20 +225,20 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		msgBody := "This is your new temporary password: 'new password here'. Use it to log in and change your password. It will expire in 30 minutes."
 
 		msg := gomail.NewMessage()
-		msg.SetHeader("From", "admin@memoryshare.com") // config.params["display_email_addr"].val
+		msg.SetHeader("From", "admin@memoryshare.com") // config.get("display_email_addr")
 		msg.SetHeader("To", "jemgunay@yahoo.co.uk")
-		msg.SetHeader("Subject", config.params["brand_name"].val+": Password Reset")
+		msg.SetHeader("Subject", config.get("brand_name")+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
-		/*port, err := strconv.Atoi(config.params["core_email_port"].val)
+		/*port, err := strconv.Atoi(config.get("core_email_port"))
 		if err != nil {
 			s.respond(w, "error", 2)
 			return
 		}*/
 
-		//d := gomail.NewDialer(config.params["core_email_server"].val, port, config.params["core_email_addr"].val, config.params["core_email_password"].val)
+		//d := gomail.NewDialer(config.get("core_email_server"), port, config.get("core_email_addr"), config.get("core_email_password"))
 
-		d := gomail.NewDialer("smtp.gmail.com", 465, config.params["core_email_addr"].val, config.params["core_email_password"].val)
+		d := gomail.NewDialer("smtp.gmail.com", 465, config.get("core_email_addr"), config.get("core_email_password"))
 
 		// Send the email to Bob, Cora and Dan.
 		if err := d.DialAndSend(msg); err != nil {
@@ -259,7 +264,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Login",
-			config.params["brand_name"].val,
+			config.get("brand_name"),
 			"",
 			"",
 		}
@@ -312,7 +317,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 		templateData := struct {
 			Title       string
 			BrandName   string
-			User       User
+			User        User
 			NavbarHTML  template.HTML
 			NavbarFocus string
 			FooterHTML  template.HTML
@@ -320,7 +325,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Memories",
-			config.params["brand_name"].val,
+			config.get("brand_name"),
 			response.user,
 			"",
 			"users",
@@ -328,7 +333,6 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 			"",
 			"",
 		}
-
 
 		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
@@ -354,7 +358,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML template.HTML
 	}{
 		"Users",
-		config.params["brand_name"].val,
+		config.get("brand_name"),
 		response.users,
 		"",
 		"users",
@@ -565,7 +569,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 			ContentHTML template.HTML
 		}{
 			"Memories",
-			config.params["brand_name"].val,
+			config.get("brand_name"),
 			response.files,
 			"",
 			"search",
@@ -604,26 +608,28 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		// fetch upload page
 		templateData := struct {
-			Title           string
-			BrandName       string
-			NavbarHTML      template.HTML
-			NavbarFocus     string
-			FooterHTML      template.HTML
-			UploadHTML      template.HTML
-			ContentHTML     template.HTML
-			UploadFormsHTML template.HTML
+			Title             string
+			BrandName         string
+			NavbarHTML        template.HTML
+			NavbarFocus       string
+			FooterHTML        template.HTML
+			UploadHTML        template.HTML
+			ContentHTML       template.HTML
+			UploadFormsHTML   template.HTML
+			MaxFileUploadSize int64
 		}{
 			"Upload",
-			config.params["brand_name"].val,
+			config.get("brand_name"),
 			"",
 			"upload",
 			"",
 			"",
 			"",
 			"",
+			int64(s.maxFileUploadSize),
 		}
 
-		// get all temp files for
+		// get all uploaded/temp files for session user
 		files := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFilesByUser", UUID: userResponse.user.UUID, state: UPLOADED})
 
 		// generate upload description forms for each unpublished image
@@ -650,8 +656,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		// upload file to temp dir under user UUID subdir ready for processing (only uploading user can access)
 		switch vars["type"] {
 		case "temp":
-			// limit request size to prevent DOS (50MB) & get data from form
-			r.Body = http.MaxBytesReader(w, r.Body, 50*1024*1024)
+			// limit request size to prevent DOS & get data from form
+			r.Body = http.MaxBytesReader(w, r.Body, int64(s.maxFileUploadSize))
 			if err := r.ParseMultipartForm(0); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				config.Log(err.Error(), 2)

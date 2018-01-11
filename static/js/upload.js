@@ -1,12 +1,14 @@
 $(document).ready(function() {
+    var maxFileSize = parseInt($("#max-file-size").attr("data-size")) / 1024 / 1024;
+
     // init dropzone
     Dropzone.options.fileInput = {
         paramName: "file-input", // The name that will be used to transfer the file
-        maxFilesize: 50, // MB
+        maxFilesize: maxFileSize, // MB
         init: function() {
             this.on("success", function(file, response) {
                 $("#upload-results-panel").append(response);
-                $('#upload-results-panel').masonry('reloadItems').masonry();
+                $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
 
                 initUploadForm();
             });
@@ -21,7 +23,7 @@ $(document).ready(function() {
                     refinedError = "A copy of '" + file.name + "' has already been published to memories by another user."
                 }
                 if (errorMessage === "already_uploaded_self") {
-                    refinedError = "You have already uploaded an unpublished copy of '" + file.name + "' - scroll down to find it."
+                    refinedError = "You have already uploaded an unpublished copy of '" + file.name + "' - scroll down to see it."
                 }
                 else if (errorMessage === "already_published_self") {
                     refinedError = "You have already published a copy of '" + file.name + "' to memories."
@@ -31,6 +33,9 @@ $(document).ready(function() {
                 }
                 else if (errorMessage === "invalid_file") {
                     refinedError = "The file '" + file.name + "' is invalid."
+                }
+                else if (errorMessage.indexOf("File is too big") !== -1) {
+                    refinedError = "The file '" + file.name + "' is too large."
                 }
                 else {
                     console.log(errorMessage);
@@ -51,7 +56,10 @@ $(document).ready(function() {
     });
     // reload masonry when all images have loaded
     $(window).on("load", function() {
-        $('#upload-results-panel').masonry('reloadItems').masonry();
+        $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
+        window.setInterval(function() {
+            $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
+        }, 500);
     });
 
     initUploadForm();
@@ -86,7 +94,7 @@ function initUploadForm() {
                     notifyAlert("Memory successfully published (" + panel.find("h4").text().trim() + ")!", "success");
                     panel.fadeOut(500, function () {
                         panel.remove();
-                        $('#upload-results-panel').masonry('reloadItems').masonry();
+                        $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
 
                     initUploadTokenfields();
@@ -104,7 +112,7 @@ function initUploadForm() {
                     notifyAlert("A copy of this file has already been stored!", "warning");
                     panel.fadeOut(500, function () {
                         panel.remove();
-                        $('#upload-results-panel').masonry('reloadItems').masonry();
+                        $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }
                 else {
@@ -126,20 +134,19 @@ function initUploadForm() {
                 setButtonProcessing(panel.find("form .btn-danger"), false);
 
                 if (result === "success") {
-                    notifyAlert("The file has been deleted " + panel.find("h4").text().trim() + "!", "success");
+                    notifyAlert("The file has been deleted (" + panel.find("h4").text().trim() + ")!", "success");
 
                     panel.fadeOut(500, function() {
                         panel.remove();
-                        $('#upload-results-panel').masonry('reloadItems').masonry();
+                        $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }
                 else if (result === "invalid_file" || result === "file_not_found" || result === "file_already_deleted") {
-                    console.log(result);
-                    notifyAlert("File has already been deleted!", "success")
+                    notifyAlert("File has already been deleted!", "success");
 
                     panel.fadeOut(500, function() {
                         panel.remove();
-                        $('#upload-results-panel').masonry('reloadItems').masonry();
+                        $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }
                 else {

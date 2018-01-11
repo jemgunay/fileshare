@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -23,6 +24,34 @@ type Config struct {
 	commentLines []ConfigSet
 	// 0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)
 	logVerbosity int
+}
+
+// Get the value associated with a config parameter.
+func (c *Config) get(name string) string {
+	return c.params[name].val
+}
+
+// Get the value associated with a config parameter casted as a boolean.
+func (c *Config) getBool(name string) bool {
+	return c.params[name].val == "true"
+}
+
+// Get the value associated with a config parameter casted as a boolean.
+func (c *Config) getInt(name string) (port int, err error) {
+	port, err = strconv.Atoi(c.params[name].val)
+	return
+}
+
+// Set the value associated with a config parameter.
+func (c *Config) set(name string, value string) {
+	oldConf := c.params[name]
+	oldConf.val = value
+	c.params[name] = oldConf
+}
+
+// Check if the value associated with a config parameter has been set.
+func (c *Config) isDefined(name string) bool {
+	return c.params[name].val != ""
 }
 
 // Load server config from local file.

@@ -40,10 +40,17 @@ function setAlertWindow(type, msg, target) {
 
 // Create a notify alert.
 function notifyAlert(msg, type) {
+    var icon = "glyphicon glyphicon-ok";
+    if (type === "warning" || type === "danger") {
+        icon = "glyphicon glyphicon-remove"
+    }
+
     $.notify({
-        message: "<strong>" + msg + "</strong>"
+        message: "<strong>" + msg + "</strong>",
+        icon: icon
     },{
-        type: type
+        type: type,
+        delay: 7000
     });
 }
 

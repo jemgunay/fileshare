@@ -6,16 +6,11 @@
         <div class="col-md-offset-2 col-md-8">
             <h2 class="section-header">File Upload</h2>
 
-            <!-- help -->
-            <div class="panel panel-default">
-                <div class="panel-body">
-                    <p></p>
-                </div>
-            </div>
-
             <!-- dropzone -->
-            <div class="panel panel-default">
+            <div class="panel panel-default" id="dropzone-panel">
                 <div class="panel-body">
+                    <div id="max-file-size" data-size="{{ .MaxFileUploadSize }}"></div>
+                    <p>Maximum file upload size of {{ formatByteCount .MaxFileUploadSize true }}.</id>
 
                     <!-- file dropzone -->
                     <form action="/upload/temp" class="dropzone" id="file-input">
@@ -23,13 +18,10 @@
                             <strong>Drop files here or click to upload.</strong><br>
                             <span class="note needsclick">(Files are not published instantly after upload - you'll be able to add details first!)</span>
                         </div>
-
                     </form>
 
                 </div>
             </div>
-
-            <!--<div id="error-window"></div>-->
 
         </div>
 

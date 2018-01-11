@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// process command line input
-	if config.params["enable_console_commands"].val == "true" {
+	if config.getBool("enable_console_commands") {
 		time.Sleep(time.Millisecond * 300)
 		for {
 			input := getConsoleInput("Enter command")
