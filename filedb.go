@@ -52,13 +52,13 @@ type File struct {
 	Size         int64
 	UUID         string
 	Hash         string
-	UploaderUUID string
+	UploaderUsername string
 }
 
 // Get full absolute path to file.
 func (f *File) AbsolutePath() string {
 	if f.State == UPLOADED {
-		return config.rootPath + "/db/temp/" + f.UploaderUUID + "/" + f.UUID + "." + f.Extension
+		return config.rootPath + "/db/temp/" + f.UploaderUsername + "/" + f.UUID + "." + f.Extension
 	}
 	return config.rootPath + "/static/content/" + f.UUID + "." + f.Extension
 }
@@ -202,7 +202,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	defer newFormFile.Close()
 
 	// if a temp file for the user does not exist, create one named by their UUID
-	tempFilePath := config.rootPath + "/db/temp/" + user.UUID + "/"
+	tempFilePath := config.rootPath + "/db/temp/" + user.Username + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
 		config.Log(err.Error(), 1)
 		err = fmt.Errorf("error")
@@ -210,7 +210,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	}
 
 	// create new file object
-	newTempFile = File{UploadedTimestamp: time.Now().Unix(), State: UPLOADED, UUID: NewUUID(), UploaderUUID: user.UUID}
+	newTempFile = File{UploadedTimestamp: time.Now().Unix(), State: UPLOADED, UUID: NewUUID(), UploaderUsername: user.Username}
 
 	// separate & validate file name/extension
 	newTempFile.Name, newTempFile.Extension = SplitFileName(handler.Filename)
@@ -261,7 +261,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// compare hash against the hashes of files stored in published DB
 	for _, file := range db.PublishedFiles {
 		if file.Hash == newTempFile.Hash {
-			if file.UploaderUUID == user.UUID {
+			if file.UploaderUsername == user.Username {
 				err = fmt.Errorf("already_published_self")
 			} else {
 				err = fmt.Errorf("already_published")
@@ -273,7 +273,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// compare hash against the hashes of files stored in temp DB
 	for _, file := range db.UploadedFiles {
 		if file.Hash == newTempFile.Hash {
-			if file.UploaderUUID == user.UUID {
+			if file.UploaderUsername == user.Username {
 				err = fmt.Errorf("already_uploaded_self")
 			} else {
 				err = fmt.Errorf("already_uploaded")
@@ -559,11 +559,11 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 }
 
 // Get all files corresponding to User UUID.
-func (db *FileDB) getFilesByUser(userUUID string, state State) (files []File) {
+func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
 	// get uploaded/temp files only
 	if state == UPLOADED {
 		for _, file := range db.UploadedFiles {
-			if file.UploaderUUID == userUUID {
+			if file.UploaderUsername == username {
 				files = append(files, file)
 			}
 		}
@@ -573,7 +573,7 @@ func (db *FileDB) getFilesByUser(userUUID string, state State) (files []File) {
 	// get published files only
 	if state == PUBLISHED {
 		for _, file := range db.PublishedFiles {
-			if file.UploaderUUID == userUUID {
+			if file.UploaderUsername == username {
 				files = append(files, file)
 			}
 		}

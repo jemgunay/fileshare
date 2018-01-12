@@ -12,18 +12,20 @@
             <div class="detail-wall">
 
                 <div class="row">
-                    {{ range $email, $user := .Users }}
+                    {{ range $key, $user := .Users }}
                     <div class="col-sm-6">
                         <div class="wall-tile">
 
-                            <a href="/user/{{ $user.UUID }}" target="_blank" data-UUID="{{ $user.UUID }}">
+                            <a href="/user/{{ $user.Username }}" target="_blank" data-UUID="{{ $user.Username }}">
                                 <div class="wall-tile-media">
-                                    {{ if eq $user.Image "" }}
-                                        <img class="img-responsive" src="/static/img/user_default.png">
-                                    {{ end }}
-                                    {{ if not (eq $user.Image "") }}
-                                        <img class="img-responsive" src="/dynamic/user/{{ $user.Image }}">
-                                    {{ end }}
+                                    <a href="/user/{{ $user.Username }}" class="img-fade">
+                                        {{ if eq $user.Image "" }}
+                                            <img class="img-responsive" src="/static/img/user_default.png">
+                                        {{ end }}
+                                        {{ if not (eq $user.Image "") }}
+                                            <img class="img-responsive" src="/dynamic/user/{{ $user.Image }}">
+                                        {{ end }}
+                                    </a>
                                 </div>
                             </a>
 
@@ -31,7 +33,7 @@
                                 <div class="tile-desc-scroll">
                                     <h4>
                                         <strong>
-                                            {{ $user.Forename }} {{ $user.Surname }}
+                                            <a href="/user/{{ $user.Username }}">{{ $user.Forename }} {{ $user.Surname }}</a>
                                             {{ if eq $user.Type 1 }} (Admin) {{ end }}
                                             {{ if eq $user.Type 2 }} (Super Admin) {{ end }}
                                             {{ if eq $user.Type 3 }} (Guest) {{ end }}
@@ -40,23 +42,27 @@
 
                                     <p>
                                         <span class="glyphicon glyphicon-envelope" aria-hidden="true"></span>
-                                        {{ $email }}
+                                        {{ $user.Email }}
                                     </p>
 
                                     <p>
                                         {{ if eq $user.AccountState 0 }}
                                             <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                            Awaiting admin confirmation
+                                            Awaiting admin & email confirmation
                                         {{ end }}
                                         {{ if eq $user.AccountState 1 }}
                                             <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
                                             Awaiting email confirmation
                                         {{ end }}
                                         {{ if eq $user.AccountState 2 }}
+                                            <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+                                            Awaiting admin confirmation
+                                        {{ end }}
+                                        {{ if eq $user.AccountState 3 }}
                                             <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
                                             Registered
                                         {{ end }}
-                                        {{ if eq $user.AccountState 3 }}
+                                        {{ if eq $user.AccountState 4 }}
                                             <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
                                             Blocked
                                         {{ end }}

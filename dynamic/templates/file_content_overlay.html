@@ -1,5 +1,5 @@
 <div class="row">
-    <div class="col-sm-4">
+    <div class="col-sm-6 col-md-4 col-lg-5">
         <div class="overlay-media">
             {{ if eq .File.MediaType "image" }}
             <img src="/static/content/{{ .File.UUID }}.{{ .File.Extension }}">
@@ -19,26 +19,26 @@
         </div>
     </div>
 
-    <div class="col-sm-8">
+    <div class="col-xs-12 col-md-8 col-lg-7">
         <div class="wall-tile-desc">
             <div class="tile-desc-scroll">
 
                 <h4>
-                {{ if eq .File.MediaType "image" }}
-                    <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
-                {{ end }}
-                {{ if eq .File.MediaType "video" }}
-                    <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
-                {{ end }}
-                {{ if eq .File.MediaType "audio" }}
-                    <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
-                {{ end }}
-                {{ if eq .File.MediaType "text" }}
-                    <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
-                {{ end }}
-                {{ if eq .File.MediaType "other" }}
-                    <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
-                {{ end }}
+                    {{ if eq .File.MediaType "image" }}
+                        <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
+                    {{ end }}
+                    {{ if eq .File.MediaType "video" }}
+                        <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
+                    {{ end }}
+                    {{ if eq .File.MediaType "audio" }}
+                        <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
+                    {{ end }}
+                    {{ if eq .File.MediaType "text" }}
+                        <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
+                    {{ end }}
+                    {{ if eq .File.MediaType "other" }}
+                        <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
+                    {{ end }}
 
                     <strong>{{ .File.Description }}</strong>
                 </h4>
@@ -80,6 +80,10 @@
                 </p>
                 <p>
                     <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                    New File Name: <strong>{{ .File.UUID }}.{{ .File.Extension }}</strong>
+                </p>
+                <p>
+                    <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
                     File Type: <strong>{{ toTitleCase .File.MediaType }}</strong>
                 </p>
                 <p>
@@ -92,7 +96,7 @@
                 </p>
                 <p>
                     <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
-                    Uploaded By: <a href="/user/{{ .User.Email }}"><strong>{{ .User.Forename }} {{ .User.Surname }} ({{ .User.Email }})</strong></a>
+                    Uploaded By: <a href="/user/{{ .User.Username }}"><strong>{{ .User.Forename }} {{ .User.Surname }} ({{ .User.Email }})</strong></a>
                 </p>
 
                 <hr>
@@ -102,17 +106,16 @@
                     <a href="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" target="_blank">
                         <span class="glyphicon glyphicon-new-window" aria-hidden="true"></span>Open in new tab
                     </a>
-                </p>
-                <p>
+
                     <a href="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" download>
                         <span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span>Download
                     </a>
                 </p>
-                <p>
-                    <a href="#">
+                <!--<p>
+                    <a href="/memory/{{ .File.UUID }}" id="UUID">
                         <span class="glyphicon glyphicon-link" aria-hidden="true"></span>Copy URL to clipboard
                     </a>
-                </p>
+                </p>-->
             </div>
         </div>
     </div>

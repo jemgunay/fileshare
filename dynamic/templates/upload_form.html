@@ -32,17 +32,17 @@
 
                             <!-- contents -->
                             {{ if eq .UploadedFile.MediaType "image" }}
-                                <img src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" class="img-responsive">
+                                <img src="/temp_uploaded/{{ .UploadedFile.UploaderUsername }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" class="img-responsive">
                             {{ end }}
 
                             {{ if eq .UploadedFile.MediaType "audio" }}
-                                <audio src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" controls>
+                                <audio src="/temp_uploaded/{{ .UploadedFile.UploaderUsername }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" controls>
                                     Your browser does not support the audio element.
                                 </audio>
                             {{ end }}
 
                             {{ if eq .UploadedFile.MediaType "video" }}
-                                <video src="/temp_uploaded/{{ .UploadedFile.UploaderUUID }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" controls controlsList="nodownload">
+                                <video src="/temp_uploaded/{{ .UploadedFile.UploaderUsername }}/{{ .UploadedFile.UUID }}.{{ .UploadedFile.Extension }}" controls controlsList="nodownload">
                                     Your browser does not support HTML5 video.
                                 </video>
                             {{ end }}

@@ -3,8 +3,9 @@ var currentPage = 0; // Current pagination page (start at 0th page).
 var tokenfieldTargetTrigger = true; // Prevents window resizing from triggering performSearch() by temporarily ignoring event listeners.
 
 $(document).ready(function() {
+    var memoryUUIDSpecified = (window.location.pathname).startsWith("/memory/");
 
-    if (window.location.pathname === "/") {
+    if (window.location.pathname === "/" || memoryUUIDSpecified) {
         // init search/filter inputs
         $("#desc-search-input").val("").on("input", performSearch);
 
@@ -40,6 +41,13 @@ $(document).ready(function() {
         }).change(performSearch);
 
         initSearchTiles();
+
+        // open memory overlay
+        if (memoryUUIDSpecified) {
+            var fileUUID = window.location.pathname.substr("/memory/".length, window.location.pathname.length);
+            console.log(fileUUID);
+            setOverlayMemory(fileUUID);
+        }
     }
 });
 
@@ -154,51 +162,51 @@ function initSearchTiles() {
     // view overlay window on click
     $("#search-results-panel a").on("click", function(e) {
         e.preventDefault();
-        $("#overlay-window").attr("opacity", 0).attr("display", "initial").fadeIn(100);
-        $('body').css('overflow', 'hidden'); // prevent background scroll
 
         setOverlayMemory($(this).attr("data-UUID"));
-
-        // key presses
-        $(document).keyup(function(e) {
-            // escape key
-            if (e.which === 27) {
-                if ($("#overlay-window").attr("display") !== "none") {
-                    $(document).unbind("keyup");
-                    $('body').css('overflow','auto');
-
-                    $("#overlay-window").fadeOut(100, function() {
-                        $("#overlay-window").attr("display", "none");
-                    });
-                }
-            }
-            // left key (previous memory)
-            else if (e.which === 37) {
-
-            }
-            // right key (next memory)
-            else if (e.which === 39) {
-
-            }
-        });
-
-        // close button
-        $("#overlay-close-btn").on("click", function() {
-            $(document).unbind("keyup");
-            $('body').css('overflow','auto');
-
-            $("#overlay-window").fadeOut(100, function() {
-                $("#overlay-window").attr("display", "none");
-            });
-        });
     });
 }
 
 // Set overlay window current memory.
 function setOverlayMemory(memoryUUID) {
+    $("#overlay-window").attr("opacity", 0).attr("display", "initial").fadeIn(100);
+    $('body').css('overflow', 'hidden'); // prevent background scroll
     $("#overlay-content").empty();
 
     performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
         $("#overlay-content").empty().append(response);
+    });
+
+    // key presses
+    $(document).keyup(function(e) {
+        // escape key
+        if (e.which === 27) {
+            if ($("#overlay-window").attr("display") !== "none") {
+                $(document).unbind("keyup");
+                $('body').css('overflow','auto');
+
+                $("#overlay-window").fadeOut(100, function() {
+                    $("#overlay-window").attr("display", "none");
+                });
+            }
+        }
+        // left key (previous memory)
+        else if (e.which === 37) {
+
+        }
+        // right key (next memory)
+        else if (e.which === 39) {
+
+        }
+    });
+
+    // close button
+    $("#overlay-close-btn").on("click", function() {
+        $(document).unbind("keyup");
+        $('body').css('overflow','auto');
+
+        $("#overlay-window").fadeOut(100, function() {
+            $("#overlay-window").attr("display", "none");
+        });
     });
 }

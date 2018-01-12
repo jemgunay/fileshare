@@ -10,14 +10,19 @@ import (
 
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"regexp"
+	"sort"
+	"time"
+	"unicode"
 )
 
 // The operation a transaction performed.
 type AccountState int
 
 const (
-	REGISTER_CONFIRM AccountState = iota // waiting for admin to confirm user
-	REGISTER_EMAIL                       // waiting for email confirmation
+	UNREGISTERED    AccountState = iota // waiting for both admin confirmation & user email confirmation
+	ADMIN_CONFIRMED                     // waiting for email confirmation
+	EMAIL_CONFIRMED                     // waiting for admin to confirm user
 	COMPLETE
 	BLOCKED
 )
@@ -27,32 +32,34 @@ type UserType int
 
 const (
 	STANDARD    UserType = iota
-	ADMIN                // can add/remove users
-	SUPER_ADMIN          // cannot be removed, can change user details
-	GUEST                // can search files only, cannot upload
+	ADMIN                // can add/block users, can make others admin
+	SUPER_ADMIN          // cannot be removed, can change user details (such as admin privs, but not on self), can complete file edit/delete requests
+	GUEST                // can view/search files only, cannot upload
 )
 
 // A user account.
 type User struct {
-	UUID          string
-	Email         string
-	Password      string
-	ResetPassword string
-	Forename      string
-	Surname       string
-	Type          UserType
-	Image         string
+	Username           string // generally found in URLs
+	Email              string
+	Password           string
+	ResetPassword      string
+	Forename           string
+	Surname            string
+	Type               UserType
+	CreatedTimestamp   int64
+	Image              string
+	FavouriteFileUUIDs map[string]bool // fileUUID key
 	AccountState
 }
 
 // The DB where files are stored.
 type UserDB struct {
-	// email key, User object value
-	Users            map[string]User
-	cookies          *sessions.CookieStore
-	dir              string
-	file             string
-	requestPool      chan UserAccessRequest
+	// username key, User object value
+	Users       map[string]User
+	cookies     *sessions.CookieStore
+	dir         string
+	file        string
+	requestPool chan UserAccessRequest
 }
 
 // Create a new user DB.
@@ -74,9 +81,14 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		response := userDB.performAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"admin@memoryshare.com", "admin", "Admin", "Admin"}, userType: SUPER_ADMIN})
+		response := userDB.performAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"jemgunay@yahoo.co.uk", "Snowman8*", "Jem", "Gunay"}, userType: SUPER_ADMIN})
 		if response.err != nil {
-			return nil, fmt.Errorf("default super admin account could not be created")
+			return nil, fmt.Errorf("default super admin account could not be created: %s", response.err.Error())
+		} else {
+			// set state to ok
+			user := userDB.Users[response.username]
+			user.AccountState = COMPLETE
+			userDB.Users[response.username] = user
 		}
 	}
 
@@ -85,19 +97,21 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
-	attributes []string
-	userType   UserType
-	w          http.ResponseWriter
-	r          *http.Request
-	operation  string
-	target     string
-	response   chan UserAccessResponse
+	attributes     []string
+	userType       UserType
+	w              http.ResponseWriter
+	r              *http.Request
+	operation      string
+	userIdentifier string
+	fileUUID       string
+	response       chan UserAccessResponse
 }
 type UserAccessResponse struct {
-	err     error
-	success bool
-	user    User
-	users   map[string]User
+	err      error
+	success  bool
+	username string
+	user     User
+	users    []User
 }
 
 // Create a blocking access request and provide an access response.
@@ -118,7 +132,7 @@ func (db *UserDB) startAccessPoller() {
 			if len(req.attributes) < 4 {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
-				response.err = db.addUser(req.attributes[0], req.attributes[1], req.attributes[2], req.attributes[3], req.userType)
+				response.username, response.err = db.addUser(req.attributes[0], req.attributes[1], req.attributes[2], req.attributes[3], req.userType)
 				db.serializeToFile()
 			}
 
@@ -132,21 +146,14 @@ func (db *UserDB) startAccessPoller() {
 			response.users = db.getUsers()
 
 		case "getUserByEmail":
-			user, ok := db.Users[req.target]
-			response.user = user
-			if !ok {
-				response.err = fmt.Errorf("user not found")
-			}
+			response.user, response.err = db.getUserByEmail(req.userIdentifier)
 
-		case "getUserByUUID":
-			for _, user := range db.Users {
-				if user.UUID == req.target {
-					response.user = user
-				}
-			}
-			if response.user.UUID == "" {
-				response.err = fmt.Errorf("user not found")
-			}
+		case "getUserByUsername":
+			response.user, response.err = db.getUserByUsername(req.userIdentifier)
+
+		case "addFavourite":
+			response.err = db.addFavourite(req.userIdentifier, req.fileUUID)
+			db.serializeToFile()
 
 		case "loginUser":
 			response.success, response.err = db.loginUser(req.w, req.r)
@@ -165,20 +172,77 @@ func (db *UserDB) startAccessPoller() {
 }
 
 // Add a user to userDB.
-func (db *UserDB) addUser(email string, password string, forename string, surname string, admin UserType) (err error) {
+func (db *UserDB) addUser(email string, password string, forename string, surname string, admin UserType) (username string, err error) {
+	// validate inputs
+	var emailRegex = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`).MatchString
+	var nameRegex = regexp.MustCompile(`^[A-Za-z ,.'-]+$`).MatchString
+
+	if !emailRegex(email) {
+		return "", fmt.Errorf("invalid_email")
+	}
+	if len(forename) == 0 || !nameRegex(forename) {
+		return "", fmt.Errorf("invalid_forename")
+	}
+	if len(surname) == 0 || !nameRegex(surname) {
+		return "", fmt.Errorf("invalid_surname")
+	}
+
+	// minimum eight characters, at least one upper case letter, one number and one special character
+	containsUpper := false
+	containsNumber := false
+	containsSpecial := false
+	for _, s := range password {
+		switch {
+		case unicode.IsNumber(s):
+			containsNumber = true
+		case unicode.IsUpper(s):
+			containsUpper = true
+		case unicode.IsPunct(s) || unicode.IsSymbol(s):
+			containsSpecial = true
+		}
+	}
+
+	if !containsUpper || !containsNumber || !containsSpecial || len(password) < 8 {
+		return "", fmt.Errorf("invalid_password")
+	}
+
 	// check if user exists already
 	if _, ok := db.Users[email]; ok {
-		return fmt.Errorf("an account already exists with this email address")
+		return "", fmt.Errorf("an account already exists with this email address")
 	}
 
+	// hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
-		return err
+		config.Log("error hashing password", 1)
+		return "", fmt.Errorf("error")
 	}
 
-	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, UUID: NewUUID(), Forename: forename, Surname: surname}
-	db.Users[email] = newUser
-	return
+	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, Forename: forename, Surname: surname, CreatedTimestamp: time.Now().Unix()}
+
+	// create username, appending an incremented number if a user exists with that username already (ensures value is unique)
+	usernameCounter := 1
+	for {
+		newUser.Username = newUser.Forename + newUser.Surname
+		if usernameCounter > 1 {
+			newUser.Username += fmt.Sprintf("%d", usernameCounter)
+		}
+		exists := false
+		for email := range db.Users {
+			if _, ok := db.Users[email]; ok {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			break
+		}
+		usernameCounter++
+	}
+
+	// add user to DB
+	db.Users[newUser.Username] = newUser
+	return newUser.Username, nil
 }
 
 // Authenticate user.
@@ -203,18 +267,54 @@ func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user U
 		return
 	}
 
-	sessionUser := db.Users[session.Values["email"].(string)]
-	return sessionUser, nil
+	user, err = db.getUserByEmail(session.Values["email"].(string))
+	return user, err
+}
+
+// Add a file UUID to the favourites list of a user.
+func (db *UserDB) addFavourite(username string, fileUUID string) (err error) {
+	user, ok := db.Users[username]
+	if !ok {
+		return fmt.Errorf("user_not_found")
+	}
+
+	user.FavouriteFileUUIDs[fileUUID] = true
+	return
 }
 
 // Get a copy of the users map.
-func (db *UserDB) getUsers() (users map[string]User) {
-	users = make(map[string]User, len(db.Users))
-
-	for email, user := range db.Users {
-		users[email] = user
+func (db *UserDB) getUsers() (users []User) {
+	for username := range db.Users {
+		users = append(users, db.Users[username])
 	}
 
+	// order by
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].CreatedTimestamp > users[j].CreatedTimestamp
+	})
+	return
+}
+
+// Get user that ha sa target email address.
+func (db *UserDB) getUserByEmail(email string) (user User, err error) {
+	for _, u := range db.Users {
+		if u.Email == email {
+			user = u
+			break
+		}
+	}
+	if user.Email == "" {
+		err = fmt.Errorf("user not found")
+	}
+	return
+}
+
+// Get user that ha sa target username.
+func (db *UserDB) getUserByUsername(username string) (user User, err error) {
+	user, ok := db.Users[username]
+	if !ok {
+		err = fmt.Errorf("user not found")
+	}
 	return
 }
 
@@ -231,10 +331,10 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 
 	// check form data against user DB
 	matchFound := false
-	for email, user := range db.Users {
+	for _, user := range db.Users {
 		// compare stored hash against hash of input password
 		err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
-		if emailParam == email && err == nil {
+		if emailParam == user.Email && err == nil {
 			matchFound = true
 			break
 		}

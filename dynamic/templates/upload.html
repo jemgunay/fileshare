@@ -10,7 +10,9 @@
             <div class="panel panel-default" id="dropzone-panel">
                 <div class="panel-body">
                     <div id="max-file-size" data-size="{{ .MaxFileUploadSize }}"></div>
-                    <p>Maximum file upload size of {{ formatByteCount .MaxFileUploadSize true }}.</id>
+                    <p>Add comma separated tags and people in order to group memories and to identify the people who were present; start typing for suggestions of previously added tags and people.</p>
+
+                    <p>The maximum file upload size is {{ formatByteCount .MaxFileUploadSize true }}.</p>
 
                     <!-- file dropzone -->
                     <form action="/upload/temp" class="dropzone" id="file-input">

@@ -47,10 +47,10 @@ h1, h2, h3 {
 #search-panel {
     margin-bottom: 15px;
 }
-#search-results-panel a {
+.img-fade {
     opacity: 1.0;
 }
-#search-results-panel a:hover {
+.img-fade:hover {
     opacity: 0.8;
 }
 .overlay-media img, .overlay-media audio, .overlay-media video {
@@ -91,6 +91,8 @@ h1, h2, h3 {
 .tile-desc-scroll {
     float: none;
     display: inline-block;
+    margin-bottom: 12px;
+    width: 100%;
 }
 .wall-tile-desc h4 {
     margin-top: 2px;
@@ -137,7 +139,7 @@ h1, h2, h3 {
     background-color: #FFF;
     border: 1px solid rgba(0, 0, 0, 0.2);
     width: 100%;
-    height: 100%;
+    max-height: 100%;
     overflow: auto;
     margin-bottom: 80px;
     padding: 15px;
@@ -153,6 +155,10 @@ h1, h2, h3 {
     padding-top: 7px;
     padding-left: 10px;
     z-index: 6;
+}
+.overlay-media {
+    margin-bottom: 15px;
+    text-align: center;
 }
 
 /* upload & search pages */
@@ -182,6 +188,9 @@ h1, h2, h3 {
     background: white;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.33);
     color: #333;
+}
+.wall-tile-desc .glyphicon-download-alt {
+    margin-left: 20px;
 }
 #search-freewall .free-wall-tile .img {
     width: 100%;
@@ -243,6 +252,26 @@ h1, h2, h3 {
     #search-panel .panel-body {
         padding-top: 0;
         padding-bottom: 10px;
+    }
+}
+@media (max-width: 991px) {
+    .overlay-media {
+        margin-right: 10px;
+    }
+    #overlay-window {
+        padding: 51px 0 0;
+    }
+    #overlay-close-btn {
+        position: fixed;
+        right: 10px;
+        top: 48px;
+        width: 45px;
+        height: 45px;
+        font-size: 25px;
+        margin: 5px;
+        padding-top: 7px;
+        padding-left: 10px;
+        z-index: 6;
     }
 }
 
