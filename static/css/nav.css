@@ -1,6 +1,6 @@
 @media (max-width: 767px) {
-    .navbar-brand {
-        margin-top: 4px;
+    .navbar button.navbar-toggle {
+        margin: 5px;
     }
 }
 
