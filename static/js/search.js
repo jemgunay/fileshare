@@ -45,9 +45,26 @@ $(document).ready(function() {
         // open memory overlay
         if (memoryUUIDSpecified) {
             var fileUUID = window.location.pathname.substr("/memory/".length, window.location.pathname.length);
-            console.log(fileUUID);
             setOverlayMemory(fileUUID);
+
+            // set URL to reflect memory
+            var newPath = /memory/ + fileUUID;
+            window.history.pushState(newPath, "Memories", newPath);
         }
+
+        // check for history popstate event
+        window.addEventListener('popstate', function(e) {
+            if (e.state) {
+                if ((e.state).startsWith("/memory/")) {
+                    var fileUUID = window.location.pathname.substr("/memory/".length, window.location.pathname.length);
+                    setOverlayMemory(fileUUID);
+                } else {
+                    setOverlayEnabled(false);
+                }
+            } else {
+                setOverlayEnabled(false);
+            }
+        });
     }
 });
 
@@ -164,30 +181,84 @@ function initSearchTiles() {
         e.preventDefault();
 
         setOverlayMemory($(this).attr("data-UUID"));
+
+        // set URL to reflect memory
+        var newPath = /memory/ + $(this).attr("data-UUID");
+        window.history.pushState(newPath, "Memories", newPath);
     });
 }
 
 // Set overlay window current memory.
 function setOverlayMemory(memoryUUID) {
-    $("#overlay-window").attr("opacity", 0).attr("display", "initial").fadeIn(100);
-    $('body').css('overflow', 'hidden'); // prevent background scroll
-    $("#overlay-content").empty();
+    setOverlayEnabled(true);
 
     performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
+        if (response.trim() === "no_UUID_match") {
+            setOverlayEnabled(false);
+            window.location.pathname = "/";
+        }
         $("#overlay-content").empty().append(response);
+
+        // set favourite icon
+        if ($("#overlay-content").find("#is-favourite").val() === "true") {
+            $("#overlay-fav-btn span").removeClass("glyphicon-heart-empty").addClass("glyphicon-heart");
+        } else {
+            $("#overlay-fav-btn span").removeClass("glyphicon-heart").addClass("glyphicon-heart-empty");
+        }
+
+        //on overlay
+        $("#overlay-fav-btn").off("click").on("click", function() {
+            // remove from favourites
+            if ($("#overlay-content").find("#is-favourite").val() === "true") {
+                performRequest(hostname + "/user", "POST", {
+                    operation: "favourite",
+                    state: false,
+                    fileUUID: $("#overlay-content #file-UUID").val()
+                }, function (favResponse) {
+                    $("#overlay-fav-btn span").removeClass("glyphicon-heart").addClass("glyphicon-heart-empty");
+
+                    console.log(favResponse.trim());
+                    if (favResponse.trim() === "favourite_successfully_removed") {
+                        notifyAlert("Memory removed from favourites!", "success");
+                        $("#overlay-content").find("#is-favourite").val(false);
+                    }
+                    else {
+                        notifyAlert("Error removing memory from favourites.", "warning");
+                    }
+                });
+
+            // add to favourites
+            } else {
+                performRequest(hostname + "/user", "POST", {
+                    operation: "favourite",
+                    state: true,
+                    fileUUID: $("#overlay-content #file-UUID").val()
+                }, function(favResponse) {
+                    $("#overlay-fav-btn span").removeClass("glyphicon-heart-empty").addClass("glyphicon-heart");
+                    console.log(favResponse.trim());
+
+                    if (favResponse.trim() === "favourite_successfully_added") {
+                        notifyAlert("Memory added to favourites!", "success");
+                        $("#overlay-content").find("#is-favourite").val(true);
+                    }
+                    else {
+                        notifyAlert("Error adding memory to favourites.", "warning");
+                    }
+                });
+            }
+        });
     });
 
     // key presses
     $(document).keyup(function(e) {
-        // escape key
+        // escape key (close overlay window)
         if (e.which === 27) {
             if ($("#overlay-window").attr("display") !== "none") {
                 $(document).unbind("keyup");
                 $('body').css('overflow','auto');
 
-                $("#overlay-window").fadeOut(100, function() {
-                    $("#overlay-window").attr("display", "none");
-                });
+                setOverlayEnabled(false);
+                window.history.pushState("/", "Memories", "/");
             }
         }
         // left key (previous memory)
@@ -200,13 +271,35 @@ function setOverlayMemory(memoryUUID) {
         }
     });
 
-    // close button
-    $("#overlay-close-btn").on("click", function() {
-        $(document).unbind("keyup");
-        $('body').css('overflow','auto');
+    // close on grey background click but prevent child tags' click events from propagating
+    $("#overlay-window").off("click").on("click", function(e) {
+        if($(e.target).is("#overlay-close-btn") || $(e.target).is("#overlay-window")) {
+            e.stopPropagation();
+            setOverlayEnabled(false);
+            window.history.pushState("/", "Memories", "/");
+        }
+    });
 
+    // close button
+    $("#overlay-close-btn").off("click").on("click", function(e) {
+        console.log(e);
+        $(document).unbind("keyup");
+        setOverlayEnabled(false);
+        window.history.pushState("/", "Memories", "/");
+    });
+}
+
+// Enable or disable overlay.
+function setOverlayEnabled(enabled) {
+    if (enabled) {
+        $("#overlay-window").attr("opacity", 0).attr("display", "initial").fadeIn(100);
+        $('body').css('overflow', 'hidden'); // prevent background scroll
+        $("#overlay-content").empty();
+    }
+    else {
         $("#overlay-window").fadeOut(100, function() {
+            $('body').css('overflow','auto');
             $("#overlay-window").attr("display", "none");
         });
-    });
+    }
 }

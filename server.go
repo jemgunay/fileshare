@@ -73,14 +73,16 @@ func (s *HTTPServer) Start() {
 	// define HTTP routes
 	router := mux.NewRouter()
 
-	// user
+	// user auth
 	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods(http.MethodGet, http.MethodPost)
 	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/reset", s.resetHandler).Methods(http.MethodGet)
 	router.HandleFunc("/reset/{type}", s.resetHandler).Methods(http.MethodPost)
+	// list all users
 	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/user/{username}", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet, http.MethodPost)
-	router.HandleFunc("/user/{username}/{operation}", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet, http.MethodPost)
+	// single user
+	router.HandleFunc("/user", s.authHandler(s.manageUserHandler)).Methods(http.MethodPost)
+	router.HandleFunc("/user/{username}", s.authHandler(s.manageUserHandler)).Methods(http.MethodGet, http.MethodPost)
 	// memory/file data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/memory/{fileUUID}", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet) // passive route, JS utilises fileUUID
@@ -308,80 +310,11 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 // Process HTTP view users request. username/operation
 func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	if vars["username"] != "" {
-		// get user corresponding with
-		userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: vars["username"]})
-		if userResponse.err != nil {
-			s.respond(w, userResponse.err.Error(), 3)
-			return
-		}
-
-		switch vars["operation"] {
-		// get specific user details
-		case "":
-			switch r.Method {
-			case http.MethodGet:
-
-				// HTML template data
-				templateData := struct {
-					Title       string
-					BrandName   string
-					User        User
-					NavbarHTML  template.HTML
-					NavbarFocus string
-					FooterHTML  template.HTML
-					FilesHTML   template.HTML
-					ContentHTML template.HTML
-				}{
-					"Memories",
-					config.get("brand_name"),
-					userResponse.user,
-					"",
-					"users",
-					"",
-					"",
-					"",
-				}
-
-				templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-				templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-				templateData.ContentHTML = s.completeTemplate("/dynamic/templates/user_content.html", templateData)
-				result := s.completeTemplate("/dynamic/templates/main.html", templateData)
-
-				s.respond(w, string(result), 3)
-
-			case http.MethodPost:
-
-
-				s.respond(w, "not yet implemented", 3)
-			}
-
-		case "favourite":
-			switch r.Method {
-			// get all favourite files by date range
-			case http.MethodGet:
-
-				/*for fileUUID := range userResponse.user.FavouriteFileUUIDs {
-
-				}*/
-
-				s.respond(w, "not yet implemented", 3)
-
-			// add a file to a user's favourites
-			case http.MethodPost:
-				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "addFavourite", userIdentifier: vars["username"], fileUUID: vars["UUID"]})
-				if userResponse.err != nil {
-					s.respond(w, userResponse.err.Error(), 3)
-					return
-				}
-
-				s.respond(w, "favourite_successfully_added", 3)
-			}
-
-		}
-
+	// get session user
+	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
+	if sessionUserResponse.err != nil {
+		config.Log(sessionUserResponse.err.Error(), 2)
+		s.respond(w, "error", 3)
 		return
 	}
 
@@ -392,19 +325,19 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	templateData := struct {
 		Title       string
 		BrandName   string
+		SessionUser User
 		Users       []User
 		NavbarHTML  template.HTML
 		NavbarFocus string
 		FooterHTML  template.HTML
-		FilesHTML   template.HTML
 		ContentHTML template.HTML
 	}{
 		"Users",
 		config.get("brand_name"),
+		sessionUserResponse.user,
 		response.users,
 		"",
 		"users",
-		"",
 		"",
 		"",
 	}
@@ -415,6 +348,103 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
 	s.respond(w, string(result), 3)
+}
+
+// Process a single user request.
+func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	if r.Method == http.MethodPost{
+		if err := r.ParseForm(); err != nil {
+			config.Log(err.Error(), 2)
+			s.respond(w, "error", 3)
+			return
+		}
+	}
+
+	// get session user
+	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
+	if sessionUserResponse.err != nil {
+		config.Log(sessionUserResponse.err.Error(), 2)
+		s.respond(w, "error", 3)
+		return
+	}
+
+	if vars["username"] != "" {
+		// get user corresponding with
+		userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: vars["username"]})
+		if userResponse.err != nil {
+			s.respond(w, userResponse.err.Error(), 3)
+			return
+		}
+
+		switch r.Method {
+		// get specific user details -> /user/{username}
+		case http.MethodGet:
+
+			// HTML template data
+			templateData := struct {
+				Title       string
+				BrandName   string
+				SessionUser User
+				User        User
+				NavbarHTML  template.HTML
+				NavbarFocus string
+				FooterHTML  template.HTML
+				ContentHTML template.HTML
+			}{
+				"User",
+				config.get("brand_name"),
+				sessionUserResponse.user,
+				userResponse.user,
+				"",
+				"users",
+				"",
+				"",
+			}
+
+			// set navbarfocus based on if viewed user IS the session user
+			if vars["username"] == sessionUserResponse.user.Username {
+				templateData.NavbarFocus = "user"
+			}
+
+			templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
+			templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+			templateData.ContentHTML = s.completeTemplate("/dynamic/templates/user_content.html", templateData)
+			result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+
+			s.respond(w, string(result), 3)
+
+		// set specific user details -> /user/{username}
+		case http.MethodPost:
+			// check auth or admin privs first
+			s.respond(w, "not yet implemented", 3)
+		}
+	} else {
+		switch r.Method {
+		// add a file to a user's favourites -> /user
+		case http.MethodPost:
+			switch r.Form.Get("operation") {
+			case "favourite":
+				state, _ := strconv.ParseBool(r.Form.Get("state"))
+
+				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "setFavourite", userIdentifier: sessionUserResponse.user.Username, fileUUID: r.Form.Get("fileUUID"), state: state})
+				if userResponse.err != nil {
+					s.respond(w, userResponse.err.Error(), 3)
+					return
+				}
+
+				if state {
+					s.respond(w, "favourite_successfully_added", 3)
+				} else {
+					s.respond(w, "favourite_successfully_removed", 3)
+				}
+			}
+
+		}
+
+	}
+
+	return
 }
 
 // Search request query container.
@@ -597,6 +627,14 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 
 // Process HTTP view files request.
 func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
+	// get session user
+	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
+	if sessionUserResponse.err != nil {
+		config.Log(sessionUserResponse.err.Error(), 2)
+		s.respond(w, "error", 3)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		// get a list of all files from db
@@ -607,6 +645,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		templateData := struct {
 			Title       string
 			BrandName   string
+			SessionUser User
 			Files       []File
 			NavbarHTML  template.HTML
 			NavbarFocus string
@@ -616,6 +655,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		}{
 			"Memories",
 			config.get("brand_name"),
+			sessionUserResponse.user,
 			response.files,
 			"",
 			"search",
@@ -640,11 +680,10 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 
 // Process HTTP file upload request.
 func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// get user details
-	userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
-
-	if userResponse.err != nil {
-		config.Log(userResponse.err.Error(), 2)
+	// get session user
+	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
+	if sessionUserResponse.err != nil {
+		config.Log(sessionUserResponse.err.Error(), 2)
 		s.respond(w, "error", 3)
 		return
 	}
@@ -657,6 +696,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		templateData := struct {
 			Title             string
 			BrandName         string
+			SessionUser User
 			NavbarHTML        template.HTML
 			NavbarFocus       string
 			FooterHTML        template.HTML
@@ -667,6 +707,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}{
 			"Upload",
 			config.get("brand_name"),
+			sessionUserResponse.user,
 			"",
 			"upload",
 			"",
@@ -677,7 +718,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// get all uploaded/temp files for session user
-		files := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFilesByUser", UUID: userResponse.user.Username, state: UPLOADED})
+		files := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFilesByUser", UUID: sessionUserResponse.user.Username, state: UPLOADED})
 
 		// generate upload description forms for each unpublished image
 		for _, f := range files.files {
@@ -712,7 +753,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// move form file to temp dir
-			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "uploadFile", w: w, r: r, user: userResponse.user})
+			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "uploadFile", w: w, r: r, user: sessionUserResponse.user})
 			if response.err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				s.respond(w, response.err.Error(), 3)

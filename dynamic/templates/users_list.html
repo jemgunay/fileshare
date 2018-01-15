@@ -23,7 +23,7 @@
                                             <img class="img-responsive" src="/static/img/user_default.png">
                                         {{ end }}
                                         {{ if not (eq $user.Image "") }}
-                                            <img class="img-responsive" src="/dynamic/user/{{ $user.Image }}">
+                                            <img class="img-responsive" src="/static/img/user/{{ $user.Username }}/{{ $user.Image }}">
                                         {{ end }}
                                     </a>
                                 </div>

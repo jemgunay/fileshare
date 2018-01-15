@@ -50,7 +50,7 @@ function notifyAlert(msg, type) {
         icon: icon
     },{
         type: type,
-        delay: 7000
+        delay: 5000
     });
 }
 

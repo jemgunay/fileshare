@@ -109,13 +109,16 @@ h1, h2, h3 {
 }
 .wall-tile-desc span.glyphicon {
     position: relative;
-    top: 3px;
+    top: 2px;
 }
 .wall-tile-desc hr {
     margin: 10px 0;
 }
 #search-results-panel .wall-tile-desc span.glyphicon-user {
     margin-left: 5px;
+}
+#view-user-container .tile-desc-scroll {
+    margin-bottom: 0;
 }
 .toggle.btn {
     margin-top: 28px;
@@ -145,19 +148,30 @@ h1, h2, h3 {
     max-height: 100%;
     overflow: auto;
     margin-bottom: 80px;
-    padding: 15px;
+    padding: 15px 15px 0;
 }
-#overlay-close-btn {
-    position: fixed;
+#overlay-close-btn, #overlay-fav-btn {
     right: 20px;
+    position: fixed;
     top: 73px;
     width: 45px;
     height: 45px;
     font-size: 25px;
     margin: 5px;
     padding-top: 7px;
-    padding-left: 10px;
+    padding-left: 9px;
     z-index: 6;
+}
+#overlay-fav-btn {
+    right: 70px;
+    padding-left: 8px;
+    padding-top: 8px;
+}
+#overlay-fav-btn:focus {
+    background-color: #FFF;
+}
+#overlay-fav-btn .glyphicon-heart {
+    color: rgb(220,20,60);
 }
 .overlay-media {
     margin-bottom: 15px;
@@ -181,6 +195,10 @@ h1, h2, h3 {
 }
 #search-results-panel .results-window .media-left {
     padding: 0;
+}
+#search-panel .form-group {
+    padding: 10px 10px 0 10px;
+    margin-bottom: 0;
 }
 #search-freewall {
     margin: 0 15px 15px 15px;
@@ -226,18 +244,27 @@ h1, h2, h3 {
         padding-right: 5px;
     }
     #search-panel .panel-body {
-        padding-bottom: 0;
-    }
-    #search-panel .form-group {
-        margin-bottom: 5px;
+        padding-bottom: 10px;
+        padding-top: 0;
     }
     #search-panel .form-group label {
         margin-bottom: 0;
+    }
+    .toggle.btn {
+        margin-top: 23px;
     }
     #overlay-close-btn {
         left: 4px;
         top: 48px;
         margin-left: 2px;
+    }
+    #overlay-fav-btn {
+        left: 51px;
+        top: 52px;
+    }
+
+    #view-user-container img {
+        margin: auto auto 15px;
     }
 }
 @media (min-width: 768px) {
@@ -269,10 +296,6 @@ h1, h2, h3 {
         padding-bottom: 0;
     }
 
-    #search-panel .form-group {
-        padding: 10px 10px 0 10px;
-        margin-bottom: 0;
-    }
     #search-panel .panel-body {
         padding-top: 0;
         padding-bottom: 10px;
@@ -289,6 +312,10 @@ h1, h2, h3 {
         right: 4px;
         top: 52px;
         margin-right: 2px;
+    }
+    #overlay-fav-btn {
+        right: 51px;
+        top: 52px;
     }
 }
 
@@ -331,6 +358,7 @@ h1, h2, h3 {
 /* loading spinner */
 .glyphicon.spinning {
     position: relative;
+    transform-origin: 55% 50%;
     top: 2px;
 
     animation: spin 1s infinite linear;

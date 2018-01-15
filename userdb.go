@@ -42,7 +42,7 @@ type User struct {
 	Username           string // generally found in URLs
 	Email              string
 	Password           string
-	ResetPassword      string
+	TempResetPassword  string
 	Forename           string
 	Surname            string
 	Type               UserType
@@ -104,6 +104,7 @@ type UserAccessRequest struct {
 	operation      string
 	userIdentifier string
 	fileUUID       string
+	state          bool
 	response       chan UserAccessResponse
 }
 type UserAccessResponse struct {
@@ -151,8 +152,8 @@ func (db *UserDB) startAccessPoller() {
 		case "getUserByUsername":
 			response.user, response.err = db.getUserByUsername(req.userIdentifier)
 
-		case "addFavourite":
-			response.err = db.addFavourite(req.userIdentifier, req.fileUUID)
+		case "setFavourite":
+			response.err = db.setFavourite(req.userIdentifier, req.fileUUID, req.state)
 			db.serializeToFile()
 
 		case "loginUser":
@@ -207,8 +208,8 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 	}
 
 	// check if user exists already
-	if _, ok := db.Users[email]; ok {
-		return "", fmt.Errorf("an account already exists with this email address")
+	if _, err := db.getUserByEmail(email); err == nil {
+		return "", fmt.Errorf("account_already_exists")
 	}
 
 	// hash password
@@ -218,7 +219,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 		return "", fmt.Errorf("error")
 	}
 
-	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, Forename: forename, Surname: surname, CreatedTimestamp: time.Now().Unix()}
+	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, Forename: forename, Surname: surname, CreatedTimestamp: time.Now().Unix(), FavouriteFileUUIDs: make(map[string]bool)}
 
 	// create username, appending an incremented number if a user exists with that username already (ensures value is unique)
 	usernameCounter := 1
@@ -242,6 +243,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 
 	// add user to DB
 	db.Users[newUser.Username] = newUser
+	config.Log("new user created: "+newUser.Username, 3)
 	return newUser.Username, nil
 }
 
@@ -272,13 +274,17 @@ func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user U
 }
 
 // Add a file UUID to the favourites list of a user.
-func (db *UserDB) addFavourite(username string, fileUUID string) (err error) {
+func (db *UserDB) setFavourite(username string, fileUUID string, state bool) (err error) {
 	user, ok := db.Users[username]
 	if !ok {
 		return fmt.Errorf("user_not_found")
 	}
 
-	user.FavouriteFileUUIDs[fileUUID] = true
+	favourites := user.FavouriteFileUUIDs
+	favourites[fileUUID] = state
+
+	user.FavouriteFileUUIDs = favourites
+	db.Users[username] = user
 	return
 }
 
