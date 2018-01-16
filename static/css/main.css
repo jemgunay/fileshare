@@ -117,6 +117,9 @@ h1, h2, h3 {
 #search-results-panel .wall-tile-desc span.glyphicon-user {
     margin-left: 5px;
 }
+#view-user-container .panel {
+    border-top: 0;
+}
 #view-user-container .tile-desc-scroll {
     margin-bottom: 0;
 }

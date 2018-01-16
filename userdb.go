@@ -8,12 +8,13 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gorilla/securecookie"
-	"github.com/gorilla/sessions"
 	"regexp"
 	"sort"
 	"time"
 	"unicode"
+
+	"github.com/gorilla/securecookie"
+	"github.com/gorilla/sessions"
 )
 
 // The operation a transaction performed.
@@ -192,13 +193,13 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 	containsUpper := false
 	containsNumber := false
 	containsSpecial := false
-	for _, s := range password {
+	for _, c := range password {
 		switch {
-		case unicode.IsNumber(s):
+		case unicode.IsNumber(c):
 			containsNumber = true
-		case unicode.IsUpper(s):
+		case unicode.IsUpper(c):
 			containsUpper = true
-		case unicode.IsPunct(s) || unicode.IsSymbol(s):
+		case unicode.IsPunct(c) || unicode.IsSymbol(c):
 			containsSpecial = true
 		}
 	}
@@ -283,6 +284,10 @@ func (db *UserDB) setFavourite(username string, fileUUID string, state bool) (er
 	favourites := user.FavouriteFileUUIDs
 	favourites[fileUUID] = state
 
+	if state == false {
+		delete(favourites, fileUUID)
+	}
+
 	user.FavouriteFileUUIDs = favourites
 	db.Users[username] = user
 	return
@@ -294,7 +299,7 @@ func (db *UserDB) getUsers() (users []User) {
 		users = append(users, db.Users[username])
 	}
 
-	// order by
+	// order by date created
 	sort.Slice(users, func(i, j int) bool {
 		return users[i].CreatedTimestamp > users[j].CreatedTimestamp
 	})

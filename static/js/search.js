@@ -40,7 +40,7 @@ $(document).ready(function() {
             height: "21px"
         }).change(performSearch);
 
-        initSearchTiles();
+        initSearchTiles(true);
 
         // open memory overlay
         if (memoryUUIDSpecified) {
@@ -64,6 +64,14 @@ $(document).ready(function() {
             } else {
                 setOverlayEnabled(false);
             }
+        });
+    }
+
+    var isUserProfile = (window.location.pathname).startsWith("/user/");
+    if (isUserProfile) {
+        initSearchTiles(false);
+        $('a[data-toggle="tab"]').on("shown.bs.tab", function() {
+            $(window).trigger('resize');
         });
     }
 });
@@ -137,7 +145,7 @@ function performSearch() {
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
             $(this).empty().append(html).fadeIn(100);
-            initSearchTiles();
+            initSearchTiles(true);
         });
     });
 }
@@ -160,7 +168,7 @@ function constructSearchURL() {
 }
 
 // Init search result tiles.
-function initSearchTiles() {
+function initSearchTiles(overlayOnClick) {
     // freewall tiled images
     var wall = new Freewall("#search-freewall");
     wall.reset({
@@ -176,15 +184,23 @@ function initSearchTiles() {
         wall.fitWidth();
     });
 
-    // view overlay window on click
+    // on memory click
     $("#search-results-panel a").on("click", function(e) {
         e.preventDefault();
 
-        setOverlayMemory($(this).attr("data-UUID"));
-
-        // set URL to reflect memory
         var newPath = /memory/ + $(this).attr("data-UUID");
-        window.history.pushState(newPath, "Memories", newPath);
+
+        // view overlay window
+        if (overlayOnClick) {
+            setOverlayMemory($(this).attr("data-UUID"));
+
+            // set URL to reflect memory
+            window.history.pushState(newPath, "Memories", newPath);
+        }
+        // go to memory page
+        else {
+            window.location.pathname = newPath;
+        }
     });
 }
 

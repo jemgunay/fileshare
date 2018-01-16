@@ -353,7 +353,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 // Process a single user request.
 func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	if r.Method == http.MethodPost{
+	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			config.Log(err.Error(), 2)
 			s.respond(w, "error", 3)
@@ -387,26 +387,43 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				BrandName   string
 				SessionUser User
 				User        User
+				Files       []File // favourite files
 				NavbarHTML  template.HTML
 				NavbarFocus string
 				FooterHTML  template.HTML
 				ContentHTML template.HTML
+				FilesHTML   template.HTML
 			}{
-				"User",
+				"Profile",
 				config.get("brand_name"),
 				sessionUserResponse.user,
 				userResponse.user,
+				[]File{},
 				"",
 				"users",
 				"",
 				"",
+				"",
+			}
+
+			// get favourite memories
+			for fileUUID := range userResponse.user.FavouriteFileUUIDs {
+				fileResponse := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFile", target: fileUUID})
+				if fileResponse.file.UUID != "" {
+					templateData.Files = append(templateData.Files, fileResponse.file)
+				}
+			}
+
+			var filesHTMLTarget = "/dynamic/templates/files_list_tiled.html"
+			if len(templateData.Files) == 0 {
+				filesHTMLTarget = "/static/templates/no_match_favourites.html"
 			}
 
 			// set navbarfocus based on if viewed user IS the session user
 			if vars["username"] == sessionUserResponse.user.Username {
 				templateData.NavbarFocus = "user"
 			}
-
+			templateData.FilesHTML = s.completeTemplate(filesHTMLTarget, templateData)
 			templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 			templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
 			templateData.ContentHTML = s.completeTemplate("/dynamic/templates/user_content.html", templateData)
@@ -414,7 +431,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 
 			s.respond(w, string(result), 3)
 
-		// set specific user details -> /user/{username}
+		// update specific user details -> /user/{username}
 		case http.MethodPost:
 			// check auth or admin privs first
 			s.respond(w, "not yet implemented", 3)
@@ -696,7 +713,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		templateData := struct {
 			Title             string
 			BrandName         string
-			SessionUser User
+			SessionUser       User
 			NavbarHTML        template.HTML
 			NavbarFocus       string
 			FooterHTML        template.HTML

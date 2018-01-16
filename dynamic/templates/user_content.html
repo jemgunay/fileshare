@@ -6,77 +6,110 @@
         <div class="col-sm-offset-2 col-sm-8">
             <h2 class="section-header">{{ .User.Forename }}'s Profile</h2>
 
+            <ul class="nav nav-tabs" role="tablist">
+                <li role="presentation" class="active">
+                    <a href="#details" aria-controls="details" role="tab" data-toggle="tab">Details</a>
+                </li>
+                <li role="presentation">
+                    <a href="#favourites" aria-controls="favourites" role="tab" data-toggle="tab">Favourites</a>
+                </li>
+            </ul>
+
             <div class="panel panel-default">
                 <div class="panel-body">
 
-                    <div class="row">
-                        <div class="col-sm-3">
-                            {{ if eq .User.Image "" }}
-                                <img class="img-responsive" src="/static/img/user_default.png">
-                            {{ end }}
-                            {{ if not (eq .User.Image "") }}
-                                <img class="img-responsive" src="/static/img/user/{{ .User.Username }}/{{ .User.Image }}">
-                            {{ end }}
-                        </div>
+                    <input type="hidden" id="username" value="{{ .User.Username }}">
 
-                        <div class="col-sm-9">
-                            <div class="wall-tile-desc">
-                                <div class="tile-desc-scroll">
-                                    <h4>
-                                        <strong>
-                                        {{ .User.Forename }} {{ .User.Surname }}
-                                        </strong>
-                                    </h4>
+                    <!-- tab panes -->
+                    <div class="tab-content">
+                        <!-- details pane -->
+                        <div role="tabpanel" class="tab-pane active" id="details">
 
-                                    <hr>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                {{ if eq .User.Image "" }}
+                                    <img class="img-responsive" src="/static/img/user_default.png">
+                                {{ end }}
+                                {{ if not (eq .User.Image "") }}
+                                    <img class="img-responsive" src="/static/img/user/{{ .User.Username }}/{{ .User.Image }}">
+                                {{ end }}
+                                </div>
 
-                                    <p>
-                                        <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
-                                        Username: <strong>{{ .User.Username }}</strong>
-                                    </p>
+                                <div class="col-sm-9">
+                                    <div class="wall-tile-desc">
+                                        <div class="tile-desc-scroll">
+                                            <h4>
+                                                <strong>
+                                                {{ .User.Forename }} {{ .User.Surname }}
+                                                </strong>
+                                            </h4>
 
-                                    <p>
-                                        <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
-                                        Type: <strong>
+                                            <hr>
+
+                                            <p>
+                                                <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+                                                Username: <strong>{{ .User.Username }}</strong>
+                                            </p>
+
+                                            <p>
+                                                <span class="glyphicon glyphicon-space" aria-hidden="true"></span>
+                                                Type: <strong>
                                             {{ if eq .User.Type 1 }} Admin {{ end }}
                                             {{ if eq .User.Type 2 }} Super Admin {{ end }}
                                             {{ if eq .User.Type 3 }} Guest {{ end }}
-                                        </strong>
-                                    </p>
+                                            </strong>
+                                            </p>
 
-                                    <p>
-                                        <span class="glyphicon glyphicon-envelope" aria-hidden="true"></span>
-                                        Email: <strong>{{ .User.Email }}</strong>
-                                    </p>
+                                            <p>
+                                                <span class="glyphicon glyphicon-envelope" aria-hidden="true"></span>
+                                                Email: <strong>{{ .User.Email }}</strong>
+                                            </p>
 
-                                    <p>
-                                        <span class="glyphicon glyphicon-calendar" aria-hidden="true"></span>
-                                        Date Created: <strong>{{ formatEpoch .User.CreatedTimestamp }}</strong>
-                                    </p>
+                                            <p>
+                                                <span class="glyphicon glyphicon-calendar" aria-hidden="true"></span>
+                                                Date Created: <strong>{{ formatEpoch .User.CreatedTimestamp }}</strong>
+                                            </p>
 
-                                    <p>
-                                    {{ if eq .User.AccountState 0 }}
-                                        <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                        <strong>Awaiting admin & email confirmation</strong>
-                                    {{ end }}
-                                    {{ if eq .User.AccountState 1 }}
-                                        <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                        <strong>Awaiting email confirmation</strong>
-                                    {{ end }}
-                                    {{ if eq .User.AccountState 2 }}
-                                        <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                        <strong>Awaiting admin confirmation</strong>
-                                    {{ end }}
-                                    {{ if eq .User.AccountState 3 }}
-                                        <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
-                                        <strong>Registered</strong>
-                                    {{ end }}
-                                    {{ if eq .User.AccountState 4 }}
-                                        <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
-                                        <strong>Blocked</strong>
-                                    {{ end }}
-                                    </p>
+                                            <p>
+                                            {{ if eq .User.AccountState 0 }}
+                                                <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+                                                <strong>Awaiting admin & email confirmation</strong>
+                                            {{ end }}
+                                            {{ if eq .User.AccountState 1 }}
+                                                <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+                                                <strong>Awaiting email confirmation</strong>
+                                            {{ end }}
+                                            {{ if eq .User.AccountState 2 }}
+                                                <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
+                                                <strong>Awaiting admin confirmation</strong>
+                                            {{ end }}
+                                            {{ if eq .User.AccountState 3 }}
+                                                <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+                                                <strong>Registered</strong>
+                                            {{ end }}
+                                            {{ if eq .User.AccountState 4 }}
+                                                <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                                                <strong>Blocked</strong>
+                                            {{ end }}
+                                            </p>
 
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- favourites pane -->
+                        <div role="tabpanel" class="tab-pane" id="favourites">
+                            <div id="search-results-panel">
+                                <div class="row">
+
+                                    <!-- file list -->
+                                    <div class="results-window">
+                                        {{ .FilesHTML }}
+                                    </div>
                                 </div>
                             </div>
 
@@ -84,10 +117,9 @@
                     </div>
 
                 </div>
-
             </div>
-        </div>
 
+        </div>
     </div>
 
 </div>
