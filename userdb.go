@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-
-	"golang.org/x/crypto/bcrypt"
-
 	"regexp"
 	"sort"
 	"time"
 	"unicode"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"strings"
 )
 
 // The operation a transaction performed.
@@ -82,14 +82,46 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		response := userDB.performAccessRequest(UserAccessRequest{operation: "addUser", attributes: []string{"jemgunay@yahoo.co.uk", "Snowman8*", "Jem", "Gunay"}, userType: SUPER_ADMIN})
-		if response.err != nil {
-			return nil, fmt.Errorf("default super admin account could not be created: %s", response.err.Error())
-		} else {
-			// set state to ok
-			user := userDB.Users[response.username]
-			user.AccountState = COMPLETE
-			userDB.Users[response.username] = user
+		fmt.Println("> Create the default super admin account.")
+
+		for {
+			userAccReq := UserAccessRequest{operation: "addUser", attributes: make(map[string]string), userType: SUPER_ADMIN}
+
+			// get forename, surname, email, password
+			if userAccReq.attributes["forename"], err = ReadStdin("> Forename: \n", false); err != nil {
+				fmt.Println("> Error reading console input...")
+				continue
+			}
+			if userAccReq.attributes["surname"], err = ReadStdin("> Surname: \n", false); err != nil {
+				fmt.Println("> Error reading console input...")
+				continue
+			}
+			if userAccReq.attributes["email"], err = ReadStdin("> Email: \n", false); err != nil {
+				fmt.Println("> Error reading console input...")
+				continue
+			}
+			if userAccReq.attributes["password"], err = ReadStdin("> Password: \n", true); err != nil {
+				fmt.Println("> Error reading console input...")
+				continue
+			}
+
+			// perform account creation request
+			response := userDB.performAccessRequest(userAccReq)
+			if response.err == nil {
+				// set state to ok
+				user := userDB.Users[response.username]
+				user.AccountState = COMPLETE
+				userDB.Users[response.username] = user
+				break
+			}
+
+			if response.err.Error() == "error" {
+				response.err = fmt.Errorf("internal error")
+			} else {
+				response.err = fmt.Errorf(strings.Replace(response.err.Error(), "_", " ", -1))
+			}
+
+			fmt.Printf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", response.err.Error())
 		}
 	}
 
@@ -98,7 +130,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 // Structure for passing request and response data between poller.
 type UserAccessRequest struct {
-	attributes     []string
+	attributes     map[string]string
 	userType       UserType
 	w              http.ResponseWriter
 	r              *http.Request
@@ -134,7 +166,7 @@ func (db *UserDB) startAccessPoller() {
 			if len(req.attributes) < 4 {
 				response.err = fmt.Errorf("email or password not specified")
 			} else {
-				response.username, response.err = db.addUser(req.attributes[0], req.attributes[1], req.attributes[2], req.attributes[3], req.userType)
+				response.username, response.err = db.addUser(req.attributes["email"], req.attributes["password"], req.attributes["forename"], req.attributes["surname"], req.userType)
 				db.serializeToFile()
 			}
 
@@ -176,17 +208,17 @@ func (db *UserDB) startAccessPoller() {
 // Add a user to userDB.
 func (db *UserDB) addUser(email string, password string, forename string, surname string, admin UserType) (username string, err error) {
 	// validate inputs
-	var emailRegex = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`).MatchString
 	var nameRegex = regexp.MustCompile(`^[A-Za-z ,.'-]+$`).MatchString
+	var emailRegex = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`).MatchString
 
-	if !emailRegex(email) {
-		return "", fmt.Errorf("invalid_email")
-	}
 	if len(forename) == 0 || !nameRegex(forename) {
 		return "", fmt.Errorf("invalid_forename")
 	}
 	if len(surname) == 0 || !nameRegex(surname) {
 		return "", fmt.Errorf("invalid_surname")
+	}
+	if !emailRegex(email) {
+		return "", fmt.Errorf("invalid_email")
 	}
 
 	// minimum eight characters, at least one upper case letter, one number and one special character
@@ -220,7 +252,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 		return "", fmt.Errorf("error")
 	}
 
-	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, Forename: forename, Surname: surname, CreatedTimestamp: time.Now().Unix(), FavouriteFileUUIDs: make(map[string]bool)}
+	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, Forename: forename, Surname: surname, CreatedTimestamp: time.Now().UnixNano(), FavouriteFileUUIDs: make(map[string]bool)}
 
 	// create username, appending an incremented number if a user exists with that username already (ensures value is unique)
 	usernameCounter := 1

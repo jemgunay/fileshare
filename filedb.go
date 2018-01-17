@@ -192,6 +192,9 @@ func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileU
 
 // Upload file to temp dir in a subdir named as the UUID of the session user.
 func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) (newTempFile File, err error) {
+	//
+	time.Sleep(time.Millisecond * 100)
+
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {
@@ -210,7 +213,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	}
 
 	// create new file object
-	newTempFile = File{UploadedTimestamp: time.Now().Unix(), State: UPLOADED, UUID: NewUUID(), UploaderUsername: user.Username}
+	newTempFile = File{UploadedTimestamp: time.Now().UnixNano(), State: UPLOADED, UUID: NewUUID(), UploaderUsername: user.Username}
 
 	// separate & validate file name/extension
 	newTempFile.Name, newTempFile.Extension = SplitFileName(handler.Filename)
@@ -298,7 +301,7 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 		return fmt.Errorf("file_not_found")
 	}
 
-	uploadedFile.PublishedTimestamp = time.Now().Unix()
+	uploadedFile.PublishedTimestamp = time.Now().UnixNano()
 	// get MediaType from temp uploaded file object
 	metaData.MediaType = uploadedFile.MediaType
 	uploadedFile.MetaData = metaData

@@ -7,7 +7,7 @@ $(document).ready(function() {
         maxFilesize: maxFileSize, // MB
         init: function() {
             this.on("success", function(file, response) {
-                $("#upload-results-panel").append(response);
+                $("#upload-results-panel").prepend(response);
                 $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
 
                 initUploadForm();
@@ -56,7 +56,6 @@ $(document).ready(function() {
     });
     // reload masonry when all images have loaded
     $(window).on("load", function() {
-        $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
         window.setInterval(function() {
             $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
         }, 500);
@@ -93,7 +92,7 @@ function initUploadForm() {
                     // show success msg then remove panel
                     notifyAlert("Memory successfully published (" + panel.find("h4").text().trim() + ")!", "success");
                     panel.fadeOut(500, function () {
-                        panel.remove();
+                        panel.parent(".upload-masonry-item").remove();
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
 
@@ -111,7 +110,7 @@ function initUploadForm() {
                 else if (result === "already_stored") {
                     notifyAlert("A copy of this file has already been stored!", "warning");
                     panel.fadeOut(500, function () {
-                        panel.remove();
+                        panel.parent(".upload-masonry-item").remove();
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }
@@ -137,7 +136,7 @@ function initUploadForm() {
                     notifyAlert("The file has been deleted (" + panel.find("h4").text().trim() + ")!", "success");
 
                     panel.fadeOut(500, function() {
-                        panel.remove();
+                        panel.parent(".upload-masonry-item").remove();
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }
@@ -145,7 +144,7 @@ function initUploadForm() {
                     notifyAlert("File has already been deleted!", "success");
 
                     panel.fadeOut(500, function() {
-                        panel.remove();
+                        panel.parent(".upload-masonry-item").remove();
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }

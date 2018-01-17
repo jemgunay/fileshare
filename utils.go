@@ -10,6 +10,9 @@ import (
 	"crypto/sha256"
 	"io"
 	"math"
+	"bufio"
+	"golang.org/x/crypto/ssh/terminal"
+	"syscall"
 )
 
 // Delete all files in a directory.
@@ -177,4 +180,26 @@ func FormatByteCount(bytes int64, si bool) string {
 	// format result
 	result := float64(bytes) / math.Pow(float64(unit), float64(exp))
 	return fmt.Sprintf("%.1f %sB", result, pre)
+}
+
+// Read either plaintext or password from Stdin.
+func ReadStdin(message string, isPassword bool) (response string, err error) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf(message)
+
+	if isPassword {
+		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			config.Log(err.Error(), 1)
+			return "", err
+		}
+
+		return strings.TrimSpace(string(bytePassword)), nil
+	}
+
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		config.Log(err.Error(), 1)
+	}
+	return strings.TrimSpace(input), err
 }
