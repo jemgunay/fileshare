@@ -57,12 +57,12 @@ function notifyAlert(msg, type) {
 // Toggle button enabled & spinner visibility.
 function setButtonProcessing(element, enabled) {
     if (enabled === true) {
+        element.find(".btn-label").css("display", "none");
+        element.find(".btn-spinner").css("display", "inline-block");
         element.attr("disabled", true);
-        element.find(".btn-label").hide();
-        element.find(".btn-spinner").show();
         return
     }
-    element.find(".btn-label").show();
-    element.find(".btn-spinner").hide();
+    element.find(".btn-label").css("display", "inline-block");
+    element.find(".btn-spinner").css("display", "none");
     element.attr("disabled", false);
 }

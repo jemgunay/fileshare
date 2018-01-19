@@ -1,3 +1,10 @@
+/* bootstrap remove rounded corners */
+* {
+    -webkit-border-radius: 0 !important;
+    -moz-border-radius: 0 !important;
+    border-radius: 0 !important;
+}
+
 /* typefaces */
 body, html {
     font-family: 'Raleway', sans-serif;
@@ -199,6 +206,19 @@ h1, h2, h3 {
 #search-results-panel .results-window .media-left {
     padding: 0;
 }
+#search-results-panel #show-more {
+    text-align: center;
+}
+#search-results-panel #show-more button {
+    margin-bottom: 15px;
+    border-radius: 25px !important;
+    background-color: #f8f8f8;
+    padding: 0 15px;
+}
+#search-results-panel #show-more button h5 {
+    font-family: 'Pacifico', cursive;
+}
+
 #search-panel .form-group {
     padding: 10px 10px 0 10px;
     margin-bottom: 0;
@@ -330,13 +350,6 @@ h1, h2, h3 {
     }
 }
 
-/* bootstrap remove rounded corners */
-* {
-    -webkit-border-radius: 0 !important;
-    -moz-border-radius: 0 !important;
-    border-radius: 0 !important;
-}
-
 /* login & reset password page */
 #login-container, #reset-password-container {
     background-color: rgba(217, 237, 247, 0.63);
@@ -361,11 +374,14 @@ h1, h2, h3 {
 /* loading spinner */
 .glyphicon.spinning {
     position: relative;
-    transform-origin: 55% 50%;
+    transform-origin: 50% 50%;
     top: 2px;
 
     animation: spin 1s infinite linear;
     -webkit-animation: spin2 1s infinite linear;
+}
+.btn-spinner {
+    display: none;
 }
 @keyframes spin {
     from { transform: scale(1) rotate(0deg); }
