@@ -49,9 +49,9 @@ type File struct {
 	PublishedTimestamp int64
 	State
 	MetaData
-	Size         int64
-	UUID         string
-	Hash         string
+	Size             int64
+	UUID             string
+	Hash             string
 	UploaderUsername string
 }
 
@@ -123,10 +123,16 @@ type FileAccessRequest struct {
 	response     chan FileAccessResponse
 }
 type FileAccessResponse struct {
-	err      error
-	file     File
-	files    []File
-	metaData []string
+	err        error
+	file       File
+	files      []File
+	fileResult FileSearchResult
+	metaData   []string
+}
+type FileSearchResult struct {
+	ResultCount int    `json:"result_count"`
+	TotalCount  int    `json:"total_count"`
+	Files       []File `json:"memories"`
 }
 
 // Create a blocking access request and provide an access response.
@@ -159,7 +165,7 @@ func (db *FileDB) startAccessPoller() {
 			response.metaData = db.getMetaData(req.target)
 
 		case "search":
-			response.files = db.search(req.searchParams)
+			response.fileResult = db.search(req.searchParams)
 
 		case "getFile":
 			response.file = db.PublishedFiles[req.target]
@@ -433,7 +439,7 @@ func SortFilesByDate(files []File) []File {
 }
 
 // Search the DB for Files which match the provided criteria.
-func (db *FileDB) search(searchReq SearchRequest) []File {
+func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	files := db.toSlice()
 	var filterResults, searchResults []File
 
@@ -548,17 +554,16 @@ func (db *FileDB) search(searchReq SearchRequest) []File {
 	}
 
 	// limit number of results to pagination fields
-	func() {
-		if searchReq.resultsPerPage > 0 {
-			rangeBounds := [2]int64{searchReq.page * searchReq.resultsPerPage, (searchReq.page + 1) * searchReq.resultsPerPage}
-			if rangeBounds[1] > int64(len(filterResults)-1) {
-				return
-			}
-			filterResults = filterResults[rangeBounds[0]:rangeBounds[1]]
-		}
-	}()
+	if searchReq.resultsPerPage > 0 {
+		rangeBounds := [2]int64{searchReq.page * searchReq.resultsPerPage, (searchReq.page + 1) * searchReq.resultsPerPage}
 
-	return filterResults
+		if rangeBounds[1] > int64(len(filterResults)-1) {
+			rangeBounds[1] = int64(len(filterResults))
+		}
+		filterResults = filterResults[rangeBounds[0]:rangeBounds[1]]
+	}
+
+	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: len(db.PublishedFiles)}
 }
 
 // Get all files corresponding to User UUID.

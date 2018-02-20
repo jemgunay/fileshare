@@ -477,7 +477,7 @@ type SearchRequest struct {
 }
 
 // Search files by their properties.
-// URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html_tiled/html_detailed), pretty]
+// URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html_tiled/html_detailed), pretty, results_per_page(0=all)]
 func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// construct search query from url params
@@ -510,7 +510,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 		templateData := struct {
 			Files []File
 		}{
-			response.files,
+			response.fileResult.Files,
 		}
 		// determine which template format to use
 		templateFile := "/dynamic/templates/files_list_detailed.html"
@@ -518,7 +518,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 			templateFile = "/dynamic/templates/files_list_tiled.html"
 		}
 
-		if len(response.files) == 0 {
+		if len(response.fileResult.Files) == 0 {
 			templateFile = "/static/templates/no_match.html"
 		}
 
@@ -527,13 +527,10 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// pretty print JSON?
-	prettyPrint, err := strconv.ParseBool(q.Get("pretty"))
-	if err != nil {
-		prettyPrint = false
-	}
 	// JSON formatted response
-	filesJSON := ToJSON(response.files, prettyPrint)
+	prettyPrint, _ := strconv.ParseBool(q.Get("pretty"))
+	filesJSON := ToJSON(response.fileResult, prettyPrint)
+
 	s.respond(w, filesJSON, 3)
 }
 
@@ -673,7 +670,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 			"Memories",
 			config.get("brand_name"),
 			sessionUserResponse.user,
-			response.files,
+			response.fileResult.Files,
 			"",
 			"search",
 			"",

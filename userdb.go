@@ -12,9 +12,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"strings"
+
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
-	"strings"
 )
 
 // The operation a transaction performed.

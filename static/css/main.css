@@ -83,10 +83,10 @@ h1, h2, h3 {
     margin: 0;
     position: absolute;
     top: 50%;
-    transform: translate(0%, -50%);
+    transform: translate(0%, -51%);
     object-fit: cover;
     min-width: 100%;
-    min-height: 100%;
+    min-height: 101%;
 }
 .wall-tile-desc {
     height: 100%;
@@ -215,8 +215,12 @@ h1, h2, h3 {
     background-color: #f8f8f8;
     padding: 0 15px;
 }
+#search-results-panel #show-more button:hover, #search-results-panel #show-more button:focus {
+    background-color: #e7e7e7;
+}
 #search-results-panel #show-more button h5 {
     font-family: 'Pacifico', cursive;
+    margin-top: 12px;
 }
 
 #search-panel .form-group {

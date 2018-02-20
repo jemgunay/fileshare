@@ -65,6 +65,11 @@ $(document).ready(function() {
                 setOverlayEnabled(false);
             }
         });
+
+        // show more button
+        $("#search-results-panel #show-more").on("click", function() {
+
+        });
     }
 
     var isUserProfile = (window.location.pathname).startsWith("/user/");
