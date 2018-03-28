@@ -1,18 +1,19 @@
 package main
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-	"github.com/twinj/uuid"
-	"fmt"
-	"crypto/sha256"
-	"io"
-	"math"
-	"bufio"
-	"golang.org/x/crypto/ssh/terminal"
 	"syscall"
+	"time"
+
+	"github.com/twinj/uuid"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Delete all files in a directory.
@@ -137,7 +138,7 @@ func SplitFileName(file string) (name, extension string) {
 	}
 
 	name = components[0]
-	extension = strings.Join(components[1:], "")
+	extension = strings.ToLower(strings.Join(components[1:], ""))
 	return
 }
 

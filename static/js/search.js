@@ -238,7 +238,6 @@ function setOverlayMemory(memoryUUID) {
                 }, function (favResponse) {
                     $("#overlay-fav-btn span").removeClass("glyphicon-heart").addClass("glyphicon-heart-empty");
 
-                    console.log(favResponse.trim());
                     if (favResponse.trim() === "favourite_successfully_removed") {
                         notifyAlert("Memory removed from favourites!", "success");
                         $("#overlay-content").find("#is-favourite").val(false);
@@ -256,7 +255,6 @@ function setOverlayMemory(memoryUUID) {
                     fileUUID: $("#overlay-content #file-UUID").val()
                 }, function(favResponse) {
                     $("#overlay-fav-btn span").removeClass("glyphicon-heart-empty").addClass("glyphicon-heart");
-                    console.log(favResponse.trim());
 
                     if (favResponse.trim() === "favourite_successfully_added") {
                         notifyAlert("Memory added to favourites!", "success");
@@ -302,8 +300,7 @@ function setOverlayMemory(memoryUUID) {
     });
 
     // close button
-    $("#overlay-close-btn").off("click").on("click", function(e) {
-        console.log(e);
+    $("#overlay-close-btn").off("click").on("click", function() {
         $(document).unbind("keyup");
         setOverlayEnabled(false);
         window.history.pushState("/", "Memories", "/");

@@ -871,7 +871,7 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 	// parse HTML template & register template functions
 	templateParsed, err := template.New("t").Funcs(template.FuncMap{
 		"formatEpoch": func(epoch int64) string {
-			t := time.Unix(epoch, 0)
+			t := time.Unix(0, epoch)
 			return t.Format("02/01/2006 [15:04]")
 		},
 		"formatByteCount": func(bytes int64, si bool) string {
