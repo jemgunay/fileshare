@@ -24,8 +24,8 @@ $(document).ready(function() {
                 var currentEpoch = Math.floor((new Date).getTime() / 1000);
                 parsedData["dates"] = [currentEpoch, currentEpoch];
             }
-            $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][0]) * 1000));
-            $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][1]) * 1000));
+            $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][0]) / 1000000));
+            $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][1]) / 1000000));
             $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
         });
 
@@ -158,8 +158,14 @@ function performSearch() {
 // Collect & format parameters from inputs, then construct URL for search request.
 function constructSearchURL() {
     var dates = [$("#min-date-picker").data("DateTimePicker").date(), $("#max-date-picker").data("DateTimePicker").date()];
-    if (dates[0]) { dates[0] = dates[0].unix() }
-    if (dates[1]) { dates[1] = dates[1].unix() }
+    if (dates[0]) {
+        dates[0] = dates[0].unix()
+    }
+    if (dates[1]) {
+        dates[1] = dates[1].unix()
+    }
+    console.log("min:", dates[0], "max:", dates[1]);
+
     var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
     var format = "html_detailed";
     if ($("#view-search-input").is(":checked")) {

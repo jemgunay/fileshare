@@ -470,9 +470,9 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 
 	for i := range searchResults {
 		// trim epoch to HH:MM:SS to filter by year/month/day only
-		minSearchDate := TrimUnixEpoch(searchReq.minDate)
-		maxSearchDate := TrimUnixEpoch(searchReq.maxDate)
-		fileDate := TrimUnixEpoch(searchResults[i].PublishedTimestamp)
+		minSearchDate := TrimUnixEpoch(searchReq.minDate, false)
+		maxSearchDate := TrimUnixEpoch(searchReq.maxDate, false)
+		fileDate := TrimUnixEpoch(searchResults[i].PublishedTimestamp, true)
 
 		// min date
 		if fileDate.Before(minSearchDate) {

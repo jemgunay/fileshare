@@ -16,8 +16,7 @@ function performRequest(URL, httpMethod, data, resultMethod) {
         data: data,
         error: function(e) {
             console.log(e);
-            //setAlertWindow("danger", "Server error: " + e, "#error-window");
-            notifyAlert("A server error occurred.", "danger");
+            notifyAlert("Could not connect to the server.", "danger");
         },
         success: function(e) {
             resultMethod(e);

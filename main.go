@@ -14,7 +14,7 @@ var config Config
 
 func main() {
 	// log level
-	logVerbosityFlag := flag.Int("log_verbosity", 0, "0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)")
+	logVerbosityFlag := flag.Int("verbosity", 0, "0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)")
 	flag.Parse()
 	config.SetLogVerbosity(*logVerbosityFlag)
 
@@ -45,7 +45,7 @@ func main() {
 				if response.err != nil {
 					log.Println(response.err)
 				}
-				// terminate
+			// terminate
 			case "exit":
 				httpServer.Stop()
 				return

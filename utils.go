@@ -52,12 +52,18 @@ func ProcessInputList(list string, delimiter string, toLowerCase bool) (separate
 }
 
 // Convert unix epoch timestamp to YYYY-MM-DD format (trim anything smaller).
-func TrimUnixEpoch(epoch int64) time.Time {
-	dateParsed := time.Unix(epoch, 0).UTC().Format("2006-01-02")
+func TrimUnixEpoch(epoch int64, nano bool) time.Time {
+	var nanoEpoch int64
+	if nano {
+		nanoEpoch = epoch
+		epoch = 0
+	}
+	dateParsed := time.Unix(epoch, nanoEpoch).Format("2006-01-02")
 	timeParsed, err := time.Parse("2006-01-02", dateParsed)
 	if err != nil {
 		return time.Now()
 	}
+
 	return timeParsed
 }
 
