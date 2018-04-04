@@ -557,9 +557,14 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	if searchReq.resultsPerPage > 0 {
 		rangeBounds := [2]int64{searchReq.page * searchReq.resultsPerPage, (searchReq.page + 1) * searchReq.resultsPerPage}
 
+		if rangeBounds[0] > int64(len(filterResults)-1) {
+			// request out of range, return empty result set
+			return FileSearchResult{Files: make([]File, 0), ResultCount: 0, TotalCount: len(db.PublishedFiles)}
+		}
 		if rangeBounds[1] > int64(len(filterResults)-1) {
 			rangeBounds[1] = int64(len(filterResults))
 		}
+
 		filterResults = filterResults[rangeBounds[0]:rangeBounds[1]]
 	}
 

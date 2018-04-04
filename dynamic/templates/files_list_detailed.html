@@ -1,77 +1,75 @@
-<div class="detail-wall">
-    <!-- file list -->
-    {{ range $key, $file := .Files }}
+<!-- file list -->
+{{ range $key, $file := .Files }}
 
-    <div class="col-sm-6">
-        <div class="wall-tile">
+<div class="col-sm-6">
+    <div class="wall-tile">
 
-            <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
-                <div class="wall-tile-media">
+        <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
+            <div class="wall-tile-media">
+                {{ if eq $file.MediaType "image" }}
+                    <img class="img-responsive img-fade" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                {{ end }}
+                {{ if eq $file.MediaType "video" }}
+                    <img class="img-responsive img-fade" src="/static/img/play.png">
+                {{ end }}
+                {{ if eq $file.MediaType "audio" }}
+                    <img class="img-responsive img-fade" src="/static/img/play.png">
+                {{ end }}
+                {{ if eq $file.MediaType "text" }}
+                    <img class="img-responsive img-fade" src="/static/img/read.png">
+                {{ end }}
+                {{ if eq $file.MediaType "other" }}
+                    <img class="img-responsive img-fade" src="/static/img/download.png">
+                {{ end }}
+            </div>
+        </a>
+
+        <div class="wall-tile-desc">
+            <div class="tile-desc-scroll">
+                <h4>
                     {{ if eq $file.MediaType "image" }}
-                        <img class="img-responsive img-fade" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+                        <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
                     {{ end }}
                     {{ if eq $file.MediaType "video" }}
-                        <img class="img-responsive img-fade" src="/static/img/play.png">
+                        <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
                     {{ end }}
                     {{ if eq $file.MediaType "audio" }}
-                        <img class="img-responsive img-fade" src="/static/img/play.png">
+                        <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
                     {{ end }}
                     {{ if eq $file.MediaType "text" }}
-                        <img class="img-responsive img-fade" src="/static/img/read.png">
+                        <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
                     {{ end }}
                     {{ if eq $file.MediaType "other" }}
-                        <img class="img-responsive img-fade" src="/static/img/download.png">
+                        <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
                     {{ end }}
-                </div>
-            </a>
 
-            <div class="wall-tile-desc">
-                <div class="tile-desc-scroll">
-                    <h4>
-                        {{ if eq $file.MediaType "image" }}
-                            <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
-                        {{ end }}
-                        {{ if eq $file.MediaType "video" }}
-                            <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
-                        {{ end }}
-                        {{ if eq $file.MediaType "audio" }}
-                            <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
-                        {{ end }}
-                        {{ if eq $file.MediaType "text" }}
-                            <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
-                        {{ end }}
-                        {{ if eq $file.MediaType "other" }}
-                            <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
-                        {{ end }}
+                    <strong>{{ $file.Description }}</strong>
+                </h4>
 
-                        <strong>{{ $file.Description }}</strong>
-                    </h4>
-
-                    <!-- tags -->
-                    <p>
-                        <span class="glyphicon glyphicon-tags" aria-hidden="true"></span>
-                        {{ range $key, $tag := $file.Tags }}
-                            <span class="label label-success">{{ $tag }}</span>
-                        {{ end }}
+                <!-- tags -->
+                <p>
+                    <span class="glyphicon glyphicon-tags" aria-hidden="true"></span>
+                    {{ range $key, $tag := $file.Tags }}
+                        <span class="label label-success">{{ $tag }}</span>
+                    {{ end }}
 
 
-                        <!-- people -->
-                        <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
-                        {{ range $key, $person := $file.People }}
-                            <span class="label label-primary">{{ $person }}</span>
-                        {{ end }}
-                    </p>
+                    <!-- people -->
+                    <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+                    {{ range $key, $person := $file.People }}
+                        <span class="label label-primary">{{ $person }}</span>
+                    {{ end }}
+                </p>
 
-                    <!-- date -->
-                    <p>
-                        <span class="glyphicon glyphicon-time" aria-hidden="true"></span>
-                        <strong>{{ formatEpoch $file.PublishedTimestamp }}</strong>
-                    </p>
-                </div>
+                <!-- date -->
+                <p>
+                    <span class="glyphicon glyphicon-time" aria-hidden="true"></span>
+                    <strong>{{ formatEpoch $file.PublishedTimestamp }}</strong>
+                </p>
             </div>
-
         </div>
-    </div>
 
-    {{ end }}
+    </div>
 </div>
+
+{{ end }}

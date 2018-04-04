@@ -1,25 +1,23 @@
 <!-- file list -->
-<div id="search-freewall">
-    {{ range $key, $file := .Files }}
+{{ range $key, $file := .Files }}
 
-    <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
-        <div class="free-wall-tile">
-            {{ if eq $file.MediaType "image" }}
-                <img class="img-responsive img-fade" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
-            {{ end }}
-            {{ if eq $file.MediaType "video" }}
-                <img class="img-responsive img-fade" src="/static/img/play.png">
-            {{ end }}
-            {{ if eq $file.MediaType "audio" }}
-                <img class="img-responsive img-fade" src="/static/img/play.png">
-            {{ end }}
-            {{ if eq $file.MediaType "text" }}
-                <img class="img-responsive img-fade" src="/static/img/read.png">
-            {{ end }}
-            {{ if eq $file.MediaType "other" }}
-                <img class="img-responsive img-fade" src="/static/img/download.png">
-            {{ end }}
-        </div>
-    </a>
-    {{ end }}
-</div>
+<a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
+    <div class="free-wall-tile">
+        {{ if eq $file.MediaType "image" }}
+            <img class="img-responsive img-fade" src="/static/content/{{ $file.UUID }}.{{ $file.Extension }}">
+        {{ end }}
+        {{ if eq $file.MediaType "video" }}
+            <img class="img-responsive img-fade" src="/static/img/play.png">
+        {{ end }}
+        {{ if eq $file.MediaType "audio" }}
+            <img class="img-responsive img-fade" src="/static/img/play.png">
+        {{ end }}
+        {{ if eq $file.MediaType "text" }}
+            <img class="img-responsive img-fade" src="/static/img/read.png">
+        {{ end }}
+        {{ if eq $file.MediaType "other" }}
+            <img class="img-responsive img-fade" src="/static/img/download.png">
+        {{ end }}
+    </div>
+</a>
+{{ end }}

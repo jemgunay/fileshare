@@ -67,9 +67,8 @@
                                 <label for="count-search-input">Memories Per Page</label><br>
                                 <select id="count-search-input" class="form-control">
                                     <option value="10">10</option>
-                                    <option value="25">25</option>
+                                    <option value="20">20</option>
                                     <option value="50">50</option>
-                                    <option value="100">100</option>
                                     <option value="0">All</option>
                                 </select>
                             </div>
@@ -89,7 +88,12 @@
 
                     <!-- file list -->
                     <div class="results-window">
-                        {{ .FilesHTML }}
+                        <div class="detail-wall">
+                            {{ .FilesHTML }}
+                        </div>
+                        <div id="search-freewall">
+
+                        </div>
                     </div>
 
                         <div class="col-xs-12">

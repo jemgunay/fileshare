@@ -877,9 +877,7 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		"formatByteCount": func(bytes int64, si bool) string {
 			return FormatByteCount(bytes, si)
 		},
-		"toTitleCase": func(text string) string {
-			return strings.Title(text)
-		},
+		"toTitleCase": strings.Title,
 	}).Parse(string(htmlTemplate))
 	if err != nil {
 		config.Log(err.Error(), 1)

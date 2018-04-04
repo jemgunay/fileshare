@@ -67,8 +67,8 @@ $(document).ready(function() {
         });
 
         // show more button
-        $("#search-results-panel #show-more").on("click", function() {
-
+        $("#search-results-panel #show-more button").on("click", function() {
+            performSearch(true);
         });
     }
 
@@ -142,15 +142,34 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
     }
 }
 
-// Perform search/filter request.
-function performSearch() {
+// Perform search/filter request (empties container if append param is not provided).
+function performSearch(append) {
+    if (append !== true && append !== false) append = false;
+    if (append) {
+        // if page is last page...
+        currentPage++;
+    } else {
+        currentPage = 0;
+    }
+
     var request = constructSearchURL();
 
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
-            $(this).empty().append(html).fadeIn(100);
-            initSearchTiles(true);
+            $(".detail-wall, #search-freewall").hide();
+
+            if ($("#view-search-input").is(":checked")) {
+                $("#search-freewall").show();
+                $(this).find("#search-freewall").append(html);
+                initSearchTiles(true);
+            }
+            else {
+                $(".detail-wall").show();
+                $(this).find(".detail-wall").append(html);
+            }
+
+            $(this).fadeIn(100);
         });
     });
 }
@@ -164,7 +183,6 @@ function constructSearchURL() {
     if (dates[1]) {
         dates[1] = dates[1].unix()
     }
-    console.log("min:", dates[0], "max:", dates[1]);
 
     var tokenfieldTags = [$("#tags-search-input").tokenfield('getTokensList', ",", false), $("#people-search-input").tokenfield('getTokensList', ",", false), $("#type-search-input").tokenfield('getTokensList', ",", false)];
     var format = "html_detailed";
@@ -245,7 +263,6 @@ function setOverlayMemory(memoryUUID) {
                     $("#overlay-fav-btn span").removeClass("glyphicon-heart").addClass("glyphicon-heart-empty");
 
                     if (favResponse.trim() === "favourite_successfully_removed") {
-                        notifyAlert("Memory removed from favourites!", "success");
                         $("#overlay-content").find("#is-favourite").val(false);
                     }
                     else {

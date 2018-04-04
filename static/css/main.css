@@ -74,7 +74,7 @@ h1, h2, h3 {
 }
 .wall-tile-media {
     width: 115px;
-    height: 100%;
+    height: 101%;
     float: left;
     position: relative;
     overflow: hidden;

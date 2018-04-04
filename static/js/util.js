@@ -47,9 +47,11 @@ function notifyAlert(msg, type) {
     $.notify({
         message: "<strong>" + msg + "</strong>",
         icon: icon
+
     },{
         type: type,
-        delay: 5000
+        delay: 4000,
+        newest_on_top: true
     });
 }
 

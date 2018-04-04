@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -19,11 +20,14 @@ func main() {
 	config.SetLogVerbosity(*logVerbosityFlag)
 
 	// load system config
-	rootPath := os.Getenv("GOPATH") + "/src/github.com/jemgunay/memoryshare"
+	executable, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	rootPath := filepath.Dir(executable)
 	config.LoadConfig(rootPath)
 
-	err := config.SaveConfig()
-	if err != nil {
+	if err = config.SaveConfig(); err != nil {
 		fmt.Println(err)
 	}
 

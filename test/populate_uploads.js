@@ -2,7 +2,7 @@ var tags = ["holiday", "camping", "school", "uni", "Keele", "Salford", "Sheffiel
 var people = ["Jem", "Rob", "Josh", "Rubs", "Bez", "Loz", "Harry", "Dale", "Malta Josh", "Starky", "Sam"];
 
 $(".upload-result-container").each(function(i) {
-    $(this).find(".description-input").val("Description no. " + i.toString());
+    $(this).find(".description-input").val("Description no. " + (i+1).toString());
     $(this).find(".tags-input").tokenfield('setTokens', randomMultiple(tags));
     $(this).find(".people-input").tokenfield('setTokens', randomMultiple(people));
     $(this).find(".btn-primary").trigger("click");
