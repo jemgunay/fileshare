@@ -38,15 +38,21 @@ func RemoveDirContents(dir string) error {
 
 // Split string into list by delimiter, trim white space & remove duplicates.
 func ProcessInputList(list string, delimiter string, toLowerCase bool) (separated []string) {
-	items := strings.Split(list, delimiter)
-	for _, item := range items {
+	uniqueItems := make(map[string]bool)
+	for _, item := range strings.Split(list, delimiter) {
+		// process each list element
 		trimmedItem := strings.TrimSpace(item)
 		if trimmedItem != "" {
 			if toLowerCase {
 				trimmedItem = strings.ToLower(trimmedItem)
 			}
-			separated = append(separated, trimmedItem)
+			uniqueItems[trimmedItem] = true
 		}
+	}
+
+	// convert map to slice
+	for item := range uniqueItems {
+		separated = append(separated, item)
 	}
 	return
 }

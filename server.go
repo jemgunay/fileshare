@@ -626,7 +626,6 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 				s.respond(w, "html_not_supported", 3)
 			case "json_pretty":
 				s.respond(w, ToJSON(response.user, true), 3)
-
 			case "json":
 				fallthrough
 			default:
@@ -651,40 +650,27 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 
 	switch r.Method {
 	case http.MethodGet:
-		// get a list of all files from db
-		searchReq := SearchRequest{fileTypes: ProcessInputList("image,video,audio,text,other", ",", true), resultsPerPage: 10}
-		response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "search", searchParams: searchReq})
-
 		// HTML template data
 		templateData := struct {
 			Title       string
 			BrandName   string
 			SessionUser User
-			Files       []File
 			NavbarHTML  template.HTML
 			NavbarFocus string
 			FooterHTML  template.HTML
-			FilesHTML   template.HTML
 			ContentHTML template.HTML
 		}{
 			"Memories",
 			config.get("brand_name"),
 			sessionUserResponse.user,
-			response.fileResult.Files,
 			"",
 			"search",
-			"",
 			"",
 			"",
 		}
 
 		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
 		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-		var filesHTMLTarget = "/dynamic/templates/files_list_detailed.html"
-		if len(templateData.Files) == 0 {
-			filesHTMLTarget = "/static/templates/no_match.html"
-		}
-		templateData.FilesHTML = s.completeTemplate(filesHTMLTarget, templateData)
 		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/search.html", templateData)
 		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 

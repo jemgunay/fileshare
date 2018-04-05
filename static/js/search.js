@@ -27,6 +27,9 @@ $(document).ready(function() {
             $("#min-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][0]) / 1000000));
             $("#max-date-picker").data("DateTimePicker").date(new Date(parseInt(parsedData["dates"][1]) / 1000000));
             $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
+
+            // populate page with initial set of results
+            performSearch();
         });
 
         // init pagination dropdown
@@ -39,8 +42,6 @@ $(document).ready(function() {
             width: "100%",
             height: "21px"
         }).change(performSearch);
-
-        initSearchTiles(true);
 
         // open memory overlay
         if (memoryUUIDSpecified) {
@@ -72,6 +73,7 @@ $(document).ready(function() {
         });
     }
 
+    // setup tiles on user favourites
     var isUserProfile = (window.location.pathname).startsWith("/user/");
     if (isUserProfile) {
         initSearchTiles(false);
@@ -150,6 +152,7 @@ function performSearch(append) {
         currentPage++;
     } else {
         currentPage = 0;
+        $(".detail-wall, #search-freewall").empty();
     }
 
     var request = constructSearchURL();
@@ -159,17 +162,28 @@ function performSearch(append) {
         $(".results-window").fadeOut(100, function () {
             $(".detail-wall, #search-freewall").hide();
 
+            /*if ($("#status").val() === "no memories") {
+                $(".detail-wall, #search-freewall").empty();
+            }
+            else if ($("#status").val() === "no more memories") {
+                hide "show more" button
+            } else {
+                show "show more" button
+            }*/
+
             if ($("#view-search-input").is(":checked")) {
                 $("#search-freewall").show();
                 $(this).find("#search-freewall").append(html);
-                initSearchTiles(true);
             }
             else {
                 $(".detail-wall").show();
                 $(this).find(".detail-wall").append(html);
             }
 
+            initSearchTiles(true);
             $(this).fadeIn(100);
+
+            $(window).trigger('resize'); // fix tokenfield bug
         });
     });
 }
