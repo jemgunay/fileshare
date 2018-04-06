@@ -133,6 +133,7 @@ type FileSearchResult struct {
 	ResultCount int    `json:"result_count"`
 	TotalCount  int    `json:"total_count"`
 	Files       []File `json:"memories"`
+	state       string `json:"-"`
 }
 
 // Create a blocking access request and provide an access response.
@@ -554,21 +555,23 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	}
 
 	// limit number of results to pagination fields
+	state := "ok"
 	if searchReq.resultsPerPage > 0 {
 		rangeBounds := [2]int64{searchReq.page * searchReq.resultsPerPage, (searchReq.page + 1) * searchReq.resultsPerPage}
 
 		if rangeBounds[0] > int64(len(filterResults)-1) {
 			// request out of range, return empty result set
-			return FileSearchResult{Files: make([]File, 0), ResultCount: 0, TotalCount: len(db.PublishedFiles)}
+			return FileSearchResult{Files: make([]File, 0), ResultCount: 0, TotalCount: len(db.PublishedFiles), state: "empty_results"}
 		}
 		if rangeBounds[1] > int64(len(filterResults)-1) {
 			rangeBounds[1] = int64(len(filterResults))
+			state = "end_of_results"
 		}
 
 		filterResults = filterResults[rangeBounds[0]:rangeBounds[1]]
 	}
 
-	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: len(db.PublishedFiles)}
+	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: len(db.PublishedFiles), state: state}
 }
 
 // Get all files corresponding to User UUID.

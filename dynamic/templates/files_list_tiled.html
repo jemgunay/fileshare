@@ -1,4 +1,5 @@
-<!-- file list -->
+<span id="response-status" data-value="{{ .Status }}"></span>
+
 {{ range $key, $file := .Files }}
 
 <a href="/static/content/{{ $file.UUID }}.{{ $file.Extension }}" target="_blank" data-UUID="{{ $file.UUID }}">
@@ -20,4 +21,5 @@
         {{ end }}
     </div>
 </a>
+
 {{ end }}

@@ -21,7 +21,7 @@ function performRequest(URL, httpMethod, data, resultMethod) {
         success: function(e) {
             resultMethod(e);
         },
-        timeout: 6000
+        timeout: 10000
     });
 }
 

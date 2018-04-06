@@ -147,29 +147,20 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
 // Perform search/filter request (empties container if append param is not provided).
 function performSearch(append) {
     if (append !== true && append !== false) append = false;
-    if (append) {
-        // if page is last page...
-        currentPage++;
-    } else {
-        currentPage = 0;
-        $(".detail-wall, #search-freewall").empty();
-    }
 
     var request = constructSearchURL();
 
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
-            $(".detail-wall, #search-freewall").hide();
-
-            /*if ($("#status").val() === "no memories") {
+            if (append) {
+                currentPage++;
+            } else {
+                currentPage = 0;
                 $(".detail-wall, #search-freewall").empty();
             }
-            else if ($("#status").val() === "no more memories") {
-                hide "show more" button
-            } else {
-                show "show more" button
-            }*/
+
+            $(".detail-wall, #search-freewall").hide();
 
             if ($("#view-search-input").is(":checked")) {
                 $("#search-freewall").show();
@@ -178,6 +169,22 @@ function performSearch(append) {
             else {
                 $(".detail-wall").show();
                 $(this).find(".detail-wall").append(html);
+            }
+
+            // extract response state which states whether there are more results
+            var state = $("#response-status").attr("data-value");
+            $("#response-status").remove();
+
+            if (state === "empty_results") {
+                $(".detail-wall, #search-freewall").empty().append(html);
+                $("#response-status").remove();
+                $("#show-more button").fadeOut(100);
+            }
+            else if (state === "end_of_results") {
+                $("#show-more button").fadeOut(100);
+            }
+            else {
+                $("#show-more button").fadeIn(100);
             }
 
             initSearchTiles(true);

@@ -508,9 +508,11 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 	if q.Get("format") == "html_tiled" || q.Get("format") == "html_detailed" {
 		// HTML formatted response
 		templateData := struct {
-			Files []File
+			Files  []File
+			Status string
 		}{
 			response.fileResult.Files,
+			response.fileResult.state,
 		}
 		// determine which template format to use
 		templateFile := "/dynamic/templates/files_list_detailed.html"
@@ -519,7 +521,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 		}
 
 		if len(response.fileResult.Files) == 0 {
-			templateFile = "/static/templates/no_match.html"
+			templateFile = "/dynamic/templates/no_match.html"
 		}
 
 		filesListResult := s.completeTemplate(templateFile, templateData)
