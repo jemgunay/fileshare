@@ -1,4 +1,4 @@
-package main
+package memoryshare
 
 import (
 	"encoding/gob"
@@ -7,15 +7,13 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 	"unicode"
 
-	"golang.org/x/crypto/bcrypt"
-
-	"strings"
-
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // The operation a transaction performed.
@@ -420,7 +418,7 @@ func (db *UserDB) logoutUser(w http.ResponseWriter, r *http.Request) (err error)
 
 // Get session secure key from session_key.dat if one was created in the previous run, otherwise create a new one.
 func fetchSessionKey() (key []byte, err error) {
-	sessionFilePath := config.rootPath + "/config/session_key.dat"
+	sessionFilePath := config.RootPath + "/config/session_key.dat"
 
 	// check if file exists
 	ok, err := FileOrDirExists(sessionFilePath)

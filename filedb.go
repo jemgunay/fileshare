@@ -1,4 +1,4 @@
-package main
+package memoryshare
 
 import (
 	"bytes"
@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	IMAGE       string = "image"
-	VIDEO       string = "video"
-	AUDIO       string = "audio"
-	TEXT        string = "text"
-	OTHER       string = "other" // zip/rar
-	UNSUPPORTED string = "unsupported"
+	IMAGE       = "image"
+	VIDEO       = "video"
+	AUDIO       = "audio"
+	TEXT        = "text"
+	OTHER       = "other" // zip/rar
+	UNSUPPORTED = "unsupported"
 )
 
 type MetaData struct {
@@ -32,7 +32,7 @@ type MetaData struct {
 	People      []string
 }
 
-// State of a file:
+// State of a file.
 type State int
 
 const (
@@ -58,9 +58,9 @@ type File struct {
 // Get full absolute path to file.
 func (f *File) AbsolutePath() string {
 	if f.State == UPLOADED {
-		return config.rootPath + "/db/temp/" + f.UploaderUsername + "/" + f.UUID + "." + f.Extension
+		return config.RootPath + "/db/temp/" + f.UploaderUsername + "/" + f.UUID + "." + f.Extension
 	}
-	return config.rootPath + "/static/content/" + f.UUID + "." + f.Extension
+	return config.RootPath + "/static/content/" + f.UUID + "." + f.Extension
 }
 
 // The operation a transaction performed.
@@ -174,6 +174,9 @@ func (db *FileDB) startAccessPoller() {
 		case "getFilesByUser":
 			response.files = db.getFilesByUser(req.UUID, req.state)
 
+		case "getRandomFile":
+			response.file = db.getRandomFile()
+
 		case "serialize":
 			response.err = db.serializeToFile()
 
@@ -193,7 +196,7 @@ func (db *FileDB) startAccessPoller() {
 
 // Create transaction and add to DB.
 func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileUUID string) {
-	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.get("version")}
+	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.Get("version")}
 	db.Transactions = append(db.Transactions, newTransaction)
 }
 
@@ -212,7 +215,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	defer newFormFile.Close()
 
 	// if a temp file for the user does not exist, create one named by their UUID
-	tempFilePath := config.rootPath + "/db/temp/" + user.Username + "/"
+	tempFilePath := config.RootPath + "/db/temp/" + user.Username + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
 		config.Log(err.Error(), 1)
 		err = fmt.Errorf("error")
@@ -598,6 +601,21 @@ func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
 	return SortFilesByDate(files)
 }
 
+// Get a random file.
+func (db *FileDB) getRandomFile() (file File) {
+	// create slice of all UUIDs
+	UUIDs := make([]string, len(db.PublishedFiles))
+	counter := 0
+	for UUID := range db.PublishedFiles {
+		UUIDs[counter] = UUID
+		counter++
+	}
+
+	// pick random from slice
+	randomUUID := UUIDs[randomInt(0, len(UUIDs))]
+	return db.PublishedFiles[randomUUID]
+}
+
 // Generate slice representation of file PublishedFiles map.
 func (db *FileDB) toSlice() (files []File) {
 	files = make([]File, 0, len(db.PublishedFiles))
@@ -662,7 +680,7 @@ func (db *FileDB) destroy() (err error) {
 	}
 
 	// delete all content files
-	RemoveDirContents(config.rootPath + "/static/content/")
+	RemoveDirContents(config.RootPath + "/static/content/")
 	RemoveDirContents(db.dir + "/temp/")
 
 	// reinitialise DB

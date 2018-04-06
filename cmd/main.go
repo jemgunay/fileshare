@@ -4,16 +4,17 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/jemgunay/memoryshare"
 )
 
-var config Config
-
 func main() {
+	var config memoryshare.Config
+
 	// log level
 	logVerbosityFlag := flag.Int("verbosity", 0, "0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)")
 	flag.Parse()
@@ -22,7 +23,8 @@ func main() {
 	// load system config
 	executable, err := os.Executable()
 	if err != nil {
-		panic(err)
+		fmt.Printf("Unable to determine working directory.\n")
+		return
 	}
 	rootPath := filepath.Dir(executable)
 	config.LoadConfig(rootPath)
@@ -32,23 +34,17 @@ func main() {
 	}
 
 	// init servers
-	err, httpServer := NewServerBase()
+	err, httpServer := memoryshare.NewServerBase(&config)
 	if err != nil {
 		return
 	}
 
 	// process command line input
-	if config.getBool("enable_console_commands") {
+	if config.GetBool("enable_console_commands") {
 		time.Sleep(time.Millisecond * 300)
 		for {
 			input := getConsoleInput("Enter command")
 			switch input {
-			// reset DB
-			case "destroy":
-				response := httpServer.fileDB.performAccessRequest(FileAccessRequest{operation: "destroy"})
-				if response.err != nil {
-					log.Println(response.err)
-				}
 			// terminate
 			case "exit":
 				httpServer.Stop()
