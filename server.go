@@ -1,4 +1,4 @@
-package main
+package memoryshare
 
 import (
 	"bytes"
@@ -17,6 +17,8 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
+var config *Config
+
 // A server providing file sharing and access related services.
 type ServerBase struct {
 	fileDB         *FileDB
@@ -24,16 +26,18 @@ type ServerBase struct {
 }
 
 // Initialise servers.
-func NewServerBase() (err error, httpServer HTTPServer) {
+func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
+	config = conf
+
 	// create new file DB
-	fileDB, err := NewFileDB(config.rootPath + "/db")
+	fileDB, err := NewFileDB(config.RootPath + "/db")
 	if err != nil {
 		log.Printf("Server error: %v", err.Error())
 		return
 	}
 
 	// create new user DB
-	userDB, err := NewUserDB(config.rootPath + "/db")
+	userDB, err := NewUserDB(config.RootPath + "/db")
 	if err != nil {
 		log.Printf("Server error: %v", err.Error())
 		return
@@ -42,15 +46,15 @@ func NewServerBase() (err error, httpServer HTTPServer) {
 	// start http server
 	httpServer = HTTPServer{host: "localhost", port: 8000, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
 	// set host (allow_public_webapp)
-	if config.getBool("allow_public_webapp") {
+	if config.GetBool("allow_public_webapp") {
 		httpServer.host = "0.0.0.0"
 	}
 	// set port (http_port)
-	if httpServer.port, err = config.getInt("http_port"); err != nil {
+	if httpServer.port, err = config.GetInt("http_port"); err != nil {
 		log.Printf("Server error: %v", "invalid port value found in config file - using default")
 	}
 	// set maxFileUploadSize (default maxFileUploadSize of 50MB)
-	if httpServer.maxFileUploadSize, err = config.getInt("max_file_upload_size"); err != nil {
+	if httpServer.maxFileUploadSize, err = config.GetInt("max_file_upload_size"); err != nil {
 		httpServer.maxFileUploadSize = 50
 	}
 	httpServer.maxFileUploadSize *= 1024 * 1024
@@ -92,10 +96,10 @@ func (s *HTTPServer) Start() {
 	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/upload/{type}", s.authHandler(s.uploadHandler)).Methods(http.MethodPost)
 	// static uploaded file server
-	staticFileHandler := http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/")))
+	staticFileHandler := http.StripPrefix("/static/", http.FileServer(http.Dir(config.RootPath+"/static/")))
 	router.Handle(`/static/{rest:[a-zA-Z0-9=\-\/._]+}`, s.fileServerAuthHandler(staticFileHandler))
 	// temp uploaded file server
-	tempFileHandler := http.StripPrefix("/temp_uploaded/", http.FileServer(http.Dir(config.rootPath+"/db/temp/")))
+	tempFileHandler := http.StripPrefix("/temp_uploaded/", http.FileServer(http.Dir(config.RootPath+"/db/temp/")))
 	router.Handle(`/temp_uploaded/{user_id:[a-zA-Z0-9=\-_]+}/{file:[a-zA-Z0-9=\-\/._]+}`, s.fileServerAuthHandler(tempFileHandler))
 
 	s.server = &http.Server{
@@ -196,7 +200,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Reset Password",
-			config.get("brand_name"),
+			config.Get("brand_name"),
 			"",
 			"",
 		}
@@ -232,20 +236,20 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		msgBody := "This is your new temporary password: 'new password here'. Use it to log in and change your password. It will expire in 30 minutes."
 
 		msg := gomail.NewMessage()
-		msg.SetHeader("From", "admin@memoryshare.com") // config.get("display_email_addr")
+		msg.SetHeader("From", "admin@memoryshare.com") // config.Get("display_email_addr")
 		msg.SetHeader("To", "jemgunay@yahoo.co.uk")
-		msg.SetHeader("Subject", config.get("brand_name")+": Password Reset")
+		msg.SetHeader("Subject", config.Get("brand_name")+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
-		/*port, err := strconv.Atoi(config.get("core_email_port"))
+		/*port, err := strconv.Atoi(config.Get("core_email_port"))
 		if err != nil {
 			s.respond(w, "error", 2)
 			return
 		}*/
 
-		//d := gomail.NewDialer(config.get("core_email_server"), port, config.get("core_email_addr"), config.get("core_email_password"))
+		//d := gomail.NewDialer(config.Get("core_email_server"), port, config.Get("core_email_addr"), config.Get("core_email_password"))
 
-		d := gomail.NewDialer("smtp.gmail.com", 465, config.get("core_email_addr"), config.get("core_email_password"))
+		d := gomail.NewDialer("smtp.gmail.com", 465, config.Get("core_email_addr"), config.Get("core_email_password"))
 
 		// Send the email to Bob, Cora and Dan.
 		if err := d.DialAndSend(msg); err != nil {
@@ -271,7 +275,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Login",
-			config.get("brand_name"),
+			config.Get("brand_name"),
 			"",
 			"",
 		}
@@ -333,7 +337,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML template.HTML
 	}{
 		"Users",
-		config.get("brand_name"),
+		config.Get("brand_name"),
 		sessionUserResponse.user,
 		response.users,
 		"",
@@ -395,7 +399,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				FilesHTML   template.HTML
 			}{
 				"Profile",
-				config.get("brand_name"),
+				config.Get("brand_name"),
 				sessionUserResponse.user,
 				userResponse.user,
 				[]File{},
@@ -560,7 +564,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		s.respond(w, string(response), 3)
 
-	// get specific item by UUID (a file or user): ?UUID=X&type=file|user&format=html|json_pretty|json)
+	// get specific item by UUID (a file or user): ?UUID=X|random&type=file|user&format=html|json_pretty|json)
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			config.Log(err.Error(), 2)
@@ -578,6 +582,11 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		switch r.Form.Get("type") {
 		// get specific file
 		case "file":
+			if targetUUID == "random" {
+				response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getRandomFile"})
+				targetUUID = response.file.UUID
+			}
+
 			// fetch file from DB
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFile", target: targetUUID})
 			if response.file.UUID == "" {
@@ -663,7 +672,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 			ContentHTML template.HTML
 		}{
 			"Memories",
-			config.get("brand_name"),
+			config.Get("brand_name"),
 			sessionUserResponse.user,
 			"",
 			"search",
@@ -708,7 +717,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			MaxFileUploadSize int64
 		}{
 			"Upload",
-			config.get("brand_name"),
+			config.Get("brand_name"),
 			sessionUserResponse.user,
 			"",
 			"upload",
@@ -847,7 +856,7 @@ func (s *HTTPServer) respond(w http.ResponseWriter, response string, logLevel in
 
 // Replace variables in HTML templates with corresponding values in TemplateData.
 func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result template.HTML) {
-	filePath = config.rootPath + filePath
+	filePath = config.RootPath + filePath
 
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)

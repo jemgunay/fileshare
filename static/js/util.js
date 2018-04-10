@@ -9,6 +9,7 @@ var hostname = location.protocol + '//' + location.host;
 
 // Perform basic AJAX request.
 function performRequest(URL, httpMethod, data, resultMethod) {
+    console.log("> [", httpMethod, "] ", URL, ": ", data);
     $.ajax({
         url: URL,
         type: httpMethod,

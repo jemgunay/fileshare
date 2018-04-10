@@ -1,4 +1,4 @@
-package main
+package memoryshare
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ type ConfigSet struct {
 
 // System settings (acquired from config file).
 type Config struct {
-	rootPath     string
+	RootPath     string
 	file         string
 	params       map[string]ConfigSet
 	fileFormats  map[string]string
@@ -27,17 +27,17 @@ type Config struct {
 }
 
 // Get the value associated with a config parameter.
-func (c *Config) get(name string) string {
+func (c *Config) Get(name string) string {
 	return c.params[name].val
 }
 
 // Get the value associated with a config parameter casted as a boolean.
-func (c *Config) getBool(name string) bool {
+func (c *Config) GetBool(name string) bool {
 	return c.params[name].val == "true"
 }
 
 // Get the value associated with a config parameter casted as a boolean.
-func (c *Config) getInt(name string) (port int, err error) {
+func (c *Config) GetInt(name string) (port int, err error) {
 	port, err = strconv.Atoi(c.params[name].val)
 	return
 }
@@ -50,14 +50,14 @@ func (c *Config) set(name string, value string) {
 }
 
 // Check if the value associated with a config parameter has been set.
-func (c *Config) isDefined(name string) bool {
+func (c *Config) IsDefined(name string) bool {
 	return c.params[name].val != ""
 }
 
 // Load server config from local file.
-func (c *Config) LoadConfig(rootPath string) (err error) {
-	c.rootPath = rootPath
-	c.file = c.rootPath + "/config/server.conf"
+func (c *Config) LoadConfig(RootPath string) (err error) {
+	c.RootPath = RootPath
+	c.file = c.RootPath + "/config/server.conf"
 	c.params = make(map[string]ConfigSet)
 
 	// open config file
@@ -114,7 +114,7 @@ func (c *Config) LoadConfig(rootPath string) (err error) {
 func (c *Config) Set(param string, value string) {
 	c.params[param] = ConfigSet{c.indexCounter, value}
 	c.indexCounter++
-	config.SaveConfig()
+	c.SaveConfig()
 }
 
 // Set logging verbosity.
@@ -129,7 +129,7 @@ func (c *Config) SetLogVerbosity(level int) {
 
 // Perform logging based on verbosity level.
 func (c *Config) Log(response string, logLevel int) {
-	if logLevel <= config.logVerbosity && logLevel > 0 {
+	if logLevel <= c.logVerbosity && logLevel > 0 {
 		log.Println(response)
 	}
 }

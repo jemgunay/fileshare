@@ -256,13 +256,13 @@ function initSearchTiles(overlayOnClick) {
 
 // Set overlay window current memory.
 function setOverlayMemory(memoryUUID) {
-    setOverlayEnabled(true);
-
     performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
         if (response.trim() === "no_UUID_match") {
             setOverlayEnabled(false);
-            window.location.pathname = "/";
+            notifyAlert("Cannot find specified memory.", "warning")
+            return;
         }
+        setOverlayEnabled(true);
         $("#overlay-content").empty().append(response);
 
         // set favourite icon
@@ -271,6 +271,7 @@ function setOverlayMemory(memoryUUID) {
         } else {
             $("#overlay-fav-btn span").removeClass("glyphicon-heart").addClass("glyphicon-heart-empty");
         }
+
 
         //on overlay
         $("#overlay-fav-btn").off("click").on("click", function() {

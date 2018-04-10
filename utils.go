@@ -1,4 +1,4 @@
-package main
+package memoryshare
 
 import (
 	"bufio"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -215,4 +216,10 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 		config.Log(err.Error(), 1)
 	}
 	return strings.TrimSpace(input), err
+}
+
+// Get a random int within the specified range.
+func randomInt(min int, max int) int {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(max - min) + min
 }
