@@ -91,6 +91,7 @@ func (s *HTTPServer) Start() {
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/memory/{fileUUID}", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet) // passive route, JS utilises fileUUID
 	router.HandleFunc("/search", s.authHandler(s.searchMemoriesHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/random", s.authHandler(s.randomMemoryHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/data", s.authHandler(s.getDataHandler)).Methods(http.MethodGet, http.MethodPost)
 	// upload
 	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods(http.MethodGet)
@@ -538,6 +539,15 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 	filesJSON := ToJSON(response.fileResult, prettyPrint)
 
 	s.respond(w, filesJSON, 3)
+}
+
+// Get the data for a random file in JSON format. URL params:[pretty]
+func (s *HTTPServer) randomMemoryHandler(w http.ResponseWriter, r *http.Request) {
+	response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getRandomFile"})
+
+	prettyPrint, _ := strconv.ParseBool(r.URL.Query().Get("pretty"))
+	fileJSON := ToJSON(response.fileResult, prettyPrint)
+	s.respond(w, fileJSON, 3)
 }
 
 // Get specific JSON data such as all tags & people.

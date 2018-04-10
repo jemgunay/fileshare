@@ -259,7 +259,7 @@ function setOverlayMemory(memoryUUID) {
     performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
         if (response.trim() === "no_UUID_match") {
             setOverlayEnabled(false);
-            notifyAlert("Cannot find specified memory.", "warning")
+            notifyAlert("Cannot find specified memory.", "warning");
             return;
         }
         setOverlayEnabled(true);
