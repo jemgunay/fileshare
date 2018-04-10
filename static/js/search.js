@@ -81,6 +81,19 @@ $(document).ready(function() {
             $(window).trigger('resize');
         });
     }
+
+    // init random memory button click event
+    $("#search-random-btn").on("click", function(e) {
+        e.preventDefault();
+
+        //var newPath = /memory/ + $(this).attr("data-UUID");
+
+        // view overlay window
+        setOverlayMemory("random");
+
+        // set URL to reflect memory
+        //window.history.pushState(newPath, "Memories", newPath);
+    });
 });
 
 // Pull required data from server & initialise search/filter inputs.
@@ -273,7 +286,7 @@ function setOverlayMemory(memoryUUID) {
         }
 
 
-        //on overlay
+        // on overlay
         $("#overlay-fav-btn").off("click").on("click", function() {
             // remove from favourites
             if ($("#overlay-content").find("#is-favourite").val() === "true") {

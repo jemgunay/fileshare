@@ -398,6 +398,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				FooterHTML  template.HTML
 				ContentHTML template.HTML
 				FilesHTML   template.HTML
+				Status      string
 			}{
 				"Profile",
 				config.Get("brand_name"),
@@ -409,6 +410,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				"",
 				"",
 				"",
+				"ok",
 			}
 
 			// get favourite memories

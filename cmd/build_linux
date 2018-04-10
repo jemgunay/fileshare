@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# build for linux
+go build -o memoryshare
