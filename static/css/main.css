@@ -254,8 +254,9 @@ h1, h2, h3 {
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.33);
     color: #333;
 }
-.wall-tile-desc .glyphicon-download-alt {
-    margin-left: 20px;
+.wall-tile-desc .overlay-operations a {
+    margin-right: 15px;
+    margin-top: 15px;
 }
 #search-freewall .free-wall-tile .img {
     width: 100%;

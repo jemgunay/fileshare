@@ -38,22 +38,40 @@ function setAlertWindow(type, msg, target) {
     });
 }
 
+// A queue for notifies.
+var maxAlerts = 5;
+var notifyCount = 0;
+var notifyQueue = [];
+
+// if current amount exceeds max, add to queue. when one gets popped pull one from queue.
+//function processNotifies
+
 // Create a notify alert.
 function notifyAlert(msg, type) {
+    if (notifyQueue.length >= maxAlerts) {
+        notifyQueue.push();
+        return
+    }
+
     var icon = "glyphicon glyphicon-ok";
     if (type === "warning" || type === "danger") {
         icon = "glyphicon glyphicon-remove"
     }
 
-    $.notify({
+    var note = $.notify({
         message: "<strong>" + msg + "</strong>",
         icon: icon
     },{
         type: type,
         delay: 4000,
         newest_on_top: true,
-        mouse_over: "pause"
+        mouse_over: "pause",
+        onClosed: function() {
+            notifyQueue.shift();
+        }
     });
+
+    notifyCount++
 }
 
 // Toggle button enabled & spinner visibility.

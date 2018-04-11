@@ -106,7 +106,7 @@
                 <hr>
 
                 <!-- operations -->
-                <p>
+                <p class="overlay-operations">
                     <a href="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" target="_blank">
                         <span class="glyphicon glyphicon-new-window" aria-hidden="true"></span>Open in new tab
                     </a>
@@ -114,12 +114,11 @@
                     <a href="/static/content/{{ .File.UUID }}.{{ .File.Extension }}" download>
                         <span class="glyphicon glyphicon-download-alt" aria-hidden="true"></span>Download
                     </a>
-                </p>
-                <!--<p>
-                    <a href="/memory/{{ .File.UUID }}" id="UUID">
+
+                    <!--<a href="javascript:void(0);" id="clipboard-btn">
                         <span class="glyphicon glyphicon-link" aria-hidden="true"></span>Copy URL to clipboard
-                    </a>
-                </p>-->
+                    </a>-->
+                </p>
             </div>
         </div>
     </div>

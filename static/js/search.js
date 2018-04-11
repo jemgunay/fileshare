@@ -265,7 +265,7 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
         setOverlayEnabled(true);
         $("#overlay-content").empty().append(response);
 
-        // se tURL & history entry
+        // set URL & history entry
         if (addHistoryEntry === true) {
             var newPath = "/memory/";
             if (memoryUUID === "random") {
@@ -284,7 +284,6 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
         } else {
             $("#overlay-fav-btn span").removeClass("glyphicon-heart").addClass("glyphicon-heart-empty");
         }
-
 
         // on overlay
         $("#overlay-fav-btn").off("click").on("click", function() {
