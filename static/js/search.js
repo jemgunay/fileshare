@@ -46,11 +46,7 @@ $(document).ready(function() {
         // open memory overlay
         if (memoryUUIDSpecified) {
             var fileUUID = window.location.pathname.substr("/memory/".length, window.location.pathname.length);
-            setOverlayMemory(fileUUID);
-
-            // set URL to reflect memory
-            var newPath = /memory/ + fileUUID;
-            window.history.pushState(newPath, "Memories", newPath);
+            setOverlayMemory(fileUUID, true);
         }
 
         // check for history popstate event
@@ -58,7 +54,7 @@ $(document).ready(function() {
             if (e.state) {
                 if ((e.state).startsWith("/memory/")) {
                     var fileUUID = window.location.pathname.substr("/memory/".length, window.location.pathname.length);
-                    setOverlayMemory(fileUUID);
+                    setOverlayMemory(fileUUID, false);
                 } else {
                     setOverlayEnabled(false);
                 }
@@ -83,16 +79,11 @@ $(document).ready(function() {
     }
 
     // init random memory button click event
-    $("#search-random-btn").on("click", function(e) {
+    $(".search-random-btn").on("click", function(e) {
         e.preventDefault();
 
-        //var newPath = /memory/ + $(this).attr("data-UUID");
-
         // view overlay window
-        setOverlayMemory("random");
-
-        // set URL to reflect memory
-        //window.history.pushState(newPath, "Memories", newPath);
+        setOverlayMemory("random", true);
     });
 });
 
@@ -251,24 +242,20 @@ function initSearchTiles(overlayOnClick) {
     $("#search-results-panel a").on("click", function(e) {
         e.preventDefault();
 
-        var newPath = /memory/ + $(this).attr("data-UUID");
-
         // view overlay window
         if (overlayOnClick) {
-            setOverlayMemory($(this).attr("data-UUID"));
-
-            // set URL to reflect memory
-            window.history.pushState(newPath, "Memories", newPath);
+            setOverlayMemory($(this).attr("data-UUID"), true);
         }
         // go to memory page
         else {
+            var newPath = /memory/ + $(this).attr("data-UUID");
             window.location.pathname = newPath;
         }
     });
 }
 
 // Set overlay window current memory.
-function setOverlayMemory(memoryUUID) {
+function setOverlayMemory(memoryUUID, addHistoryEntry) {
     performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
         if (response.trim() === "no_UUID_match") {
             setOverlayEnabled(false);
@@ -277,6 +264,19 @@ function setOverlayMemory(memoryUUID) {
         }
         setOverlayEnabled(true);
         $("#overlay-content").empty().append(response);
+
+        // se tURL & history entry
+        if (addHistoryEntry === true) {
+            var newPath = "/memory/";
+            if (memoryUUID === "random") {
+                // pull UUID from response
+                newPath += $("#file-UUID").val();
+            } else {
+                // use UUID provided in func param
+                newPath += memoryUUID;
+            }
+            window.history.pushState(newPath, "Memories", newPath);
+        }
 
         // set favourite icon
         if ($("#overlay-content").find("#is-favourite").val() === "true") {
@@ -338,6 +338,7 @@ function setOverlayMemory(memoryUUID) {
                 window.history.pushState("/", "Memories", "/");
             }
         }
+        // if next/prev buttons are enabled/visible...
         // left key (previous memory)
         else if (e.which === 37) {
 

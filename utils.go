@@ -87,16 +87,18 @@ func FileOrDirExists(path string) (bool, error) {
 }
 
 // If a directory does not exist, create it.
-func EnsureDirExists(path string) error {
-	result, err := FileOrDirExists(path)
-	if err != nil {
-		return err
-	}
-	if result == false {
-		// attempt to create
-		err = os.Mkdir(path, 0755)
+func EnsureDirExists(paths ...string) error {
+	for _, path := range paths {
+		result, err := FileOrDirExists(path)
 		if err != nil {
-			return fmt.Errorf("%v", "failed to create "+path+" directory.")
+			return err
+		}
+		if result == false {
+			// attempt to create
+			err = os.Mkdir(path, 0755)
+			if err != nil {
+				return fmt.Errorf("%v", "failed to create "+path+" directory.")
+			}
 		}
 	}
 	return nil

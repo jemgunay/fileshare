@@ -94,8 +94,8 @@ type FileDB struct {
 
 // Initialise FileDB by populating from gob file.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
-	// check db/temp directory exists
-	if err = EnsureDirExists(dbDir + "/temp/"); err != nil {
+	// check db/temp & static/content directories exists
+	if err = EnsureDirExists(dbDir + "/temp/", config.RootPath + "/static/content/"); err != nil {
 		return
 	}
 
