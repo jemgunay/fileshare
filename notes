@@ -1,3 +1,0 @@
-// build for windows
-GOOS=windows GOARCH=amd64 go build
-zip -r memoryshare.zip . -x *.go *.zip *.git*

@@ -1,6 +1,7 @@
 var maxAutoCompleteSuggestions = 5; // Number of autocomplete results to show under tokenfield inputs.
 var currentPage = 0; // Current pagination page (start at 0th page).
 var tokenfieldTargetTrigger = true; // Prevents window resizing from triggering performSearch() by temporarily ignoring event listeners.
+var preventSearches = true; // used to set up UI without change() events triggering a search.
 
 $(document).ready(function() {
     var memoryUUIDSpecified = (window.location.pathname).startsWith("/memory/");
@@ -9,6 +10,34 @@ $(document).ready(function() {
         // init search/filter inputs
         $("#desc-search-input").val("").on("input", performSearch);
 
+        // init pagination dropdown
+        $("#count-search-input").change(performSearch);
+
+        // init view toggle
+        $("#view-search-input").bootstrapToggle({
+            on: "Tiled View",
+            off: "Detailed View",
+            width: "100%",
+            height: "21px"
+        }).change(function() {
+            performSearch();
+
+            // store state in local storage
+            var localToggleState = $("#view-search-input").is(":checked") ? "on" : "off";
+            localStorage.setItem("view-toggle-state", localToggleState);
+        });
+
+        // set toggle state based on stored local storage state
+        var localToggleState = localStorage.getItem("view-toggle-state");
+        if (localToggleState !== "on" && localToggleState !== "off") {
+            localToggleState = "off";
+            localStorage.setItem("view-toggle-state", localToggleState);
+        }
+        $("#view-search-input").bootstrapToggle(localToggleState);
+
+        preventSearches = false;
+
+        // get all metadata to populate tokenfield recommendations
         performRequest(hostname + "/data?fetch=tags,people,file_types,dates", "GET", "", function (result) {
             var tokenfieldSets = [["tags", "#tags-search-input", false], ["people", "#people-search-input", false], ["file_types", "#type-search-input", true]];
             var parsedData = JSON.parse(result);
@@ -29,19 +58,8 @@ $(document).ready(function() {
             $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
 
             // populate page with initial set of results
-            performSearch();
+            performSearch(true);
         });
-
-        // init pagination dropdown
-        $("#count-search-input").change(performSearch);
-
-        // init view toggle
-        $("#view-search-input").bootstrapToggle({
-            on: "Tiled View",
-            off: "Detailed View",
-            width: "100%",
-            height: "21px"
-        }).change(performSearch);
 
         // open memory overlay
         if (memoryUUIDSpecified) {
@@ -150,6 +168,10 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
 
 // Perform search/filter request (empties container if append param is not provided).
 function performSearch(append) {
+    if (preventSearches) {
+        return
+    }
+
     if (append !== true && append !== false) append = false;
 
     var request = constructSearchURL();
@@ -157,20 +179,23 @@ function performSearch(append) {
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
-            if (append) {
+            //var scrollPosY = $(document).scrollTop();
+            //$(document).scrollTop(scrollPosY);
+
+            if (append === true) {
                 currentPage++;
             } else {
                 currentPage = 0;
                 $(".detail-wall, #search-freewall").empty();
             }
 
-            $(".detail-wall, #search-freewall").hide();
-
             if ($("#view-search-input").is(":checked")) {
+                $(".detail-wall").hide();
                 $("#search-freewall").show();
                 $(this).find("#search-freewall").append(html);
             }
             else {
+                $("#search-freewall").hide();
                 $(".detail-wall").show();
                 $(this).find(".detail-wall").append(html);
             }

@@ -18,3 +18,4 @@ db/temp/*
 db/*.dat
 static/content/*
 img/user/*
+notes
