@@ -6,6 +6,8 @@ $(document).ready(function() {
 });
 
 var hostname = location.protocol + '//' + location.host;
+// Create an instance of an AlertNotifier.
+var notifier = new AlertNotifier(5, 4000);
 
 // Perform basic AJAX request.
 function performRequest(URL, httpMethod, data, resultMethod) {
@@ -17,7 +19,7 @@ function performRequest(URL, httpMethod, data, resultMethod) {
         data: data,
         error: function(e) {
             console.log(e);
-            notifyAlert("Could not connect to the server.", "danger");
+            notifier.queueAlert("Could not connect to the server.", "danger");
         },
         success: function(e) {
             resultMethod(e);
@@ -38,40 +40,56 @@ function setAlertWindow(type, msg, target) {
     });
 }
 
-// A queue for notifies.
-var maxAlerts = 5;
-var notifyCount = 0;
-var notifyQueue = [];
+// A queue for notify alerts to limit number of alerts on screen at a time.
+function AlertNotifier(maxAlerts, delay) {
+    var notifyQueue = [];
+    var alertCount = 0;
 
-// if current amount exceeds max, add to queue. when one gets popped pull one from queue.
-//function processNotifies
+    // Show alert if no alerts waiting in queue, else add alert to queue.
+    this.queueAlert = function(msg, type) {
+        var alert = {msg: msg, type: type};
 
-// Create a notify alert.
-function notifyAlert(msg, type) {
-    if (notifyQueue.length >= maxAlerts) {
-        notifyQueue.push();
-        return
-    }
-
-    var icon = "glyphicon glyphicon-ok";
-    if (type === "warning" || type === "danger") {
-        icon = "glyphicon glyphicon-remove"
-    }
-
-    var note = $.notify({
-        message: "<strong>" + msg + "</strong>",
-        icon: icon
-    },{
-        type: type,
-        delay: 4000,
-        newest_on_top: true,
-        mouse_over: "pause",
-        onClosed: function() {
-            notifyQueue.shift();
+        if (alertCount < maxAlerts) {
+            this.showAlert(alert);
+            return;
         }
-    });
 
-    notifyCount++
+        notifyQueue.push(alert);
+    };
+
+    // Show an alert.
+    this.showAlert = function(alert) {
+        alertCount++;
+
+        var icon = "glyphicon glyphicon-ok";
+        if (alert.type === "warning" || alert.type === "danger") {
+            icon = "glyphicon glyphicon-remove"
+        }
+
+        var self = this;
+
+        $.notify({
+            message: "<strong>" + alert.msg + "</strong>",
+            icon: icon
+        }, {
+            type: alert.type,
+            delay: delay,
+            newest_on_top: true,
+            mouse_over: "pause",
+            onClosed: function() {
+                self.onAlertClose();
+            }
+        });
+    };
+
+    // Triggered when an alert closes; checks the head of the queue for an alert to show.
+    this.onAlertClose = function() {
+        if (notifyQueue.length > 0) {
+            var poppedAlert = notifyQueue.shift();
+            this.showAlert(poppedAlert)
+        }
+        alertCount--;
+    };
 }
 
 // Toggle button enabled & spinner visibility.

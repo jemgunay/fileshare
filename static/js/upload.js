@@ -44,7 +44,7 @@ $(document).ready(function() {
                 var msgEl = $(file.previewElement).find('.dz-error-message');
                 msgEl.text(refinedError);
 
-                notifyAlert(refinedError, "warning");
+                notifier.queueAlert(refinedError, "warning");
 
             });
         }
@@ -90,7 +90,7 @@ function initUploadForm() {
 
                 if (result === "success") {
                     // show success msg then remove panel
-                    notifyAlert("Memory successfully published (" + panel.find("h4").text().trim() + ")!", "success");
+                    notifier.queueAlert("Memory successfully published (" + panel.find("h4").text().trim() + ")!", "success");
                     panel.fadeOut(500, function () {
                         panel.parent(".upload-masonry-item").remove();
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
@@ -108,7 +108,7 @@ function initUploadForm() {
                     panel.find(".btn-primary").attr("title", "Please specify at least one person before publishing.").tooltip('show');
                 }
                 else if (result === "already_stored") {
-                    notifyAlert("A copy of this file has already been stored!", "warning");
+                    notifier.queueAlert("A copy of this file has already been stored!", "warning");
                     panel.fadeOut(500, function () {
                         panel.parent(".upload-masonry-item").remove();
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
@@ -116,7 +116,7 @@ function initUploadForm() {
                 }
                 else {
                     //console.log(result);
-                    notifyAlert("A server error occurred (" + fileName + ").", "danger");
+                    notifier.queueAlert("A server error occurred (" + fileName + ").", "danger");
                 }
             });
         });
@@ -133,7 +133,7 @@ function initUploadForm() {
                 setButtonProcessing(panel.find("form .btn-danger"), false);
 
                 if (result === "success") {
-                    notifyAlert("The file has been deleted (" + panel.find("h4").text().trim() + ")!", "success");
+                    notifier.queueAlert("The file has been deleted (" + panel.find("h4").text().trim() + ")!", "success");
 
                     panel.fadeOut(500, function() {
                         panel.parent(".upload-masonry-item").remove();
@@ -141,7 +141,7 @@ function initUploadForm() {
                     });
                 }
                 else if (result === "invalid_file" || result === "file_not_found" || result === "file_already_deleted") {
-                    notifyAlert("File has already been deleted!", "success");
+                    notifier.queueAlert("File has already been deleted!", "success");
 
                     panel.fadeOut(500, function() {
                         panel.parent(".upload-masonry-item").remove();
@@ -150,7 +150,7 @@ function initUploadForm() {
                 }
                 else {
                     console.log(result);
-                    notifyAlert("A server error occurred (" + fileName + ").", "danger");
+                    notifier.queueAlert("A server error occurred (" + fileName + ").", "danger");
                 }
             });
         });

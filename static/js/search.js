@@ -259,7 +259,7 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
     performRequest(hostname + "/data", "POST", {type: "file", UUID: memoryUUID, format: "html"}, function(response) {
         if (response.trim() === "no_UUID_match") {
             setOverlayEnabled(false);
-            notifyAlert("Cannot find specified memory.", "warning");
+            notifier.queueAlert("Cannot find specified memory.", "warning");
             return;
         }
         setOverlayEnabled(true);
@@ -300,7 +300,7 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
                         $("#overlay-content").find("#is-favourite").val(false);
                     }
                     else {
-                        notifyAlert("Error removing memory from favourites.", "warning");
+                        notifier.queueAlert("Error removing memory from favourites.", "warning");
                     }
                 });
 
@@ -314,11 +314,11 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
                     $("#overlay-fav-btn span").removeClass("glyphicon-heart-empty").addClass("glyphicon-heart");
 
                     if (favResponse.trim() === "favourite_successfully_added") {
-                        notifyAlert("Memory added to favourites!", "success");
+                        notifier.queueAlert("Memory added to favourites!", "success");
                         $("#overlay-content").find("#is-favourite").val(true);
                     }
                     else {
-                        notifyAlert("Error adding memory to favourites.", "warning");
+                        notifier.queueAlert("Error adding memory to favourites.", "warning");
                     }
                 });
             }

@@ -1,3 +1,4 @@
+// Package cmd launches a memoryshare service instance.
 package main
 
 import (
