@@ -13,6 +13,14 @@ $(document).ready(function() {
         // init pagination dropdown
         $("#count-search-input").change(performSearch);
 
+        // set toggle state based on stored local storage state
+        var localToggleState = localStorage.getItem("view-toggle-state");
+        if (localToggleState !== "enabled" && localToggleState !== "disabled") {
+            localToggleState = "disabled";
+            localStorage.setItem("view-toggle-state", localToggleState);
+        }
+        $("#view-search-input").prop("checked", localToggleState === "enabled");
+
         // init view toggle
         $("#view-search-input").bootstrapToggle({
             on: "Tiled View",
@@ -23,17 +31,9 @@ $(document).ready(function() {
             performSearch();
 
             // store state in local storage
-            var localToggleState = $("#view-search-input").is(":checked") ? "on" : "off";
+            var localToggleState = $("#view-search-input").is(":checked") ? "enabled" : "disabled";
             localStorage.setItem("view-toggle-state", localToggleState);
         });
-
-        // set toggle state based on stored local storage state
-        var localToggleState = localStorage.getItem("view-toggle-state");
-        if (localToggleState !== "on" && localToggleState !== "off") {
-            localToggleState = "off";
-            localStorage.setItem("view-toggle-state", localToggleState);
-        }
-        $("#view-search-input").bootstrapToggle(localToggleState);
 
         preventSearches = false;
 
@@ -179,9 +179,6 @@ function performSearch(append) {
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
-            //var scrollPosY = $(document).scrollTop();
-            //$(document).scrollTop(scrollPosY);
-
             if (append === true) {
                 currentPage++;
             } else {
