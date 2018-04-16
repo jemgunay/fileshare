@@ -33,14 +33,14 @@ func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
 	// create new file DB
 	fileDB, err := NewFileDB(config.RootPath + "/db")
 	if err != nil {
-		log.Printf("Server error: %v", err.Error())
+		Critical.Logf("Server error: %v", err)
 		return
 	}
 
 	// create new user DB
 	userDB, err := NewUserDB(config.RootPath + "/db")
 	if err != nil {
-		log.Printf("Server error: %v", err.Error())
+		Critical.Logf("Server error: %v", err)
 		return
 	}
 
@@ -52,7 +52,7 @@ func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
 	}
 	// set port (http_port)
 	if httpServer.port, err = config.GetInt("http_port"); err != nil {
-		log.Printf("Server error: %v", "invalid port value found in config file - using default")
+		Critical.Logf("Server error: %v", "invalid port value found in config file - using default")
 	}
 	// set maxFileUploadSize (default maxFileUploadSize of 50MB)
 	if httpServer.maxFileUploadSize, err = config.GetInt("max_file_upload_size"); err != nil {
@@ -112,7 +112,7 @@ func (s *HTTPServer) Start() {
 	}
 
 	// listen for HTTP requests
-	log.Printf("starting HTTP server on port %d", s.port)
+	Info.Logf("starting HTTP server on port %d", s.port)
 
 	go func(server *http.Server) {
 		// add HTTPS: https://www.kaihag.com/https-and-go/
@@ -131,7 +131,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// file servers
 		// prevent dir listings
 		if r.URL.String() != "/" && strings.HasSuffix(r.URL.String(), "/") {
-			s.respond(w, "404 page not found", 3)
+			s.respond(w, "404 page not found")
 			return
 		}
 		// prevent unauthorised access to /static/content
@@ -145,7 +145,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 
 			userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 			if userResponse.user.Username != vars["user_id"] {
-				s.respond(w, "404 page not found", 3)
+				s.respond(w, "404 page not found")
 				return
 			}
 		}
@@ -156,7 +156,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
 				} else {
-					s.respond(w, "already authenticated", 3)
+					s.respond(w, "already authenticated")
 				}
 			} else {
 				h(w, r)
@@ -172,7 +172,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/login", 302)
 			} else {
-				s.respond(w, "unauthorised", 3)
+				s.respond(w, "unauthorised")
 			}
 			return
 		}
@@ -211,7 +211,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/reset_password.html", templateData)
 		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, string(result), 3)
+		s.respond(w, result)
 
 	// submit password reset request
 	case http.MethodPost:
@@ -219,7 +219,7 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		fmt.Println(vars)
 
-		s.respond(w, "not yet implemented", 3)
+		s.respond(w, "not yet implemented")
 		return
 
 		/*response := s.userDB.performAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
@@ -256,11 +256,11 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		// Send the email to Bob, Cora and Dan.
 		if err := d.DialAndSend(msg); err != nil {
 			log.Println(err)
-			s.respond(w, "error", 2)
+			s.respond(w, "error")
 			return
 		}
 
-		s.respond(w, "success", 3)
+		s.respond(w, "success")
 	}
 }
 
@@ -286,7 +286,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/login.html", templateData)
 		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, string(result), 3)
+		s.respond(w, result)
 
 	// submit login request
 	case http.MethodPost:
@@ -294,11 +294,11 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch {
 		case response.err != nil:
-			s.respond(w, "error", 2)
+			s.respond(w, "error")
 		case response.success == false:
-			s.respond(w, "unauthorised", 3)
+			s.respond(w, "unauthorised")
 		case response.success:
-			s.respond(w, "success", 3)
+			s.respond(w, "success")
 		}
 	}
 }
@@ -308,7 +308,7 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "logoutUser", w: w, r: r})
 
 	if response.err != nil {
-		s.respond(w, "error", 2)
+		s.respond(w, "error")
 		return
 	}
 	http.Redirect(w, r, "/login", 302)
@@ -319,8 +319,8 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if sessionUserResponse.err != nil {
-		config.Log(sessionUserResponse.err.Error(), 2)
-		s.respond(w, "error", 3)
+		Critical.Log(sessionUserResponse.err)
+		s.respond(w, "error")
 		return
 	}
 
@@ -353,7 +353,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	templateData.ContentHTML = s.completeTemplate("/dynamic/templates/users_list.html", templateData)
 	result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
-	s.respond(w, string(result), 3)
+	s.respond(w, result)
 }
 
 // Process a single user request.
@@ -361,8 +361,8 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
-			config.Log(err.Error(), 2)
-			s.respond(w, "error", 3)
+			Critical.Log(err)
+			s.respond(w, "error")
 			return
 		}
 	}
@@ -370,8 +370,8 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if sessionUserResponse.err != nil {
-		config.Log(sessionUserResponse.err.Error(), 2)
-		s.respond(w, "error", 3)
+		Critical.Log(sessionUserResponse.err)
+		s.respond(w, "error")
 		return
 	}
 
@@ -379,7 +379,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 		// get user corresponding with
 		userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: vars["username"]})
 		if userResponse.err != nil {
-			s.respond(w, userResponse.err.Error(), 3)
+			s.respond(w, userResponse.err)
 			return
 		}
 
@@ -437,12 +437,12 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			templateData.ContentHTML = s.completeTemplate("/dynamic/templates/user_content.html", templateData)
 			result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
-			s.respond(w, string(result), 3)
+			s.respond(w, result)
 
 		// update specific user details -> /user/{username}
 		case http.MethodPost:
 			// check auth or admin privs first
-			s.respond(w, "not yet implemented", 3)
+			s.respond(w, "not yet implemented")
 		}
 	} else {
 		switch r.Method {
@@ -454,14 +454,14 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 
 				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "setFavourite", userIdentifier: sessionUserResponse.user.Username, fileUUID: r.Form.Get("fileUUID"), state: state})
 				if userResponse.err != nil {
-					s.respond(w, userResponse.err.Error(), 3)
+					s.respond(w, userResponse.err)
 					return
 				}
 
 				if state {
-					s.respond(w, "favourite_successfully_added", 3)
+					s.respond(w, "favourite_successfully_added")
 				} else {
-					s.respond(w, "favourite_successfully_removed", 3)
+					s.respond(w, "favourite_successfully_removed")
 				}
 			}
 
@@ -533,7 +533,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 		}
 
 		filesListResult := s.completeTemplate(templateFile, templateData)
-		s.respond(w, string(filesListResult), 3)
+		s.respond(w, filesListResult)
 		return
 	}
 
@@ -541,7 +541,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 	prettyPrint, _ := strconv.ParseBool(q.Get("pretty"))
 	filesJSON := ToJSON(response.fileResult, prettyPrint)
 
-	s.respond(w, filesJSON, 3)
+	s.respond(w, filesJSON)
 }
 
 // Get the data for a random file in JSON format. URL params:[pretty]
@@ -550,7 +550,7 @@ func (s *HTTPServer) randomMemoryHandler(w http.ResponseWriter, r *http.Request)
 
 	prettyPrint, _ := strconv.ParseBool(r.URL.Query().Get("pretty"))
 	fileJSON := ToJSON(response.fileResult, prettyPrint)
-	s.respond(w, fileJSON, 3)
+	s.respond(w, fileJSON)
 }
 
 // Get specific JSON data such as all tags & people.
@@ -571,24 +571,24 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		// parse query result to json
 		response, err := json.Marshal(resultsList)
 		if err != nil {
-			config.Log(err.Error(), 1)
-			s.respond(w, "error", 3)
+			Critical.Log(err)
+			s.respond(w, "error")
 			return
 		}
-		s.respond(w, string(response), 3)
+		s.respond(w, response)
 
 	// get specific item by UUID (a file or user): ?UUID=X|random&type=file|user&format=html|json_pretty|json)
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			config.Log(err.Error(), 2)
-			s.respond(w, "error", 3)
+			Critical.Log(err)
+			s.respond(w, "error")
 			return
 		}
 
 		// check UUID provided
 		targetUUID := r.Form.Get("UUID")
 		if targetUUID == "" {
-			s.respond(w, "no_UUID_provided", 3)
+			s.respond(w, "no_UUID_provided")
 			return
 		}
 
@@ -603,7 +603,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			// fetch file from DB
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "getFile", target: targetUUID})
 			if response.file.UUID == "" {
-				s.respond(w, "no_UUID_match", 3)
+				s.respond(w, "no_UUID_match")
 				return
 			}
 
@@ -625,15 +625,15 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				result := s.completeTemplate("/dynamic/templates/file_content_overlay.html", templateData)
-				s.respond(w, string(result), 3)
+				s.respond(w, result)
 
 			case "json_pretty":
-				s.respond(w, ToJSON(response.file, true), 3)
+				s.respond(w, ToJSON(response.file, true))
 
 			case "json":
 				fallthrough
 			default:
-				s.respond(w, ToJSON(response.file, false), 3)
+				s.respond(w, ToJSON(response.file, false))
 			}
 
 		// get specific user from DB
@@ -641,23 +641,23 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			// fetch file from DB
 			response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: targetUUID})
 			if response.user.Username == "" {
-				s.respond(w, "no_UUID_match", 3)
+				s.respond(w, "no_UUID_match")
 				return
 			}
 
 			switch r.Form.Get("format") {
 			case "html":
-				s.respond(w, "html_not_supported", 3)
+				s.respond(w, "html_not_supported")
 			case "json_pretty":
-				s.respond(w, ToJSON(response.user, true), 3)
+				s.respond(w, ToJSON(response.user, true))
 			case "json":
 				fallthrough
 			default:
-				s.respond(w, ToJSON(response.user, false), 3)
+				s.respond(w, ToJSON(response.user, false))
 			}
 
 		default:
-			s.respond(w, "no_type_provided", 3)
+			s.respond(w, "no_type_provided")
 		}
 	}
 }
@@ -667,8 +667,8 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 	// get session user
 	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if sessionUserResponse.err != nil {
-		config.Log(sessionUserResponse.err.Error(), 2)
-		s.respond(w, "error", 3)
+		Critical.Log(sessionUserResponse.err)
+		s.respond(w, "error")
 		return
 	}
 
@@ -698,7 +698,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/search.html", templateData)
 		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, string(result), 3)
+		s.respond(w, result)
 	}
 }
 
@@ -707,8 +707,8 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
 	if sessionUserResponse.err != nil {
-		config.Log(sessionUserResponse.err.Error(), 2)
-		s.respond(w, "error", 3)
+		Critical.Log(sessionUserResponse.err.Error())
+		s.respond(w, "error")
 		return
 	}
 
@@ -761,7 +761,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/upload.html", templateData)
 		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, string(result), 3)
+		s.respond(w, result)
 
 	// file upload
 	case http.MethodPost:
@@ -772,15 +772,15 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, int64(s.maxFileUploadSize))
 			if err := r.ParseMultipartForm(0); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				config.Log(err.Error(), 2)
-				s.respond(w, "error", 3)
+				Input.Log(err.Error())
+				s.respond(w, "error")
 				return
 			}
 			// move form file to temp dir
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "uploadFile", w: w, r: r, user: sessionUserResponse.user})
 			if response.err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, response.err.Error(), 3)
+				s.respond(w, response.err)
 				return
 			}
 
@@ -794,33 +794,33 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			result := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
 			if result == "" {
 				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, "error", 3)
+				s.respond(w, "error")
 				return
 			}
-			s.respond(w, string(result), 3)
+			s.respond(w, result)
 
 		// delete a file from user temp dir
 		case "temp_delete":
 			if err := r.ParseForm(); err != nil {
-				config.Log(err.Error(), 3)
-				s.respond(w, "error", 3)
+				Input.Log(err)
+				s.respond(w, "error")
 				return
 			}
 
 			// remove file
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "deleteFile", UUID: r.Form.Get("fileUUID")})
 			if response.err != nil {
-				s.respond(w, response.err.Error(), 2)
+				s.respond(w, response.err)
 				return
 			}
 
-			s.respond(w, "success", 3)
+			s.respond(w, "success")
 
 		// move temp file to content dir (allow global user access)
 		case "publish":
 			if err := r.ParseForm(); err != nil {
-				config.Log(err.Error(), 3)
-				s.respond(w, "error", 3)
+				Input.Log(err)
+				s.respond(w, "error")
 				return
 			}
 
@@ -832,38 +832,46 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// validate form field lengths
 			if len(desc) == 0 {
-				s.respond(w, "no_description", 3)
+				s.respond(w, "no_description")
 				return
 			}
 			if len(tags) == 0 {
-				s.respond(w, "no_tags", 3)
+				s.respond(w, "no_tags")
 				return
 			}
 			if len(people) == 0 {
-				s.respond(w, "no_people", 3)
+				s.respond(w, "no_people")
 				return
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
 			response := s.fileDB.performAccessRequest(FileAccessRequest{operation: "publishFile", UUID: r.Form.Get("fileUUID"), fileMetadata: metaData})
 			if response.err != nil {
-				s.respond(w, response.err.Error(), 2)
+				s.respond(w, response.err)
 				return
 			}
 
 			// success
-			s.respond(w, "success", 3)
+			s.respond(w, "success")
 		}
 	}
 }
 
 // Write a HTTP response to connection.
-func (s *HTTPServer) respond(w http.ResponseWriter, response string, logLevel int) {
-	config.Log(response, logLevel)
+func (s *HTTPServer) respond(w http.ResponseWriter, response interface{}) {
+	// type cast response into string
+	switch response.(type) {
+	case template.HTML:
+		response = string(response.(template.HTML))
+	case []byte:
+		response = string(response.([]byte))
+	}
+
+	Output.Log(response)
 
 	// write
 	if _, err := fmt.Fprintf(w, "%v\n", response); err != nil {
-		log.Println(err)
+		Critical.Log(err)
 	}
 }
 
@@ -874,7 +882,7 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err)
 		return
 	}
 
@@ -889,15 +897,16 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 		},
 		"toTitleCase": strings.Title,
 	}).Parse(string(htmlTemplate))
+
 	if err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err)
 		return
 	}
 
 	// perform template variable replacement
 	buffer := new(bytes.Buffer)
 	if err = templateParsed.Execute(buffer, data); err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err)
 		return
 	}
 

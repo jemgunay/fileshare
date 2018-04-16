@@ -206,7 +206,7 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 	if isPassword {
 		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 		if err != nil {
-			config.Log(err.Error(), 1)
+			Critical.Log(err)
 			return "", err
 		}
 
@@ -215,7 +215,7 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err)
 	}
 	return strings.TrimSpace(input), err
 }
@@ -223,5 +223,5 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 // Get a random int within the specified range.
 func randomInt(min int, max int) int {
 	rand.Seed(time.Now().UnixNano())
-	return rand.Intn(max - min) + min
+	return rand.Intn(max-min) + min
 }

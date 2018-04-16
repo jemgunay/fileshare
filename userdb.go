@@ -81,26 +81,26 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 
 	// create default super admin account if no users exist
 	if len(userDB.Users) == 0 {
-		fmt.Println("> Create the default super admin account.")
+		Info.Log("> Create the default super admin account.")
 
 		for {
 			userAccReq := UserAccessRequest{operation: "addUser", attributes: make(map[string]string), userType: SUPER_ADMIN}
 
 			// get forename, surname, email, password
 			if userAccReq.attributes["forename"], err = ReadStdin("> Forename: \n", false); err != nil {
-				fmt.Println("> Error reading console input...")
+				Critical.Log("> Error reading console input...")
 				continue
 			}
 			if userAccReq.attributes["surname"], err = ReadStdin("> Surname: \n", false); err != nil {
-				fmt.Println("> Error reading console input...")
+				Critical.Log("> Error reading console input...")
 				continue
 			}
 			if userAccReq.attributes["email"], err = ReadStdin("> Email: \n", false); err != nil {
-				fmt.Println("> Error reading console input...")
+				Critical.Log("> Error reading console input...")
 				continue
 			}
 			if userAccReq.attributes["password"], err = ReadStdin("> Password: \n", true); err != nil {
-				fmt.Println("> Error reading console input...")
+				Critical.Log("> Error reading console input...")
 				continue
 			}
 
@@ -120,7 +120,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 				response.err = fmt.Errorf(strings.Replace(response.err.Error(), "_", " ", -1))
 			}
 
-			fmt.Printf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", response.err.Error())
+			Info.Logf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", response.err.Error())
 		}
 	}
 
@@ -247,7 +247,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 	// hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
-		config.Log("error hashing password", 1)
+		Critical.Log("error hashing password")
 		return "", fmt.Errorf("error")
 	}
 
@@ -275,7 +275,7 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 
 	// add user to DB
 	db.Users[newUser.Username] = newUser
-	config.Log("new user created: "+newUser.Username, 3)
+	Creation.Log("new user created: " + newUser.Username)
 	return newUser.Username, nil
 }
 

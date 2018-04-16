@@ -3,7 +3,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,22 +15,17 @@ import (
 func main() {
 	var config memoryshare.Config
 
-	// log level
-	logVerbosityFlag := flag.Int("verbosity", 0, "0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)")
-	flag.Parse()
-	config.SetLogVerbosity(*logVerbosityFlag)
-
 	// load system config
 	executable, err := os.Executable()
 	if err != nil {
 		fmt.Printf("Unable to determine working directory.\n")
 		return
 	}
-	rootPath := filepath.Dir(executable + "/../../")
+	rootPath := filepath.Dir(executable + "/../../../")
 	config.LoadConfig(rootPath)
 
 	if err = config.SaveConfig(); err != nil {
-		fmt.Println(err)
+		memoryshare.Critical.Log(err)
 	}
 
 	// init servers
@@ -51,7 +45,7 @@ func main() {
 				httpServer.Stop()
 				return
 			default:
-				fmt.Printf("Unsupported command.\n")
+				memoryshare.Critical.Log("Unsupported command.\n")
 			}
 		}
 	} else {

@@ -12,8 +12,8 @@
 *.out
 
 # Service specific files/dirs
-cmd/memoryshare
-cmd/memoryshare.exe
+cmd/memoryshare/memoryshare
+cmd/memoryshare/memoryshare.exe
 db/temp/*
 db/*.dat
 static/content/*

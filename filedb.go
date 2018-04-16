@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -95,7 +94,7 @@ type FileDB struct {
 // Initialise FileDB by populating from gob file.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	// check db/temp & static/content directories exists
-	if err = EnsureDirExists(dbDir + "/temp/", config.RootPath + "/static/content/"); err != nil {
+	if err = EnsureDirExists(dbDir+"/temp/", config.RootPath+"/static/content/"); err != nil {
 		return
 	}
 
@@ -202,13 +201,10 @@ func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileU
 
 // Upload file to temp dir in a subdir named as the UUID of the session user.
 func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) (newTempFile File, err error) {
-	//
-	time.Sleep(time.Millisecond * 100)
-
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {
-		config.Log(err.Error(), 2)
+		Input.Log(err.Error())
 		err = fmt.Errorf("error")
 		return
 	}
@@ -217,7 +213,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// if a temp file for the user does not exist, create one named by their UUID
 	tempFilePath := config.RootPath + "/db/temp/" + user.Username + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err.Error())
 		err = fmt.Errorf("error")
 		return
 	}
@@ -239,7 +235,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// create new empty file
 	tempFile, err := os.OpenFile(newTempFile.AbsolutePath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err.Error())
 		err = fmt.Errorf("error")
 		return
 	}
@@ -247,7 +243,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 
 	// copy file from form to new local temp file (must from now on delete file if a failure occurs after copy)
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err.Error())
 		err = fmt.Errorf("error")
 		return
 	}
@@ -255,6 +251,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// get file size
 	fileStat, err := tempFile.Stat()
 	if err != nil {
+		Critical.Log(err.Error())
 		err = fmt.Errorf("error")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
@@ -264,7 +261,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// generate hash of file contents
 	newTempFile.Hash, err = GenerateFileHash(newTempFile.AbsolutePath())
 	if err != nil {
-		config.Log(err.Error(), 1)
+		Critical.Log(err.Error())
 		err = fmt.Errorf("error")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
@@ -325,7 +322,7 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 
 	if err = MoveFile(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
 		os.Remove(tempFilePath) // destroy temp file on add failure
-		config.Log(err.Error(), 1)
+		Critical.Log(err.Error())
 		return fmt.Errorf("file_processing_error")
 	}
 
@@ -392,7 +389,7 @@ func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	switch file.State {
 	case UPLOADED:
 		if err = os.Remove(file.AbsolutePath()); err != nil {
-			config.Log(err.Error(), 1)
+			Critical.Log(err.Error(), 1)
 			return fmt.Errorf("file_processing_error")
 		}
 		delete(db.UploadedFiles, fileUUID)
@@ -689,6 +686,6 @@ func (db *FileDB) destroy() (err error) {
 	db.Transactions = make([]Transaction, 0, 0)
 	db.requestPool = make(chan FileAccessRequest)
 
-	log.Println("DB has been reset.")
+	Info.Log("DB has been reset.")
 	return nil
 }

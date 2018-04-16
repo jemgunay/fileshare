@@ -2,10 +2,24 @@ package memoryshare
 
 import (
 	"bufio"
+	"github.com/jemgunay/logger"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+)
+
+var (
+	// Info is a logger for general info.
+	Info = logger.NewLogger(os.Stdout, "INFO", true)
+	// Critical is a logger for critical errors.
+	Critical = logger.NewLogger(os.Stdout, "CRITICAL", true)
+	// Input is a logger for non-critical errors caused by expected/acceptable invalid user input.
+	Input = logger.NewLogger(os.Stdout, "INPUT", false)
+	// Creation is a logger for user and file creation.
+	Creation = logger.NewLogger(os.Stdout, "CREATED", false)
+	// Output is a noisy logger for HTTP response.
+	Output = logger.NewLogger(os.Stdout, "OUTPUT", false)
 )
 
 // Index represents the line in the config file, val is the param value.
@@ -22,8 +36,6 @@ type Config struct {
 	fileFormats  map[string]string
 	indexCounter int
 	commentLines []ConfigSet
-	// 0 (none), 1 (critical errors), 2 (all errors), 3 (all responses)
-	logVerbosity int
 }
 
 // Get the value associated with a config parameter.
@@ -105,7 +117,7 @@ func (c *Config) LoadConfig(RootPath string) (err error) {
 	c.fileFormats[TEXT] = c.params["text_formats"].val
 	c.fileFormats[OTHER] = c.params["other_formats"].val
 
-	log.Printf("running version [%v]\n", c.params["version"].val)
+	Info.Logf("running version [%v]\n", c.params["version"].val)
 
 	return nil
 }
@@ -115,23 +127,6 @@ func (c *Config) Set(param string, value string) {
 	c.params[param] = ConfigSet{c.indexCounter, value}
 	c.indexCounter++
 	c.SaveConfig()
-}
-
-// Set logging verbosity.
-func (c *Config) SetLogVerbosity(level int) {
-	if level > 3 {
-		c.logVerbosity = 3
-		return
-	}
-	c.logVerbosity = level
-	log.Printf("log_verbosity set to %d", c.logVerbosity)
-}
-
-// Perform logging based on verbosity level.
-func (c *Config) Log(response string, logLevel int) {
-	if logLevel <= c.logVerbosity && logLevel > 0 {
-		log.Println(response)
-	}
 }
 
 // Get the media type grouping for the provided file extension.
