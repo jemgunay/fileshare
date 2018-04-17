@@ -2,7 +2,9 @@ package memoryshare
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -16,6 +18,31 @@ import (
 	"github.com/twinj/uuid"
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+// Get a filtered JSON representation of the File properties.
+func ToJSON(obj interface{}, pretty bool) string {
+	// jsonify
+	jsonBuffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(jsonBuffer)
+	encoder.SetEscapeHTML(false)
+
+	if err := encoder.Encode(obj); err != nil {
+		Critical.Log(err)
+		return err.Error()
+	}
+
+	// pretty print
+	if pretty {
+		indentBuffer := &bytes.Buffer{}
+		if err := json.Indent(indentBuffer, jsonBuffer.Bytes(), "", "\t"); err != nil {
+			Critical.Log(err)
+			return string(jsonBuffer.Bytes())
+		}
+		jsonBuffer = indentBuffer
+	}
+
+	return string(jsonBuffer.Bytes())
+}
 
 // Delete all files in a directory.
 func RemoveDirContents(dir string) error {

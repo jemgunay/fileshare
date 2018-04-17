@@ -58,7 +58,7 @@ $(document).ready(function() {
             $("#min-date-picker, #max-date-picker").on("dp.change", performSearch);
 
             // populate page with initial set of results
-            performSearch(true);
+            performSearch(false);
         });
 
         // open memory overlay

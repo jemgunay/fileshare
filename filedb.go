@@ -1,9 +1,7 @@
 package memoryshare
 
 import (
-	"bytes"
 	"encoding/gob"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +11,8 @@ import (
 	"time"
 
 	"github.com/sahilm/fuzzy"
+	"reflect"
+	"sync"
 )
 
 const (
@@ -80,15 +80,78 @@ type Transaction struct {
 	Version           string
 }
 
+type TransactionMutex struct {
+	Transactions []Transaction
+	mu sync.Mutex
+}
+
+func (tm *TransactionMutex) Create(transactionType TransactionType, fileUUID string) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: fileUUID, Version: config.Get("version")}
+	tm.Transactions = append(tm.Transactions, newTransaction)
+}
+
+type FileMapMutex struct {
+	Files      map[string]File
+	mu sync.Mutex
+}
+
+func (fm *FileMapMutex) Set(UUID string, file File) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	fm.Files[UUID] = file
+}
+
+func (fm *FileMapMutex) Get(UUID string) (file File, ok bool) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	file, ok = fm.Files[UUID]
+	return
+}
+
+func (fm *FileMapMutex) Count() (size int) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	return len(fm.Files)
+}
+
+func (fm *FileMapMutex) Delete(UUID string) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	delete(fm.Files, UUID)
+}
+
+type MapDB map[string]File
+type FileMapFunc func(MapDB) interface{}
+
+func (fm *FileMapMutex) PerformFunc(fileMapFunc FileMapFunc) interface{} {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	return fileMapFunc(fm.Files)
+}
+
 // The DB where files are stored.
 type FileDB struct {
 	// file UUID key, File object value
-	PublishedFiles map[string]File // viewable by all users
-	UploadedFiles  map[string]File // in temp dir, viewable by the uploader only
-	Transactions   []Transaction
-	dir            string
-	file           string
-	requestPool    chan FileAccessRequest
+	Published        FileMapMutex     // viewable by all users
+	Uploaded         FileMapMutex     // in temp dir, viewable by the uploader only
+	FileTransactions TransactionMutex // uniquely documents all memory creations/transformations
+
+	dir  string
+	file string
+}
+
+func (db *FileDB) LockAll() {
+	db.Uploaded.mu.Lock()
+	db.Published.mu.Lock()
+	db.FileTransactions.mu.Lock()
+}
+
+func (db *FileDB) UnlockAll() {
+	db.Uploaded.mu.Unlock()
+	db.Published.mu.Unlock()
+	db.FileTransactions.mu.Unlock()
 }
 
 // Initialise FileDB by populating from gob file.
@@ -99,35 +162,19 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	}
 
 	// init file DB
-	fileDB = &FileDB{PublishedFiles: make(map[string]File), UploadedFiles: make(map[string]File), dir: dbDir, file: dbDir + "/file_db.dat", requestPool: make(chan FileAccessRequest)}
+	fileDB = &FileDB{
+		Published:        FileMapMutex{Files: make(MapDB)},
+		Uploaded:         FileMapMutex{Files: make(MapDB)},
+		FileTransactions: TransactionMutex{Transactions: make([]Transaction, 0, 0)},
+		dir:              dbDir,
+		file:             dbDir + "/file_db.dat",
+	}
 	err = fileDB.deserializeFromFile()
-
-	// start request poller
-	go fileDB.startAccessPoller()
 
 	return
 }
 
 // Structure for passing request and response data between poller.
-type FileAccessRequest struct {
-	operation    string
-	UUID         string
-	target       string
-	state        State
-	searchParams SearchRequest
-	fileMetadata MetaData
-	w            http.ResponseWriter
-	r            *http.Request
-	user         User
-	response     chan FileAccessResponse
-}
-type FileAccessResponse struct {
-	err        error
-	file       File
-	files      []File
-	fileResult FileSearchResult
-	metaData   []string
-}
 type FileSearchResult struct {
 	ResultCount int    `json:"result_count"`
 	TotalCount  int    `json:"total_count"`
@@ -136,14 +183,14 @@ type FileSearchResult struct {
 }
 
 // Create a blocking access request and provide an access response.
-func (db *FileDB) performAccessRequest(request FileAccessRequest) (response FileAccessResponse) {
+/*func (db *FileDB) performAccessRequest(request FileAccessRequest) (response FileAccessResponse) {
 	request.response = make(chan FileAccessResponse, 1)
 	db.requestPool <- request
 	return <-request.response
-}
+}*/
 
 // Poll for requests, process them & pass result/error back to requester via channels.
-func (db *FileDB) startAccessPoller() {
+/*func (db *FileDB) startAccessPoller() {
 	for req := range db.requestPool {
 		response := FileAccessResponse{}
 
@@ -168,7 +215,7 @@ func (db *FileDB) startAccessPoller() {
 			response.fileResult = db.search(req.searchParams)
 
 		case "getFile":
-			response.file = db.PublishedFiles[req.target]
+			response.file = db.Published[req.target]
 
 		case "getFilesByUser":
 			response.files = db.getFilesByUser(req.UUID, req.state)
@@ -191,20 +238,14 @@ func (db *FileDB) startAccessPoller() {
 
 		req.response <- response
 	}
-}
-
-// Create transaction and add to DB.
-func (db *FileDB) recordTransaction(transactionType TransactionType, targetFileUUID string) {
-	newTransaction := Transaction{UUID: NewUUID(), CreationTimestamp: time.Now().Unix(), Type: transactionType, TargetFileUUID: targetFileUUID, Version: config.Get("version")}
-	db.Transactions = append(db.Transactions, newTransaction)
-}
+}*/
 
 // Upload file to temp dir in a subdir named as the UUID of the session user.
-func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) (newTempFile File, err error) {
+func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err error) {
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {
-		Input.Log(err.Error())
+		Input.Log(err)
 		err = fmt.Errorf("error")
 		return
 	}
@@ -213,7 +254,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// if a temp file for the user does not exist, create one named by their UUID
 	tempFilePath := config.RootPath + "/db/temp/" + user.Username + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
-		Critical.Log(err.Error())
+		Critical.Log(err)
 		err = fmt.Errorf("error")
 		return
 	}
@@ -235,7 +276,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// create new empty file
 	tempFile, err := os.OpenFile(newTempFile.AbsolutePath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		Critical.Log(err.Error())
+		Critical.Log(err)
 		err = fmt.Errorf("error")
 		return
 	}
@@ -243,7 +284,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 
 	// copy file from form to new local temp file (must from now on delete file if a failure occurs after copy)
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
-		Critical.Log(err.Error())
+		Critical.Log(err)
 		err = fmt.Errorf("error")
 		return
 	}
@@ -251,7 +292,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// get file size
 	fileStat, err := tempFile.Stat()
 	if err != nil {
-		Critical.Log(err.Error())
+		Critical.Log(err)
 		err = fmt.Errorf("error")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
@@ -261,7 +302,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 	// generate hash of file contents
 	newTempFile.Hash, err = GenerateFileHash(newTempFile.AbsolutePath())
 	if err != nil {
-		Critical.Log(err.Error())
+		Critical.Log(err)
 		err = fmt.Errorf("error")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
@@ -269,33 +310,58 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 
 	// for each below, inform user if they themselves uploaded the original copy of a colliding file:
 	// compare hash against the hashes of files stored in published DB
-	for _, file := range db.PublishedFiles {
-		if file.Hash == newTempFile.Hash {
-			if file.UploaderUsername == user.Username {
-				err = fmt.Errorf("already_published_self")
-			} else {
-				err = fmt.Errorf("already_published")
-			}
-			os.Remove(newTempFile.AbsolutePath()) // delete temp file if already exists in DB
-			return
-		}
-	}
-	// compare hash against the hashes of files stored in temp DB
-	for _, file := range db.UploadedFiles {
-		if file.Hash == newTempFile.Hash {
-			if file.UploaderUsername == user.Username {
-				err = fmt.Errorf("already_uploaded_self")
-			} else {
-				err = fmt.Errorf("already_uploaded")
-			}
+	hashMatch := func(m MapDB) interface{} {
+		for _, file := range m {
+			if file.Hash == newTempFile.Hash {
+				dbPrefix := "already_published"
+				if reflect.DeepEqual(m, db.Uploaded.Files) {
+					dbPrefix = "already_uploaded"
+				}
 
-			os.Remove(newTempFile.AbsolutePath()) // delete temp file if already exists in DB
-			return
+				if file.UploaderUsername == user.Username {
+					err = fmt.Errorf(dbPrefix + "_self")
+				} else {
+					err = fmt.Errorf(dbPrefix)
+				}
+				os.Remove(newTempFile.AbsolutePath()) // delete temp file if already exists in DB
+				return true
+			}
 		}
+		return false
 	}
+
+	if db.Published.PerformFunc(hashMatch).(bool) {
+		return
+	}
+
+	if db.Uploaded.PerformFunc(hashMatch).(bool) {
+		return
+	}
+
+	/*// compare hash against the hashes of files stored in temp DB
+	uploadedHashMatch := func(m MapDB) interface{} {
+		for _, file := range m {
+			if file.Hash == newTempFile.Hash {
+				if file.UploaderUsername == user.Username {
+					err = fmt.Errorf("already_uploaded_self")
+				} else {
+					err = fmt.Errorf("already_uploaded")
+				}
+
+				os.Remove(newTempFile.AbsolutePath()) // delete temp file if already exists in DB
+				return true
+			}
+		}
+		return false
+	}
+
+	if db.Uploaded.PerformFunc(uploadedHashMatch).(bool) {
+		return
+	}*/
 
 	// add to temp file DB
-	db.UploadedFiles[newTempFile.UUID] = newTempFile
+	db.Uploaded.Set(newTempFile.UUID, newTempFile)
+	db.serializeToFile()
 
 	return newTempFile, nil
 }
@@ -303,7 +369,7 @@ func (db *FileDB) uploadFile(w http.ResponseWriter, r *http.Request, user User) 
 // Add a file to the DB.
 func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	// append new details to file object
-	uploadedFile, ok := db.UploadedFiles[fileUUID]
+	uploadedFile, ok := db.Uploaded.Get(fileUUID)
 	if !ok {
 		return fmt.Errorf("file_not_found")
 	}
@@ -318,25 +384,24 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	uploadedFile.State = PUBLISHED
 
 	// delete from temp DB
-	delete(db.UploadedFiles, fileUUID)
+	db.Uploaded.Delete(fileUUID)
 
 	if err = MoveFile(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
 		os.Remove(tempFilePath) // destroy temp file on add failure
-		Critical.Log(err.Error())
+		Critical.Log(err)
 		return fmt.Errorf("file_processing_error")
 	}
 
 	// add to file DB & record transaction
-	db.PublishedFiles[fileUUID] = uploadedFile
-	db.recordTransaction(CREATE, fileUUID)
+	db.Published.Set(fileUUID, uploadedFile)
+	db.FileTransactions.Create(CREATE, fileUUID)
 
+	db.serializeToFile()
 	return nil
 }
 
 // Get specific DB related metadata.
 func (db *FileDB) getMetaData(target string) (result []string) {
-	resultMap := make(map[string]bool)
-
 	// min/max dates data request
 	if target == "dates" {
 		sortedFiles := SortFilesByDate(db.toSlice())
@@ -349,21 +414,28 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 		return
 	}
 
+	resultMap := make(map[string]bool)
+
 	// other data request types
-	for _, file := range db.PublishedFiles {
-		switch target {
-		case "tags":
-			for _, tag := range file.Tags {
-				resultMap[tag] = true
+	uploadedMetadata := func(m MapDB) interface{} {
+		for _, file := range m {
+			switch target {
+			case "tags":
+				for _, tag := range file.Tags {
+					resultMap[tag] = true
+				}
+			case "people":
+				for _, person := range file.People {
+					resultMap[person] = true
+				}
+			case "file_types":
+				resultMap[strings.Title(file.MediaType)] = true
 			}
-		case "people":
-			for _, person := range file.People {
-				resultMap[person] = true
-			}
-		case "file_types":
-			resultMap[strings.Title(file.MediaType)] = true
 		}
+		return resultMap
 	}
+
+	resultMap = db.Published.PerformFunc(uploadedMetadata).(map[string]bool)
 
 	// map to slice
 	for item := range resultMap {
@@ -377,9 +449,9 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 // Mark a file in the DB for deletion, or delete the actual local copy of the file and remove reference from DB in order to redownload.
 func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	// check if file exists in either published or temp/uploaded DB
-	file, ok := db.UploadedFiles[fileUUID]
+	file, ok := db.Uploaded.Get(fileUUID)
 	if !ok {
-		file, ok = db.PublishedFiles[fileUUID]
+		file, ok = db.Published.Get(fileUUID)
 		if !ok {
 			return fmt.Errorf("file_not_found")
 		}
@@ -389,44 +461,22 @@ func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	switch file.State {
 	case UPLOADED:
 		if err = os.Remove(file.AbsolutePath()); err != nil {
-			Critical.Log(err.Error(), 1)
+			Critical.Log(err)
 			return fmt.Errorf("file_processing_error")
 		}
-		delete(db.UploadedFiles, fileUUID)
+		db.Uploaded.Delete(fileUUID)
 
 	case PUBLISHED:
 		file.State = DELETED
-		db.PublishedFiles[fileUUID] = file
-		db.recordTransaction(DELETE, file.UUID)
+		db.Published.Set(fileUUID, file)
+		db.FileTransactions.Create(DELETE, file.UUID)
 
 	case DELETED:
 		return fmt.Errorf("file_already_deleted")
 	}
 
+	db.serializeToFile()
 	return nil
-}
-
-// Get a filtered JSON representation of the File properties.
-func ToJSON(obj interface{}, pretty bool) string {
-	// jsonify
-	jsonBuffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(jsonBuffer)
-	encoder.SetEscapeHTML(false)
-
-	if err := encoder.Encode(obj); err != nil {
-		return err.Error()
-	}
-
-	// pretty print
-	if pretty {
-		indentBuffer := &bytes.Buffer{}
-		if err := json.Indent(indentBuffer, jsonBuffer.Bytes(), "", "\t"); err != nil {
-			return string(jsonBuffer.Bytes())
-		}
-		jsonBuffer = indentBuffer
-	}
-
-	return string(jsonBuffer.Bytes())
 }
 
 // Sort a list of Files by date.
@@ -448,7 +498,7 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	// fuzzy search by description
 	if searchReq.description != "" {
 		// create a slice of descriptions
-		descriptionFiles := make([]string, len(db.PublishedFiles))
+		descriptionFiles := make([]string, db.Published.Count())
 		for i, file := range files {
 			descriptionFiles[i] = file.Description
 		}
@@ -556,13 +606,15 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	}
 
 	// limit number of results to pagination fields
+	totalCount := db.Published.Count()
 	state := "ok"
+
 	if searchReq.resultsPerPage > 0 {
 		rangeBounds := [2]int64{searchReq.page * searchReq.resultsPerPage, (searchReq.page + 1) * searchReq.resultsPerPage}
 
 		if rangeBounds[0] > int64(len(filterResults)-1) {
 			// request out of range, return empty result set
-			return FileSearchResult{Files: make([]File, 0), ResultCount: 0, TotalCount: len(db.PublishedFiles), state: "empty_results"}
+			return FileSearchResult{Files: make([]File, 0), ResultCount: 0, TotalCount: totalCount, state: "empty_results"}
 		}
 		if rangeBounds[1] > int64(len(filterResults)-1) {
 			rangeBounds[1] = int64(len(filterResults))
@@ -572,75 +624,102 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 		filterResults = filterResults[rangeBounds[0]:rangeBounds[1]]
 	}
 
-	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: len(db.PublishedFiles), state: state}
+	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: totalCount, state: state}
 }
 
 // Get all files corresponding to User UUID.
 func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
-	// get uploaded/temp files only
-	if state == UPLOADED {
-		for _, file := range db.UploadedFiles {
+	filesByUser := func(m MapDB) interface{} {
+		for _, file := range m {
 			if file.UploaderUsername == username {
 				files = append(files, file)
 			}
 		}
-		return SortFilesByDate(files)
+		return files
+	}
+
+	// get uploaded/temp files only
+	if state == UPLOADED {
+		return SortFilesByDate(db.Uploaded.PerformFunc(filesByUser).([]File))
 	}
 
 	// get published files only
 	if state == PUBLISHED {
-		for _, file := range db.PublishedFiles {
-			if file.UploaderUsername == username {
-				files = append(files, file)
-			}
-		}
+		return SortFilesByDate(db.Published.PerformFunc(filesByUser).([]File))
 	}
 
 	return SortFilesByDate(files)
 }
 
 // Get a random file.
-func (db *FileDB) getRandomFile() (file File) {
-	// create slice of all UUIDs
-	UUIDs := make([]string, len(db.PublishedFiles))
-	counter := 0
-	for UUID := range db.PublishedFiles {
-		UUIDs[counter] = UUID
-		counter++
+func (db *FileDB) getRandomFile() (File, error) {
+	UUIDs := db.getUUIDs()
+
+	if len(UUIDs) == 0 {
+		return File{}, fmt.Errorf("no files have been uploaded")
 	}
 
 	// pick random from slice
 	randomUUID := UUIDs[randomInt(0, len(UUIDs))]
-	return db.PublishedFiles[randomUUID]
-}
-
-// Generate slice representation of file PublishedFiles map.
-func (db *FileDB) toSlice() (files []File) {
-	files = make([]File, 0, len(db.PublishedFiles))
-
-	// generate slice from PublishedFiles map
-	for _, file := range db.PublishedFiles {
-		if file.State != DELETED {
-			files = append(files, file)
-		}
+	file, ok := db.Published.Get(randomUUID)
+	if !ok {
+		return File{}, fmt.Errorf("error")
 	}
 
-	return files
+	return file, nil
+}
+
+func (db *FileDB) getUUIDs() []string {
+	getUUIDs := func(m MapDB) interface{} {
+		UUIDs := make([]string, len(m))
+		counter := 0
+		for UUID := range m {
+			UUIDs[counter] = UUID
+			counter++
+		}
+		return UUIDs
+	}
+
+	return db.Published.PerformFunc(getUUIDs).([]string)
+}
+
+// Generate slice representation of file Published map.
+func (db *FileDB) toSlice() []File {
+	// generate slice from Published map
+	publishedToSlice := func(m MapDB) interface{} {
+		files := make([]File, 0, len(m))
+
+		for _, file := range m {
+			if file.State != DELETED {
+				files = append(files, file)
+			}
+		}
+
+		return files
+	}
+
+	return db.Published.PerformFunc(publishedToSlice).([]File)
 }
 
 // Serialize store map & transactions slice to a specified file.
 func (db *FileDB) serializeToFile() (err error) {
+	db.LockAll()
+	defer db.UnlockAll()
+
 	// create/truncate file for writing to
 	file, err := os.Create(db.file)
 	if err != nil {
 		return err
+		Critical.Log(err)
 	}
 	defer file.Close()
 
-	// encode store map to file
+	// encode & store DB to file
 	encoder := gob.NewEncoder(file)
+
 	err = encoder.Encode(&db)
 	if err != nil {
+		Critical.Log(err)
 		return err
 	}
 
@@ -649,15 +728,20 @@ func (db *FileDB) serializeToFile() (err error) {
 
 // Deserialize from a specified file to the store map, overwriting current map values.
 func (db *FileDB) deserializeFromFile() (err error) {
+	db.LockAll()
+
 	// if db file does not exist, create a new one
 	if _, err := os.Stat(db.file); os.IsNotExist(err) {
+		db.UnlockAll()
 		db.serializeToFile()
 		return nil
 	}
+	defer db.UnlockAll()
 
 	// open file to read from
 	file, err := os.Open(db.file)
 	if err != nil {
+		Critical.Log(err)
 		return err
 	}
 	defer file.Close()
@@ -665,6 +749,7 @@ func (db *FileDB) deserializeFromFile() (err error) {
 	// decode file contents to store map
 	decoder := gob.NewDecoder(file)
 	if err = decoder.Decode(&db); err != nil {
+		Critical.Log(err)
 		return err
 	}
 
@@ -672,7 +757,9 @@ func (db *FileDB) deserializeFromFile() (err error) {
 }
 
 // Delete DB files and reset File DB.
-func (db *FileDB) destroy() (err error) {
+func (db *FileDB) reset() (err error) {
+	db.LockAll()
+	defer db.UnlockAll()
 	if err = os.Remove(db.file); err != nil {
 		return
 	}
@@ -682,9 +769,9 @@ func (db *FileDB) destroy() (err error) {
 	RemoveDirContents(db.dir + "/temp/")
 
 	// reinitialise DB
-	db.PublishedFiles = make(map[string]File)
-	db.Transactions = make([]Transaction, 0, 0)
-	db.requestPool = make(chan FileAccessRequest)
+	db.Published.Files = make(map[string]File)
+	db.Uploaded.Files = make(map[string]File)
+	db.FileTransactions.Transactions = make([]Transaction, 0, 0)
 
 	Info.Log("DB has been reset.")
 	return nil

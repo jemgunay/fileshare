@@ -14,6 +14,8 @@ import (
 )
 
 func main() {
+	var config memoryshare.Config
+
 	verbosity := flag.Int("verbosity", 0, "1=INPUT+CREATION, 2=OUTPUT")
 	flag.Parse()
 
@@ -24,8 +26,6 @@ func main() {
 	case 2:
 		memoryshare.Output.Enable()
 	}
-
-	var config memoryshare.Config
 
 	// load system config
 	executable, err := os.Executable()
