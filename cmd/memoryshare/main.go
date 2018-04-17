@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,17 @@ import (
 )
 
 func main() {
+	verbosity := flag.Int("verbosity", 0, "1=INPUT+CREATION, 2=OUTPUT")
+	flag.Parse()
+
+	switch *verbosity {
+	case 1:
+		memoryshare.Input.Enable()
+		memoryshare.Creation.Enable()
+	case 2:
+		memoryshare.Output.Enable()
+	}
+
 	var config memoryshare.Config
 
 	// load system config
@@ -45,7 +57,7 @@ func main() {
 				httpServer.Stop()
 				return
 			default:
-				memoryshare.Critical.Log("Unsupported command.\n")
+				memoryshare.Info.Log("Unsupported command.\n")
 			}
 		}
 	} else {

@@ -869,8 +869,8 @@ func (s *HTTPServer) respond(w http.ResponseWriter, response interface{}) {
 
 	Output.Log(response)
 
-	// write
-	if _, err := fmt.Fprintf(w, "%v\n", response); err != nil {
+	// write response
+	if _, err := fmt.Fprint(w, response); err != nil {
 		Critical.Log(err)
 	}
 }

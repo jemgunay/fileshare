@@ -42,7 +42,7 @@ $(document).ready(function() {
             var tokenfieldSets = [["tags", "#tags-search-input", false], ["people", "#people-search-input", false], ["file_types", "#type-search-input", true]];
             var parsedData = JSON.parse(result);
 
-            initMetaDataFields(parsedData, tokenfieldSets, performSearch);
+            initMetaDataFields(parsedData, tokenfieldSets);
 
             // date pickers
             $("#min-date-picker, #max-date-picker").datetimepicker({
@@ -106,7 +106,7 @@ $(document).ready(function() {
 });
 
 // Pull required data from server & initialise search/filter inputs.
-function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
+function initMetaDataFields(parsedData, tokenfieldSets) {
     // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield value will be populated pre-with all retrieved data.
     for (var i = 0; i < tokenfieldSets.length; i++) {
         var metaType = tokenfieldSets[i][0];
@@ -149,8 +149,8 @@ function initMetaDataFields(parsedData, tokenfieldSets, changeTarget) {
                 createTokensOnBlur: true
             }).off("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken")
                 .on("tokenfield:createdtoken tokenfield:editedtoken tokenfield:removedtoken", function() {
-                if (tokenfieldTargetTrigger && changeTarget != null) {
-                    changeTarget();
+                if (tokenfieldTargetTrigger) {
+                    performSearch(false);
                 }
             });
 
@@ -173,19 +173,18 @@ function performSearch(append) {
     }
 
     if (append !== true && append !== false) append = false;
+    if (append === true) {
+        currentPage++;
+    } else {
+        currentPage = 0;
+        $(".detail-wall, #search-freewall").empty();
+    }
 
     var request = constructSearchURL();
 
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
-            if (append === true) {
-                currentPage++;
-            } else {
-                currentPage = 0;
-                $(".detail-wall, #search-freewall").empty();
-            }
-
             if ($("#view-search-input").is(":checked")) {
                 $(".detail-wall").hide();
                 $("#search-freewall").show();
