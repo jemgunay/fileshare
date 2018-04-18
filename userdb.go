@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -52,14 +53,52 @@ type User struct {
 	AccountState
 }
 
+type UserMapMutex struct {
+	Users map[string]User
+	mu    sync.Mutex
+}
+
+func (fm *UserMapMutex) Set(username string, user User) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	fm.Users[username] = user
+}
+
+func (fm *UserMapMutex) Get(username string) (user User, ok bool) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	user, ok = fm.Users[username]
+	return
+}
+
+func (fm *UserMapMutex) Count() (size int) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	return len(fm.Users)
+}
+
+func (fm *UserMapMutex) Delete(username string) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	delete(fm.Users, username)
+}
+
+type UserMapDB map[string]User
+type UserMapFunc func(UserMapDB) interface{}
+
+func (fm *UserMapMutex) PerformFunc(userMapFunc UserMapFunc) interface{} {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+	return userMapFunc(fm.Users)
+}
+
 // The DB where files are stored.
 type UserDB struct {
 	// username key, User object value
-	Users       map[string]User
-	cookies     *sessions.CookieStore
-	dir         string
-	file        string
-	requestPool chan UserAccessRequest
+	Users   UserMapMutex
+	cookies *sessions.CookieStore
+	dir     string
+	file    string
 }
 
 // Create a new user DB.
@@ -70,142 +109,75 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 		return nil, err
 	}
 
-	var cookieStore = sessions.NewCookieStore(key)
-	userDB = &UserDB{cookies: cookieStore, dir: dbDir, file: dbDir + "/user_db.dat", Users: make(map[string]User), requestPool: make(chan UserAccessRequest)}
+	userDB = &UserDB{
+		cookies: sessions.NewCookieStore(key),
+		dir:     dbDir,
+		file:    dbDir + "/user_db.dat",
+		Users:   UserMapMutex{Users: make(map[string]User)},
+	}
 
 	// load users
 	userDB.deserializeFromFile()
 
-	// start request poller
-	go userDB.startAccessPoller()
-
 	// create default super admin account if no users exist
-	if len(userDB.Users) == 0 {
+	if userDB.Users.Count() == 0 {
 		Info.Log("> Create the default super admin account.")
-
-		for {
-			userAccReq := UserAccessRequest{operation: "addUser", attributes: make(map[string]string), userType: SUPER_ADMIN}
-
-			// get forename, surname, email, password
-			if userAccReq.attributes["forename"], err = ReadStdin("> Forename: \n", false); err != nil {
-				Critical.Log("> Error reading console input...")
-				continue
-			}
-			if userAccReq.attributes["surname"], err = ReadStdin("> Surname: \n", false); err != nil {
-				Critical.Log("> Error reading console input...")
-				continue
-			}
-			if userAccReq.attributes["email"], err = ReadStdin("> Email: \n", false); err != nil {
-				Critical.Log("> Error reading console input...")
-				continue
-			}
-			if userAccReq.attributes["password"], err = ReadStdin("> Password: \n", true); err != nil {
-				Critical.Log("> Error reading console input...")
-				continue
-			}
-
-			// perform account creation request
-			response := userDB.performAccessRequest(userAccReq)
-			if response.err == nil {
-				// set state to ok
-				user := userDB.Users[response.username]
-				user.AccountState = COMPLETE
-				userDB.Users[response.username] = user
-				break
-			}
-
-			if response.err.Error() == "error" {
-				response.err = fmt.Errorf("internal error")
-			} else {
-				response.err = fmt.Errorf(strings.Replace(response.err.Error(), "_", " ", -1))
-			}
-
-			Info.Logf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", response.err.Error())
-		}
+		userDB.createActivatedUser(SUPER_ADMIN)
 	}
 
 	return
 }
 
-// Structure for passing request and response data between poller.
-type UserAccessRequest struct {
-	attributes     map[string]string
-	userType       UserType
-	w              http.ResponseWriter
-	r              *http.Request
-	operation      string
-	userIdentifier string
-	fileUUID       string
-	state          bool
-	response       chan UserAccessResponse
-}
-type UserAccessResponse struct {
-	err      error
-	success  bool
-	username string
-	user     User
-	users    []User
-}
+func (db *UserDB) createActivatedUser(accountType UserType) {
+	var forename, surname, email, password string
+	var err error
 
-// Create a blocking access request and provide an access response.
-func (db *UserDB) performAccessRequest(request UserAccessRequest) (response UserAccessResponse) {
-	request.response = make(chan UserAccessResponse, 1)
-	db.requestPool <- request
-	return <-request.response
-}
-
-// Poll for requests, process them & pass result/error back to requester via channels.
-func (db *UserDB) startAccessPoller() {
-	for req := range db.requestPool {
-		response := UserAccessResponse{}
-
-		// process request
-		switch req.operation {
-		case "addUser":
-			if len(req.attributes) < 4 {
-				response.err = fmt.Errorf("email or password not specified")
-			} else {
-				response.username, response.err = db.addUser(req.attributes["email"], req.attributes["password"], req.attributes["forename"], req.attributes["surname"], req.userType)
-				db.serializeToFile()
-			}
-
-		case "authenticateUser":
-			response.success, response.err = db.authenticateUser(req.w, req.r)
-
-		case "getSessionUser":
-			response.user, response.err = db.getSessionUser(req.w, req.r)
-
-		case "getUsers":
-			response.users = db.getUsers()
-
-		case "getUserByEmail":
-			response.user, response.err = db.getUserByEmail(req.userIdentifier)
-
-		case "getUserByUsername":
-			response.user, response.err = db.getUserByUsername(req.userIdentifier)
-
-		case "setFavourite":
-			response.err = db.setFavourite(req.userIdentifier, req.fileUUID, req.state)
-			db.serializeToFile()
-
-		case "loginUser":
-			response.success, response.err = db.loginUser(req.w, req.r)
-			db.serializeToFile()
-
-		case "logoutUser":
-			response.err = db.logoutUser(req.w, req.r)
-			db.serializeToFile()
-
-		default:
-			response.err = fmt.Errorf("unsupported user access operation")
+	for {
+		// get forename, surname, email, password
+		if forename, err = ReadStdin("> Forename: \n", false); err != nil {
+			Critical.Log("> Error reading console input...")
+			continue
+		}
+		if surname, err = ReadStdin("> Surname: \n", false); err != nil {
+			Critical.Log("> Error reading console input...")
+			continue
+		}
+		if email, err = ReadStdin("> Email: \n", false); err != nil {
+			Critical.Log("> Error reading console input...")
+			continue
+		}
+		if password, err = ReadStdin("> Password: \n", true); err != nil {
+			Critical.Log("> Error reading console input...")
+			continue
 		}
 
-		req.response <- response
+		// perform account creation request
+		username, err := db.addUser(forename, surname, email, password, accountType)
+		if err != nil {
+			if err.Error() == "error" {
+				err = fmt.Errorf("internal error")
+			} else {
+				err = fmt.Errorf(strings.Replace(err.Error(), "_", " ", -1))
+			}
+
+			Critical.Logf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", err)
+			continue
+		}
+
+		// set state to ok
+		user, ok := db.Users.Get(username)
+		if !ok {
+			Critical.Logf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", "created user not found")
+			continue
+		}
+		user.AccountState = COMPLETE
+		db.Users.Set(username, user)
+		return
 	}
 }
 
 // Add a user to userDB.
-func (db *UserDB) addUser(email string, password string, forename string, surname string, admin UserType) (username string, err error) {
+func (db *UserDB) addUser(forename string, surname string, email string, password string, admin UserType) (username string, err error) {
 	// validate inputs
 	var nameRegex = regexp.MustCompile(`^[A-Za-z ,.'-]+$`).MatchString
 	var emailRegex = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`).MatchString
@@ -251,7 +223,15 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 		return "", fmt.Errorf("error")
 	}
 
-	newUser := User{Password: string(hashedPassword), Email: email, Type: admin, Forename: forename, Surname: surname, CreatedTimestamp: time.Now().UnixNano(), FavouriteFileUUIDs: make(map[string]bool)}
+	newUser := User{
+		Password:           string(hashedPassword),
+		Email:              email,
+		Type:               admin,
+		Forename:           forename,
+		Surname:            surname,
+		CreatedTimestamp:   time.Now().UnixNano(),
+		FavouriteFileUUIDs: make(map[string]bool),
+	}
 
 	// create username, appending an incremented number if a user exists with that username already (ensures value is unique)
 	usernameCounter := 1
@@ -260,27 +240,26 @@ func (db *UserDB) addUser(email string, password string, forename string, surnam
 		if usernameCounter > 1 {
 			newUser.Username += fmt.Sprintf("%d", usernameCounter)
 		}
-		exists := false
-		for email := range db.Users {
-			if _, ok := db.Users[email]; ok {
-				exists = true
-				break
-			}
-		}
-		if !exists {
+
+		// username has not been taken
+		if _, ok := db.Users.Get(username); !ok {
 			break
 		}
+
+		// username was taken, increment counter and try again
 		usernameCounter++
 	}
 
 	// add user to DB
-	db.Users[newUser.Username] = newUser
+	db.Users.Set(newUser.Username, newUser)
+	db.serializeToFile()
+
 	Creation.Log("new user created: " + newUser.Username)
 	return newUser.Username, nil
 }
 
 // Authenticate user.
-func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (success bool, err error) {
+func (db *UserDB) authenticateUser(r *http.Request) (success bool, err error) {
 	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
 		return false, err
@@ -295,7 +274,7 @@ func (db *UserDB) authenticateUser(w http.ResponseWriter, r *http.Request) (succ
 }
 
 // Get User object associated with request session.
-func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user User, err error) {
+func (db *UserDB) getSessionUser(r *http.Request) (user User, err error) {
 	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
 		return
@@ -307,7 +286,7 @@ func (db *UserDB) getSessionUser(w http.ResponseWriter, r *http.Request) (user U
 
 // Add a file UUID to the favourites list of a user.
 func (db *UserDB) setFavourite(username string, fileUUID string, state bool) (err error) {
-	user, ok := db.Users[username]
+	user, ok := db.Users.Get(username)
 	if !ok {
 		return fmt.Errorf("user_not_found")
 	}
@@ -320,40 +299,51 @@ func (db *UserDB) setFavourite(username string, fileUUID string, state bool) (er
 	}
 
 	user.FavouriteFileUUIDs = favourites
-	db.Users[username] = user
+	db.Users.Set(username, user)
+	db.serializeToFile()
 	return
 }
 
-// Get a copy of the users map.
-func (db *UserDB) getUsers() (users []User) {
-	for username := range db.Users {
-		users = append(users, db.Users[username])
+// Get a slice copy of all each User from the Users map.
+func (db *UserDB) getUsers() []User {
+	getAllUsers := func(m UserMapDB) interface{} {
+		var users []User
+		for _, user := range m {
+			users = append(users, user)
+		}
+		return users
 	}
+	users := db.Users.PerformFunc(getAllUsers).([]User)
 
 	// order by date created
 	sort.Slice(users, func(i, j int) bool {
 		return users[i].CreatedTimestamp > users[j].CreatedTimestamp
 	})
-	return
+	return users
 }
 
-// Get user that ha sa target email address.
-func (db *UserDB) getUserByEmail(email string) (user User, err error) {
-	for _, u := range db.Users {
-		if u.Email == email {
-			user = u
-			break
+// Get user that has a target email address.
+func (db *UserDB) getUserByEmail(email string) (User, error) {
+	userSearch := func(m UserMapDB) interface{} {
+		for _, u := range m {
+			if u.Email == email {
+				return u
+			}
 		}
+		return User{}
 	}
+
+	user := db.Users.PerformFunc(userSearch).(User)
+
 	if user.Email == "" {
-		err = fmt.Errorf("user not found")
+		return user, fmt.Errorf("user not found")
 	}
-	return
+	return user, nil
 }
 
 // Get user that ha sa target username.
 func (db *UserDB) getUserByUsername(username string) (user User, err error) {
-	user, ok := db.Users[username]
+	user, ok := db.Users.Get(username)
 	if !ok {
 		err = fmt.Errorf("user not found")
 	}
@@ -372,16 +362,18 @@ func (db *UserDB) loginUser(w http.ResponseWriter, r *http.Request) (success boo
 	passwordParam := r.FormValue("password")
 
 	// check form data against user DB
-	matchFound := false
-	for _, user := range db.Users {
-		// compare stored hash against hash of input password
-		err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
-		if emailParam == user.Email && err == nil {
-			matchFound = true
-			break
+	hashCompare := func(m UserMapDB) interface{} {
+		for _, user := range m {
+			// compare stored hash against hash of input password
+			err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
+			if emailParam == user.Email && err == nil {
+				return true
+			}
 		}
+		return false
 	}
-	if matchFound == false {
+
+	if db.Users.PerformFunc(hashCompare).(bool) == false {
 		return false, nil
 	}
 
@@ -466,9 +458,13 @@ func fetchSessionKey() (key []byte, err error) {
 
 // Serialize store map & transactions slice to a specified file.
 func (db *UserDB) serializeToFile() (err error) {
+	db.Users.mu.Lock()
+	defer db.Users.mu.Unlock()
+
 	// create/truncate file for writing to
 	file, err := os.Create(db.file)
 	if err != nil {
+		Critical.Log(err)
 		return err
 	}
 	defer file.Close()
@@ -477,6 +473,7 @@ func (db *UserDB) serializeToFile() (err error) {
 	encoder := gob.NewEncoder(file)
 	err = encoder.Encode(&db)
 	if err != nil {
+		Critical.Log(err)
 		return err
 	}
 
@@ -485,15 +482,20 @@ func (db *UserDB) serializeToFile() (err error) {
 
 // Deserialize from a specified file to the store map, overwriting current map values.
 func (db *UserDB) deserializeFromFile() (err error) {
+	db.Users.mu.Lock()
+
 	// if db file does not exist, create a new one
 	if _, err := os.Stat(db.file); os.IsNotExist(err) {
+		db.Users.mu.Unlock()
 		db.serializeToFile()
 		return nil
 	}
+	defer db.Users.mu.Unlock()
 
 	// open file to read from
 	file, err := os.Open(db.file)
 	if err != nil {
+		Critical.Log(err)
 		return err
 	}
 	defer file.Close()
@@ -501,6 +503,7 @@ func (db *UserDB) deserializeFromFile() (err error) {
 	// decode file contents to store map
 	decoder := gob.NewDecoder(file)
 	if err = decoder.Decode(&db); err != nil {
+		Critical.Log(err)
 		return err
 	}
 

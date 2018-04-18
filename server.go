@@ -44,8 +44,23 @@ func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
 		return
 	}
 
+	// get port from config
+	port, err := config.GetInt("http_port")
+	if err != nil {
+		port = 8000
+	}
+
 	// start http server
-	httpServer = HTTPServer{host: "localhost", port: 8000, ServerBase: ServerBase{fileDB: fileDB, startTimestamp: time.Now().Unix()}, userDB: userDB}
+	httpServer = HTTPServer{
+		host: "localhost",
+		port: port,
+		ServerBase: ServerBase{
+			fileDB:         fileDB,
+			startTimestamp: time.Now().Unix(),
+		},
+		userDB: userDB,
+	}
+
 	// set host (allow_public_webapp)
 	if config.GetBool("allow_public_webapp") {
 		httpServer.host = "0.0.0.0"
@@ -114,7 +129,6 @@ func (s *HTTPServer) Start() {
 	Info.Logf("starting HTTP server on port %d", s.port)
 
 	go func(server *http.Server) {
-		// add HTTPS: https://www.kaihag.com/https-and-go/
 		if err := server.ListenAndServe(); err != nil {
 			log.Println(err)
 		}
@@ -127,7 +141,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		Incoming.Logf("%v -> %v [%v]", r.Host, r.URL, r.Method)
 
 		// authenticate
-		authResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "authenticateUser", w: w, r: r})
+		authorised, authErr := s.userDB.authenticateUser(r)
 
 		// file servers
 		// prevent dir listings
@@ -144,8 +158,8 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
 			vars := mux.Vars(r)
 
-			userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
-			if userResponse.user.Username != vars["user_id"] {
+			sessionUser, err := s.userDB.getSessionUser(r)
+			if sessionUser.Username != vars["user_id"] || err != nil {
 				s.respond(w, "404 page not found")
 				return
 			}
@@ -153,7 +167,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 
 		// if already logged in, redirect these page requests
 		if r.URL.String() == "/login" {
-			if authResponse.success {
+			if authorised {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
 				} else {
@@ -165,9 +179,9 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 		// if auth failed (error or wrong password)
-		if authResponse.err != nil || authResponse.success == false {
-			if authResponse.err != nil {
-				Input.Log(authResponse.err)
+		if authErr != nil || authorised == false {
+			if authErr != nil {
+				Input.Log(authErr)
 			}
 
 			if r.Method == http.MethodGet {
@@ -291,42 +305,40 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// submit login request
 	case http.MethodPost:
-		response := s.userDB.performAccessRequest(UserAccessRequest{operation: "loginUser", w: w, r: r})
+		success, err := s.userDB.loginUser(w, r)
 
 		switch {
-		case response.err != nil:
+		case err != nil:
 			s.respond(w, "error")
-		case response.success == false:
-			s.respond(w, "unauthorised")
-		case response.success:
+		case success:
 			s.respond(w, "success")
+		default:
+			s.respond(w, "unauthorised")
 		}
 	}
 }
 
 // Handle logout.
 func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "logoutUser", w: w, r: r})
-
-	if response.err != nil {
+	if err := s.userDB.logoutUser(w, r); err != nil {
 		s.respond(w, "error")
 		return
 	}
 	http.Redirect(w, r, "/login", 302)
 }
 
-// Process HTTP view users request. username/operation
+// Process HTTP view users request.
 func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
-	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
-	if sessionUserResponse.err != nil {
-		Critical.Log(sessionUserResponse.err)
+	sessionUser, err := s.userDB.getSessionUser(r)
+	if err != nil {
+		Critical.Log(err)
 		s.respond(w, "error")
 		return
 	}
 
 	// get list of all users
-	response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUsers"})
+	allUsers := s.userDB.getUsers()
 
 	// HTML template data
 	templateData := struct {
@@ -341,8 +353,8 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	}{
 		"Users",
 		config.Get("brand_name"),
-		sessionUserResponse.user,
-		response.users,
+		sessionUser,
+		allUsers,
 		"",
 		"users",
 		"",
@@ -369,18 +381,18 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// get session user
-	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
-	if sessionUserResponse.err != nil {
-		Critical.Log(sessionUserResponse.err)
+	sessionUser, err := s.userDB.getSessionUser(r)
+	if err != nil {
+		Critical.Log(err)
 		s.respond(w, "error")
 		return
 	}
 
 	if vars["username"] != "" {
 		// get user corresponding with
-		userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: vars["username"]})
-		if userResponse.err != nil {
-			s.respond(w, userResponse.err)
+		user, err := s.userDB.getUserByUsername(vars["username"])
+		if err != nil {
+			s.respond(w, err)
 			return
 		}
 
@@ -404,8 +416,8 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			}{
 				"Profile",
 				config.Get("brand_name"),
-				sessionUserResponse.user,
-				userResponse.user,
+				sessionUser,
+				user,
 				[]File{},
 				"",
 				"users",
@@ -416,7 +428,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// get favourite memories
-			for fileUUID := range userResponse.user.FavouriteFileUUIDs {
+			for fileUUID := range user.FavouriteFileUUIDs {
 				file, ok := s.fileDB.Published.Get(fileUUID)
 				if ok && file.UUID != "" {
 					templateData.Files = append(templateData.Files, file)
@@ -429,7 +441,7 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// set navbarfocus based on if viewed user IS the session user
-			if vars["username"] == sessionUserResponse.user.Username {
+			if vars["username"] == sessionUser.Username {
 				templateData.NavbarFocus = "user"
 			}
 			templateData.FilesHTML = s.completeTemplate(filesHTMLTarget, templateData)
@@ -453,9 +465,9 @@ func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			case "favourite":
 				state, _ := strconv.ParseBool(r.Form.Get("state"))
 
-				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "setFavourite", userIdentifier: sessionUserResponse.user.Username, fileUUID: r.Form.Get("fileUUID"), state: state})
-				if userResponse.err != nil {
-					s.respond(w, userResponse.err)
+				err := s.userDB.setFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state)
+				if err != nil {
+					s.respond(w, err)
 					return
 				}
 
@@ -607,8 +619,12 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			switch r.Form.Get("format") {
 			case "html":
 				// get user
-				userResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: file.UploaderUsername})
-				isFavourite := userResponse.user.FavouriteFileUUIDs[file.UUID]
+				user, err := s.userDB.getUserByUsername(file.UploaderUsername)
+				if err != nil {
+					s.respond(w, "error finding corresponding user")
+					return
+				}
+				isFavourite := user.FavouriteFileUUIDs[file.UUID]
 
 				templateData := struct {
 					File
@@ -616,7 +632,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 					IsFavourite bool
 				}{
 					file,
-					userResponse.user,
+					user,
 					isFavourite,
 				}
 
@@ -635,8 +651,12 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		// get specific user from DB
 		case "user":
 			// fetch file from DB
-			response := s.userDB.performAccessRequest(UserAccessRequest{operation: "getUserByUsername", userIdentifier: targetUUID})
-			if response.user.Username == "" {
+			user, err := s.userDB.getUserByUsername(targetUUID)
+			if err != nil {
+				s.respond(w, "error finding corresponding user")
+				return
+			}
+			if user.Username == "" {
 				s.respond(w, "no_UUID_match")
 				return
 			}
@@ -645,11 +665,11 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			case "html":
 				s.respond(w, "html_not_supported")
 			case "json_pretty":
-				s.respond(w, ToJSON(response.user, true))
+				s.respond(w, ToJSON(user, true))
 			case "json":
 				fallthrough
 			default:
-				s.respond(w, ToJSON(response.user, false))
+				s.respond(w, ToJSON(user, false))
 			}
 
 		default:
@@ -661,9 +681,9 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 // Process HTTP view files request.
 func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
-	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
-	if sessionUserResponse.err != nil {
-		Critical.Log(sessionUserResponse.err)
+	sessionUser, err := s.userDB.getSessionUser(r)
+	if err != nil {
+		Critical.Log(err)
 		s.respond(w, "error")
 		return
 	}
@@ -682,7 +702,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 		}{
 			"Memories",
 			config.Get("brand_name"),
-			sessionUserResponse.user,
+			sessionUser,
 			"",
 			"search",
 			"",
@@ -701,9 +721,9 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 // Process HTTP file upload request.
 func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
-	sessionUserResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "getSessionUser", w: w, r: r})
-	if sessionUserResponse.err != nil {
-		Critical.Log(sessionUserResponse.err.Error())
+	sessionUser, err := s.userDB.getSessionUser(r)
+	if err != nil {
+		Critical.Log(err)
 		s.respond(w, "error")
 		return
 	}
@@ -727,7 +747,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}{
 			"Upload",
 			config.Get("brand_name"),
-			sessionUserResponse.user,
+			sessionUser,
 			"",
 			"upload",
 			"",
@@ -738,7 +758,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// get all uploaded/temp files for session user
-		files := s.fileDB.getFilesByUser(sessionUserResponse.user.Username, UPLOADED)
+		files := s.fileDB.getFilesByUser(sessionUser.Username, UPLOADED)
 
 		// generate upload description forms for each unpublished image
 		for _, f := range files {
@@ -773,7 +793,7 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// move form file to temp dir
-			uploadedFile, err := s.fileDB.uploadFile(r, sessionUserResponse.user)
+			uploadedFile, err := s.fileDB.uploadFile(r, sessionUser)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				s.respond(w, err)
@@ -851,8 +871,13 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Write a HTTP response to connection.
+// Write a HTTP response to a ResponseWriter with a status code of 200.
 func (s *HTTPServer) respond(w http.ResponseWriter, response interface{}) {
+	s.respondStatus(w, response, http.StatusOK)
+}
+
+// Write a HTTP response to a ResponseWriter with a specific status code.
+func (s *HTTPServer) respondStatus(w http.ResponseWriter, response interface{}, statusCode int) {
 	// type cast response into string
 	switch response.(type) {
 	case template.HTML:
@@ -860,8 +885,9 @@ func (s *HTTPServer) respond(w http.ResponseWriter, response interface{}) {
 	case []byte:
 		response = string(response.([]byte))
 	}
-
 	Output.Log(response)
+
+	w.WriteHeader(statusCode)
 
 	// write response
 	if _, err := fmt.Fprint(w, response); err != nil {

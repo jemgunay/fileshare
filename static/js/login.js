@@ -7,9 +7,9 @@ $(document).ready(function() {
         $("#login-form").submit(function(e) {
             e.preventDefault();
 
-            var data = $(this).serialize();
-
             setButtonProcessing($("#login-btn"), true);
+
+            var data = $(this).serialize();
 
             performRequest(hostname + "/login", "post", data, function(result) {
                 result = result.trim();
@@ -35,12 +35,13 @@ $(document).ready(function() {
     else if (window.location.pathname === "/reset") {
         setButtonProcessing($("#reset-btn"), false);
 
+        // reset form submit
         $("#reset-form").submit(function (e) {
             e.preventDefault();
 
-            var data = $(this).serialize();
-
             setButtonProcessing($("#reset-btn"), true);
+
+            var data = $(this).serialize();
 
             performRequest(hostname + "/reset/request", "post", data, function(result) {
                 result = result.trim();
