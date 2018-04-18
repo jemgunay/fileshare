@@ -15,14 +15,21 @@ import (
 )
 
 const (
+	// IMAGE represents an image media file type.
 	IMAGE       = "image"
+	// VIDEO represents an video media file type.
 	VIDEO       = "video"
+	// AUDIO represents an audio media file type.
 	AUDIO       = "audio"
+	// TEXT represents an text media file type.
 	TEXT        = "text"
+	// OTHER represents any other supported media file type.
 	OTHER       = "other" // zip/rar
+	// UNSUPPORTED represents an unsupported media file type.
 	UNSUPPORTED = "unsupported"
 )
 
+// MetaData contains memory orientated data associated with a File.
 type MetaData struct {
 	Description string
 	MediaType   string
@@ -30,16 +37,21 @@ type MetaData struct {
 	People      []string
 }
 
-// State of a file.
+// State represents a file's state.
 type State int
 
 const (
+	// UPLOADED represents a File which has been privately uploaded but not published.
 	UPLOADED State = iota
+	// PUBLISHED represents a File which has been published and is publicly viewable by any logged in users. Published
+	// Files will have a corresponding Transaction.
 	PUBLISHED
+	// DELETED represents a published File which has been marked as deleted and which is no longer visible to users.
+	// There will be another Transaction corresponding with the deletion.
 	DELETED
 )
 
-// Represents a file's details and its state.
+// File contains details about a media file and its corresponding memory metadata.
 type File struct {
 	Name               string
 	Extension          string
@@ -53,7 +65,7 @@ type File struct {
 	MetaData
 }
 
-// Get full absolute path to file.
+// AbsolutePath determines the full absolute path to file.
 func (f *File) AbsolutePath() string {
 	if f.State == UPLOADED {
 		return config.RootPath + "/db/temp/" + f.UploaderUsername + "/" + f.UUID + "." + f.Extension
@@ -61,16 +73,17 @@ func (f *File) AbsolutePath() string {
 	return config.RootPath + "/static/content/" + f.UUID + "." + f.Extension
 }
 
-// The operation a transaction performed.
+// TransactionType the type of memory transformation operation documented.
 type TransactionType int
 
 const (
 	CREATE TransactionType = iota
 	EDIT
 	DELETE
+	MERGE
 )
 
-// An immutable record of a successful DB changing request.
+// Transaction is an immutable record of a successful FileDB transforming request.
 type Transaction struct {
 	UUID              string
 	TargetFileUUID    string
@@ -79,11 +92,13 @@ type Transaction struct {
 	Version           string
 }
 
+// TransactionMutex wraps all Transformations to allow permit concurrent access.
 type TransactionMutex struct {
 	Transactions []Transaction
 	mu           sync.Mutex
 }
 
+// Create creates a new Transaction and adds it to the Transactions list.
 func (tm *TransactionMutex) Create(transactionType TransactionType, fileUUID string) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -97,18 +112,21 @@ func (tm *TransactionMutex) Create(transactionType TransactionType, fileUUID str
 	tm.Transactions = append(tm.Transactions, newTransaction)
 }
 
+// FileMapMutex wraps all Files to permit safe concurrent access.
 type FileMapMutex struct {
 	Files map[string]File
 	mu    sync.Mutex
 	name  string
 }
 
+// Set creates or updates a File in a FileDB.
 func (fm *FileMapMutex) Set(UUID string, file File) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	fm.Files[UUID] = file
 }
 
+// Get attempts to retrieve a File from a FileDB.
 func (fm *FileMapMutex) Get(UUID string) (file File, ok bool) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
@@ -116,28 +134,36 @@ func (fm *FileMapMutex) Get(UUID string) (file File, ok bool) {
 	return
 }
 
+// Count returns the number of Files in a FileDB.
 func (fm *FileMapMutex) Count() (size int) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	return len(fm.Files)
 }
 
+// Delete removes a File from a FileDB.
 func (fm *FileMapMutex) Delete(UUID string) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	delete(fm.Files, UUID)
 }
 
+// FileMapDB is a File container, where the map key is the file UUID.
 type FileMapDB map[string]File
+
+// FileMapFunc is used to pass functions and a FileDB identifier string to PerformFunc which allows concurrency safe
+// FileDB access.
 type FileMapFunc func(FileMapDB, string) interface{}
 
+// PerformFunc executes the FileMapFunc, wrapping it in a Mutex lock to serialise access. This is used for more complex
+// operations where many locking and unlocking operations would have been required otherwise.
 func (fm *FileMapMutex) PerformFunc(fileMapFunc FileMapFunc) interface{} {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	return fileMapFunc(fm.Files, fm.name)
 }
 
-// The DB where files are stored.
+// FileDB is the database where uploaded files, published files and all file related transactions are stored.
 type FileDB struct {
 	// file UUID key, File object value
 	Published        FileMapMutex     // viewable by all users
@@ -148,19 +174,22 @@ type FileDB struct {
 	file string
 }
 
+// LockAll locks all child Mutexes on the FileDB. Used when serializing the entire FileDB to file.
 func (db *FileDB) LockAll() {
 	db.Uploaded.mu.Lock()
 	db.Published.mu.Lock()
 	db.FileTransactions.mu.Lock()
 }
 
+// UnlockAll unlocks all child Mutexes on the FileDB.
 func (db *FileDB) UnlockAll() {
 	db.Uploaded.mu.Unlock()
 	db.Published.mu.Unlock()
 	db.FileTransactions.mu.Unlock()
 }
 
-// Initialise FileDB by populating from gob file.
+// NewFileDB initialises the FileDB containers and populates them with data from the stored file if possible. Otherwise,
+// a new file is created containing the serialized empty FileDB.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	// check db/temp & static/content directories exists
 	if err = EnsureDirExists(dbDir+"/temp/", config.RootPath+"/static/content/"); err != nil {
@@ -175,20 +204,22 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 		dir:              dbDir,
 		file:             dbDir + "/file_db.dat",
 	}
-	err = fileDB.deserializeFromFile()
 
+	// store to file
+	err = fileDB.deserializeFromFile()
 	return
 }
 
-// Structure for passing request and response data between poller.
+// FileSearchResult is a structure for returning File search results from FileDB.search.
 type FileSearchResult struct {
 	ResultCount int    `json:"result_count"`
 	TotalCount  int    `json:"total_count"`
 	Files       []File `json:"memories"`
-	state       string `json:"-"`
+	state       string
 }
 
-// Upload file to temp dir in a subdir named as the UUID of the session user.
+// uploadFile handler the uploading of files to the temp dir in a subdir named after the username of the session user.
+// These files have not yet been published and will only be viewable by the uploader below the upload form.
 func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err error) {
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
@@ -293,7 +324,8 @@ func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err 
 	return newTempFile, nil
 }
 
-// Add a file to the DB.
+// publishFile publishes the file, making it visible to all logged in users. User input Metadata is also added to the
+// file here and the original temp file will be deleted.
 func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	// append new details to file object
 	uploadedFile, ok := db.Uploaded.Get(fileUUID)
@@ -327,7 +359,7 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 	return nil
 }
 
-// Get specific DB related metadata.
+// getMetaData returns a specified type of DB related metadata.
 func (db *FileDB) getMetaData(target string) (result []string) {
 	// min/max dates data request
 	if target == "dates" {
@@ -373,7 +405,7 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 	return
 }
 
-// Mark a file in the DB for deletion, or delete the actual local copy of the file and remove reference from DB in order to redownload.
+// deleteFile marks a published file in the DB as deleted, or deletes an actual temp uploaded file.
 func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	// check if file exists in either published or temp/uploaded DB
 	file, ok := db.Uploaded.Get(fileUUID)
@@ -406,7 +438,7 @@ func (db *FileDB) deleteFile(fileUUID string) (err error) {
 	return nil
 }
 
-// Sort a list of Files by date.
+// SortFilesByDate sorts a list of Files by date.
 func SortFilesByDate(files []File) []File {
 	sort.Slice(files, func(i, j int) bool {
 		if files[i].State == UPLOADED {
@@ -417,7 +449,7 @@ func SortFilesByDate(files []File) []File {
 	return files
 }
 
-// Search the DB for Files which match the provided criteria.
+// search searches the DB for Files which match the specified criteria.
 func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	files := db.toSlice()
 	var filterResults, searchResults []File
@@ -554,7 +586,7 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: totalCount, state: state}
 }
 
-// Get all files corresponding to User UUID.
+// getFilesByUser retrieves all uploaded or published files corresponding to a User's username.
 func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
 	filesByUser := func(m FileMapDB, mapName string) interface{} {
 		for _, file := range m {
@@ -578,7 +610,7 @@ func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
 	return SortFilesByDate(files)
 }
 
-// Get a random file.
+// getRandomFile returns a randomly selected file.
 func (db *FileDB) getRandomFile() (File, error) {
 	UUIDs := db.getUUIDs()
 
@@ -587,7 +619,7 @@ func (db *FileDB) getRandomFile() (File, error) {
 	}
 
 	// pick random from slice
-	randomUUID := UUIDs[randomInt(0, len(UUIDs))]
+	randomUUID := UUIDs[RandomInt(0, len(UUIDs))]
 	file, ok := db.Published.Get(randomUUID)
 	if !ok {
 		return File{}, fmt.Errorf("error")
@@ -596,6 +628,7 @@ func (db *FileDB) getRandomFile() (File, error) {
 	return file, nil
 }
 
+// getUUIDs gets all File UUIDs stored in the FileDB.
 func (db *FileDB) getUUIDs() []string {
 	getUUIDs := func(m FileMapDB, mapName string) interface{} {
 		UUIDs := make([]string, len(m))
@@ -610,7 +643,7 @@ func (db *FileDB) getUUIDs() []string {
 	return db.Published.PerformFunc(getUUIDs).([]string)
 }
 
-// Generate slice representation of file Published map.
+// toSlice generates slice representations of the published file map.
 func (db *FileDB) toSlice() []File {
 	// generate slice from Published map
 	publishedToSlice := func(m FileMapDB, mapName string) interface{} {
@@ -628,7 +661,7 @@ func (db *FileDB) toSlice() []File {
 	return db.Published.PerformFunc(publishedToSlice).([]File)
 }
 
-// Serialize store map & transactions slice to a specified file.
+// serializeToFile serializes the entire FileDB to a file on disk via gob.
 func (db *FileDB) serializeToFile() (err error) {
 	db.LockAll()
 	defer db.UnlockAll()
@@ -636,8 +669,8 @@ func (db *FileDB) serializeToFile() (err error) {
 	// create/truncate file for writing to
 	file, err := os.Create(db.file)
 	if err != nil {
-		return err
 		Critical.Log(err)
+		return err
 	}
 	defer file.Close()
 
@@ -653,7 +686,7 @@ func (db *FileDB) serializeToFile() (err error) {
 	return nil
 }
 
-// Deserialize from a specified file to the store map, overwriting current map values.
+// deserializeFromFile deserializes a file to the FileDB structure, overwriting current map values.
 func (db *FileDB) deserializeFromFile() (err error) {
 	db.LockAll()
 
@@ -683,7 +716,7 @@ func (db *FileDB) deserializeFromFile() (err error) {
 	return nil
 }
 
-// Delete DB files and reset File DB.
+// reset deletes all DB files and resets the FileDB.
 func (db *FileDB) reset() (err error) {
 	db.LockAll()
 	defer db.UnlockAll()

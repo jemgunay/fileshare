@@ -42,7 +42,7 @@ func main() {
 	}
 
 	// init servers
-	err, httpServer := memoryshare.NewServerBase(&config)
+	err, server := memoryshare.NewServer(&config)
 	if err != nil {
 		return
 	}
@@ -55,7 +55,7 @@ func main() {
 			switch input {
 			// terminate
 			case "exit":
-				httpServer.Stop()
+				server.Stop()
 				return
 			default:
 				memoryshare.Info.Log("Unsupported command.\n")

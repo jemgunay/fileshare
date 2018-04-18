@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// Get a filtered JSON representation of the File properties.
+// ToJSON returns a JSON representation of any object with the option to pretty print the result.
 func ToJSON(obj interface{}, pretty bool) string {
 	// jsonify
 	jsonBuffer := &bytes.Buffer{}
@@ -44,7 +44,7 @@ func ToJSON(obj interface{}, pretty bool) string {
 	return string(jsonBuffer.Bytes())
 }
 
-// Delete all files in a directory.
+// RemoveDirContents deletes all files in a directory.
 func RemoveDirContents(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
@@ -64,7 +64,8 @@ func RemoveDirContents(dir string) error {
 	return nil
 }
 
-// Split string into list by delimiter, trim white space & remove duplicates.
+// ProcessInputList splits a string into a list by a delimiter, trims white space, removes duplicates & changes the
+// case to lower. Useful for validating search & upload tokenfield tags.
 func ProcessInputList(list string, delimiter string, toLowerCase bool) (separated []string) {
 	uniqueItems := make(map[string]bool)
 	for _, item := range strings.Split(list, delimiter) {
@@ -85,7 +86,7 @@ func ProcessInputList(list string, delimiter string, toLowerCase bool) (separate
 	return
 }
 
-// Convert unix epoch timestamp to YYYY-MM-DD format (trim anything smaller).
+// TrimUnixEpoch converts a unix epoch timestamp to YYYY-MM-DD format (trims anything smaller).
 func TrimUnixEpoch(epoch int64, nano bool) time.Time {
 	var nanoEpoch int64
 	if nano {
@@ -101,7 +102,7 @@ func TrimUnixEpoch(epoch int64, nano bool) time.Time {
 	return timeParsed
 }
 
-// Check whether the given file/dir exists or not.
+// FileOrDirExists checks whether the given file or directory exists or not.
 func FileOrDirExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -113,7 +114,7 @@ func FileOrDirExists(path string) (bool, error) {
 	return true, err
 }
 
-// If a directory does not exist, create it.
+// EnsureDirExists creates a directory if it does not exist.
 func EnsureDirExists(paths ...string) error {
 	for _, path := range paths {
 		result, err := FileOrDirExists(path)
@@ -131,7 +132,7 @@ func EnsureDirExists(paths ...string) error {
 	return nil
 }
 
-// Move a file to a new location (works across drives, unlike os.Rename).
+// MoveFile moves a file to a new location (works across different drives, unlike os.Rename).
 func MoveFile(src, dst string) error {
 	// copy
 	err := CopyFile(src, dst)
@@ -143,7 +144,7 @@ func MoveFile(src, dst string) error {
 	return os.Remove(src)
 }
 
-// Copy a file to a new location (works across drives, unlike os.Rename).
+// CopyFile copies a file to a new location (works across drives, unlike os.Rename).
 func CopyFile(src, dst string) error {
 	// open src file
 	in, err := os.Open(src)
@@ -167,12 +168,12 @@ func CopyFile(src, dst string) error {
 	return nil
 }
 
-// Generate new UUID.
+// NewUUID generates a new Universally Unique Identifier (UUID).
 func NewUUID() (UUID string) {
 	return uuid.NewV4().String()
 }
 
-// Split file name into name & extension components.
+// SplitFileName splits a file name into its name & extension components.
 func SplitFileName(file string) (name, extension string) {
 	components := strings.Split(file, ".")
 	if len(components) < 2 {
@@ -184,7 +185,7 @@ func SplitFileName(file string) (name, extension string) {
 	return
 }
 
-// Generate hash of file contents.
+// GenerateFileHash generates the hash of a file's contents.
 func GenerateFileHash(file string) (hash string, err error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -199,7 +200,7 @@ func GenerateFileHash(file string) (hash string, err error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// Format bytes to human readable representation.
+// FormatByteCount formats bytes to a human readable representation.
 func FormatByteCount(bytes int64, si bool) string {
 	unit := 1000
 	pre := "kMGTPE"
@@ -225,7 +226,7 @@ func FormatByteCount(bytes int64, si bool) string {
 	return fmt.Sprintf("%.1f %sB", result, pre)
 }
 
-// Read either plaintext or password from Stdin.
+// ReadStdin reads either visible plaintext or hidden password from Stdin.
 func ReadStdin(message string, isPassword bool) (response string, err error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf(message)
@@ -247,8 +248,8 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 	return strings.TrimSpace(input), err
 }
 
-// Get a random int within the specified range.
-func randomInt(min int, max int) int {
+// RandomInt returns a random int within the specified range.
+func RandomInt(min int, max int) int {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min) + min
 }

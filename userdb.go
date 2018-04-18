@@ -17,28 +17,37 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// The operation a transaction performed.
+// AccountState represents the registration state of a User account.
 type AccountState int
 
 const (
-	UNREGISTERED    AccountState = iota // waiting for both admin confirmation & user email confirmation
-	ADMIN_CONFIRMED                     // waiting for email confirmation
-	EMAIL_CONFIRMED                     // waiting for admin to confirm user
+	// UNREGISTERED represents an account waiting for both admin confirmation & user email confirmation.
+	UNREGISTERED AccountState = iota
+	// ADMIN_CONFIRMED represents an account waiting for user email confirmation only.
+	ADMIN_CONFIRMED
+	// EMAIL_CONFIRMED represents an account waiting for admin confirmation only.
+	EMAIL_CONFIRMED
+	// COMPLETE represents an account which has completed the registration process.
 	COMPLETE
+	// BLOCKED represents an account which has been blocked from logging in.
 	BLOCKED
 )
 
-// Determines the permissions owned by a user.
+// UserType represents the permissions owned by a user.
 type UserType int
 
 const (
+	// STANDARD accounts can perform standard actions.
 	STANDARD    UserType = iota
-	ADMIN                // can add/block users, can make others admin
-	SUPER_ADMIN          // cannot be removed, can change user details (such as admin privs, but not on self), can complete file edit/delete requests
-	GUEST                // can view/search files only, cannot upload
+	// ADMIN accounts can add/block users and can make others admin.
+	ADMIN
+	// SUPER_ADMIN accounts cannot be removed, can change user details (such as admin privs, but not on self) and can complete file edit/delete requests.
+	SUPER_ADMIN
+	// GUEST accounts can view/search files only and cannot upload.
+	GUEST
 )
 
-// A user account.
+// User represents a user account.
 type User struct {
 	Username           string // generally found in URLs
 	Email              string
@@ -53,17 +62,20 @@ type User struct {
 	AccountState
 }
 
+// UserMapMutex wraps all Users to permit safe concurrent access.
 type UserMapMutex struct {
 	Users map[string]User
 	mu    sync.Mutex
 }
 
+// Set creates or updates a User in a UserDB.
 func (fm *UserMapMutex) Set(username string, user User) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	fm.Users[username] = user
 }
 
+// Get attempts to retrieve a User from a UserDB.
 func (fm *UserMapMutex) Get(username string) (user User, ok bool) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
@@ -71,21 +83,28 @@ func (fm *UserMapMutex) Get(username string) (user User, ok bool) {
 	return
 }
 
+// Count returns the number of Users in a UserDB.
 func (fm *UserMapMutex) Count() (size int) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	return len(fm.Users)
 }
 
+// Delete removes a User from a UserDB.
 func (fm *UserMapMutex) Delete(username string) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 	delete(fm.Users, username)
 }
 
+// UserMapDB is a User container, where the map key is the User's username.
 type UserMapDB map[string]User
+
+// UserMapFunc is used to pass functions to PerformFunc which allows concurrency safe UserDB access.
 type UserMapFunc func(UserMapDB) interface{}
 
+// PerformFunc executes the UserMapFunc, wrapping it in a Mutex lock to serialise access. This is used for more complex
+// operations where many locking and unlocking operations would have been required otherwise.
 func (fm *UserMapMutex) PerformFunc(userMapFunc UserMapFunc) interface{} {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()

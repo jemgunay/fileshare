@@ -20,14 +20,19 @@ import (
 
 var config *Config
 
-// A server providing file sharing and access related services.
-type ServerBase struct {
-	fileDB         *FileDB
-	startTimestamp int64
+// Server wraps both a HTTP server and the file & user databases.
+type Server struct {
+	startTimestamp    int64
+	server            *http.Server
+	host              string
+	port              int
+	fileDB            *FileDB
+	maxFileUploadSize int
+	userDB            *UserDB
 }
 
-// Initialise servers.
-func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
+// NewServer initialises the file & user databases, then launches the HTTP server.
+func NewServer(conf *Config) (err error, httpServer Server) {
 	config = conf
 
 	// create new file DB
@@ -51,14 +56,12 @@ func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
 	}
 
 	// start http server
-	httpServer = HTTPServer{
-		host: "localhost",
-		port: port,
-		ServerBase: ServerBase{
-			fileDB:         fileDB,
-			startTimestamp: time.Now().Unix(),
-		},
-		userDB: userDB,
+	httpServer = Server{
+		host:           "localhost",
+		port:           port,
+		fileDB:         fileDB,
+		startTimestamp: time.Now().Unix(),
+		userDB:         userDB,
 	}
 
 	// set host (allow_public_webapp)
@@ -79,17 +82,8 @@ func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
 	return
 }
 
-type HTTPServer struct {
-	host string
-	port int
-	ServerBase
-	server            *http.Server
-	userDB            *UserDB
-	maxFileUploadSize int
-}
-
-// Start listening for HTTP requests.
-func (s *HTTPServer) Start() {
+// Start starts listening for HTTP requests.
+func (s *Server) Start() {
 	// define HTTP routes
 	router := mux.NewRouter()
 
@@ -136,7 +130,7 @@ func (s *HTTPServer) Start() {
 }
 
 // Request handler wrapper for auth.
-func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
+func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		Incoming.Logf("%v -> %v [%v]", r.Host, r.URL, r.Method)
 
@@ -198,14 +192,14 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 }
 
 // File server auth wrapper.
-func (s *HTTPServer) fileServerAuthHandler(h http.Handler) http.Handler {
+func (s *Server) fileServerAuthHandler(h http.Handler) http.Handler {
 	return s.authHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r)
 	}))
 }
 
 // Handle user password reset request.
-func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch login form
 	case http.MethodGet:
@@ -234,21 +228,6 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		fmt.Println(vars)
 
-		s.respond(w, "not yet implemented")
-		return
-
-		/*response := s.userDB.performAccessRequest(UserAccessRequest{operation: "resetPassword", writerIn: w, reqIn: r})
-		ok, err := response.success, response.err*/
-
-		/*switch {
-		case err != nil:
-			s.respond(w, "error", 2)
-		case ok == false:
-			s.respond(w, "unauthorised", 3)
-		case ok:
-			s.respond(w, "success", 3)
-		}*/
-
 		// email new randomly generated temp password
 		msgBody := "This is your new temporary password: 'new password here'. Use it to log in and change your password. It will expire in 30 minutes."
 
@@ -258,29 +237,33 @@ func (s *HTTPServer) resetHandler(w http.ResponseWriter, r *http.Request) {
 		msg.SetHeader("Subject", config.Get("brand_name")+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
-		/*port, err := strconv.Atoi(config.Get("core_email_port"))
+		/**/ /*port, err := strconv.Atoi(config.Get("core_email_port"))
 		if err != nil {
 			s.respond(w, "error", 2)
 			return
-		}*/
+		}*/ /*
 
-		//d := gomail.NewDialer(config.Get("core_email_server"), port, config.Get("core_email_addr"), config.Get("core_email_password"))
+			//d := gomail.NewDialer(config.Get("core_email_server"), port, config.Get("core_email_addr"), config.Get("core_email_password"))
 
-		d := gomail.NewDialer("smtp.gmail.com", 465, config.Get("core_email_addr"), config.Get("core_email_password"))
+			d := gomail.NewDialer("smtp.gmail.com", 465, config.Get("core_email_addr"), config.Get("core_email_password"))
 
-		// Send the email to Bob, Cora and Dan.
-		if err := d.DialAndSend(msg); err != nil {
-			log.Println(err)
-			s.respond(w, "error")
-			return
-		}
+			// sent email
+			if err := d.DialAndSend(msg); err != nil {
+				log.Println(err)
+				s.respond(w, "error")
+				return
+			}
 
-		s.respond(w, "success")
+			s.respond(w, "success")*/
+
+		s.respond(w, "not yet implemented")
+		return
+
 	}
 }
 
 // Handle login.
-func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch login form
 	case http.MethodGet:
@@ -319,7 +302,7 @@ func (s *HTTPServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handle logout.
-func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	if err := s.userDB.logoutUser(w, r); err != nil {
 		s.respond(w, "error")
 		return
@@ -328,7 +311,7 @@ func (s *HTTPServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Process HTTP view users request.
-func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUser, err := s.userDB.getSessionUser(r)
 	if err != nil {
@@ -370,7 +353,7 @@ func (s *HTTPServer) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Process a single user request.
-func (s *HTTPServer) manageUserHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
@@ -499,7 +482,7 @@ type SearchRequest struct {
 
 // Search files by their properties.
 // URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html_tiled/html_detailed), pretty, results_per_page(0=all)]
-func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// construct search query from url params
 	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
@@ -559,7 +542,7 @@ func (s *HTTPServer) searchMemoriesHandler(w http.ResponseWriter, r *http.Reques
 
 // Get specific JSON data such as all tags & people.
 // URL params (data is returned for metadata types included in the fetch param): ?fetch=tags,people,file_types,dates
-func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// get groups of meta data
 	case http.MethodGet:
@@ -679,7 +662,7 @@ func (s *HTTPServer) getDataHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Process HTTP view files request.
-func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUser, err := s.userDB.getSessionUser(r)
 	if err != nil {
@@ -719,7 +702,7 @@ func (s *HTTPServer) viewMemoriesHandler(w http.ResponseWriter, r *http.Request)
 }
 
 // Process HTTP file upload request.
-func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUser, err := s.userDB.getSessionUser(r)
 	if err != nil {
@@ -872,12 +855,12 @@ func (s *HTTPServer) uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Write a HTTP response to a ResponseWriter with a status code of 200.
-func (s *HTTPServer) respond(w http.ResponseWriter, response interface{}) {
+func (s *Server) respond(w http.ResponseWriter, response interface{}) {
 	s.respondStatus(w, response, http.StatusOK)
 }
 
 // Write a HTTP response to a ResponseWriter with a specific status code.
-func (s *HTTPServer) respondStatus(w http.ResponseWriter, response interface{}, statusCode int) {
+func (s *Server) respondStatus(w http.ResponseWriter, response interface{}, statusCode int) {
 	// type cast response into string
 	switch response.(type) {
 	case template.HTML:
@@ -896,7 +879,7 @@ func (s *HTTPServer) respondStatus(w http.ResponseWriter, response interface{}, 
 }
 
 // Replace variables in HTML templates with corresponding values in TemplateData.
-func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result template.HTML) {
+func (s *Server) completeTemplate(filePath string, data interface{}) (result template.HTML) {
 	filePath = config.RootPath + filePath
 
 	// load HTML template from disk
@@ -934,9 +917,11 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 }
 
 // Gracefully stop the server and save DB to file.
-func (s *HTTPServer) Stop() {
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+func (s *Server) Stop() context.CancelFunc {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := s.server.Shutdown(ctx); err != nil {
 		Info.Log(err)
 	}
+
+	return cancel
 }

@@ -20,11 +20,11 @@ var (
 	Creation = logger.NewLogger(os.Stdout, "CREATED", false)
 	// Output is a noisy logger for HTTP response.
 	Output = logger.NewLogger(os.Stdout, "OUTPUT", false)
-	// Incoming
+	// Incoming is a logger for all incoming requests.
 	Incoming = logger.NewLogger(os.Stdout, "INCOMING", false)
 )
 
-// Index represents the line in the config file, val is the param value.
+// ConfigSet represents the line in the config file, val is the param value.
 type ConfigSet struct {
 	index int
 	val   string
