@@ -54,7 +54,7 @@ func NewServerBase(conf *Config) (err error, httpServer HTTPServer) {
 	if httpServer.port, err = config.GetInt("http_port"); err != nil {
 		Critical.Logf("Server error: %v", "invalid port value found in config file - using default")
 	}
-	// set maxFileUploadSize (default maxFileUploadSize of 50MB)
+	// set maxFileUploadSize (default 50MB)
 	if httpServer.maxFileUploadSize, err = config.GetInt("max_file_upload_size"); err != nil {
 		httpServer.maxFileUploadSize = 50
 	}
@@ -124,6 +124,8 @@ func (s *HTTPServer) Start() {
 // Request handler wrapper for auth.
 func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		Incoming.Logf("%v -> %v [%v]", r.Host, r.URL, r.Method)
+
 		// authenticate
 		authResponse := s.userDB.performAccessRequest(UserAccessRequest{operation: "authenticateUser", w: w, r: r})
 
@@ -165,7 +167,7 @@ func (s *HTTPServer) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// if auth failed (error or wrong password)
 		if authResponse.err != nil || authResponse.success == false {
 			if authResponse.err != nil {
-				log.Println(authResponse.err)
+				Input.Log(authResponse.err)
 			}
 
 			if r.Method == http.MethodGet {
@@ -909,6 +911,6 @@ func (s *HTTPServer) completeTemplate(filePath string, data interface{}) (result
 func (s *HTTPServer) Stop() {
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := s.server.Shutdown(ctx); err != nil {
-		log.Println(err)
+		Info.Log(err)
 	}
 }

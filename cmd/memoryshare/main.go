@@ -16,11 +16,12 @@ import (
 func main() {
 	var config memoryshare.Config
 
-	verbosity := flag.Int("verbosity", 0, "1=INPUT+CREATION, 2=OUTPUT")
+	debug := flag.Int("debug", 0, "1=INCOMING/INPUT/CREATION, 2=OUTPUT")
 	flag.Parse()
 
-	switch *verbosity {
+	switch *debug {
 	case 1:
+		memoryshare.Incoming.Enable()
 		memoryshare.Input.Enable()
 		memoryshare.Creation.Enable()
 	case 2:

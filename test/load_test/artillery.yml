@@ -1,0 +1,54 @@
+# artillery.io
+config:
+  target: "http://localhost:8000"
+  http:
+      # seconds
+      timeout: 10
+  phases:
+      # 50 users every sec for 30 secs
+    - duration: 30
+      arrivalRate: 50
+      # 50 users ramped up to 1000 users every sec for 60 secs
+    - duration: 60
+      arrivalRate: 50
+      rampTo: 1000
+  variables:
+        formats:
+          - "html"
+          - "json"
+          - "json_pretty"
+        cookie:
+          - "MTUyMzk4MTMyNnxEdi1CQkFFQ180SUFBUkFCRUFBQVZQLUNBQUlHYzNSeWFXNW5EQThBRFdGMWRHaGxiblJwWTJGMFpXUUVZbTl2YkFJQ0FBRUdjM1J5YVc1bkRBY0FCV1Z0WVdsc0JuTjBjbWx1Wnd3V0FCUnFaVzFuZFc1aGVVQjVZV2h2Ynk1amJ5NTFhdz09fAHpiBlG-lz1cG79Da8tDV4z0XsguxxX8QXvMwX-Kx2V"
+  payload:
+    path: "test_data.csv"
+    fields:
+      - "memories"
+
+scenarios:
+  - name: "Browsing User"
+    flow:
+    - get:
+        url: "/"
+        cookie:
+          memory-share: "{{ cookie }}"
+    - get:
+        url: "/search"
+        cookie:
+          memory-share: "{{ cookie }}"
+    - get:
+        url: "/data?fetch=tags,people,file_types,dates"
+        cookie:
+          memory-share: "{{ cookie }}"
+    - get:
+        url: "/users"
+        cookie:
+          memory-share: "{{ cookie }}"
+    - post:
+        url: "/data"
+        json:
+          type: "file"
+          UUID: "{{ memories }}"
+          format: "{{ formats }}"
+        cookie:
+          memory-share: "{{ cookie }}"
+
