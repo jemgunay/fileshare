@@ -1,9 +1,8 @@
-// Package cmd launches a memoryshare service instance.
+// Launches a memoryshare service instance.
 package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,41 +13,31 @@ import (
 )
 
 func main() {
-	var config memoryshare.Config
-
-	debug := flag.Int("debug", 0, "1=INCOMING/INPUT/CREATION, 2=OUTPUT")
-	flag.Parse()
-
-	switch *debug {
-	case 1:
-		memoryshare.Incoming.Enable()
-		memoryshare.Input.Enable()
-		memoryshare.Creation.Enable()
-	case 2:
-		memoryshare.Output.Enable()
-	}
-
-	// load system config
+	// get absolute path to project base directory
 	executable, err := os.Executable()
 	if err != nil {
-		fmt.Printf("Unable to determine working directory.\n")
+		memoryshare.Critical.Logf("Unable to determine working directory: %v", err)
 		return
 	}
 	rootPath := filepath.Dir(executable + "/../../../")
-	config.LoadConfig(rootPath)
 
-	if err = config.SaveConfig(); err != nil {
-		memoryshare.Critical.Log(err)
+	// create service config
+	config, err := memoryshare.NewConfig(rootPath)
+	if err != nil {
+		memoryshare.Critical.Logf("Unable to parse config: %v", err)
+		return
 	}
 
-	// init servers
-	err, server := memoryshare.NewServer(&config)
+	// launch servers
+	server, err := memoryshare.NewServer(config)
 	if err != nil {
+		memoryshare.Critical.Logf("Unable to launch server: %v", err)
 		return
 	}
 
 	// process command line input
-	if config.GetBool("enable_console_commands") {
+	var exit chan bool
+	if config.EnableConsoleCommands {
 		time.Sleep(time.Millisecond * 300)
 		for {
 			input := getConsoleInput("Enter command")
@@ -62,7 +51,6 @@ func main() {
 			}
 		}
 	} else {
-		var exit chan bool
 		<-exit
 	}
 }

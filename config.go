@@ -1,12 +1,11 @@
 package memoryshare
 
 import (
-	"bufio"
-	"github.com/jemgunay/logger"
-	"log"
+	"flag"
 	"os"
-	"strconv"
-	"strings"
+
+	"github.com/BurntSushi/toml"
+	"github.com/jemgunay/logger"
 )
 
 var (
@@ -16,171 +15,122 @@ var (
 	Critical = logger.NewLogger(os.Stdout, "CRITICAL", true)
 	// Input is a logger for non-critical errors caused by expected/acceptable invalid user input.
 	Input = logger.NewLogger(os.Stdout, "INPUT", false)
-	// Creation is a logger for user and file creation.
+	// Creation is a logger for User and File creation.
 	Creation = logger.NewLogger(os.Stdout, "CREATED", false)
 	// Output is a noisy logger for HTTP response.
 	Output = logger.NewLogger(os.Stdout, "OUTPUT", false)
 	// Incoming is a logger for all incoming requests.
 	Incoming = logger.NewLogger(os.Stdout, "INCOMING", false)
+	// Outgoing is a logger for all outgoing requests.
+	Outgoing = logger.NewLogger(os.Stdout, "OUTGOING", false)
 )
 
-// ConfigSet represents the line in the config file, val is the param value.
-type ConfigSet struct {
-	index int
-	val   string
-}
-
-// System settings (acquired from config file).
+// Config is a container for all service settings which are acquired from a TOML config file.
 type Config struct {
-	RootPath     string
-	file         string
-	params       map[string]ConfigSet
+	rootPath string
+	file     string
+
+	GeneralSettings `toml:"general_settings"`
+	ServerSettings  `toml:"server_settings"`
+	FileFormats     `toml:"file_formats"`
+}
+
+// GeneralSettings is a container for general service settings.
+type GeneralSettings struct {
+	Version               string `toml:"version"`
+	ServiceName           string `toml:"service_name"`
+	EnableConsoleCommands bool   `toml:"enable_console_commands"`
+}
+
+// ServerSettings is a container for HTTP server, mail and access settings.
+type ServerSettings struct {
+	HTTPPort int `toml:"http_port"`
+
+	EmailServer string `toml:"email_server"`
+	EmailPort   int    `toml:"email_port"`
+	EmailAddr   string `toml:"email_addr"`
+	EmailPass   string `toml:"email_pass"`
+
+	AllowPublicWebApp   bool `toml:"allow_public_web_app"`
+	ServePublicUpdates  bool `toml:"serve_public_updates"`
+	EnablePublicReads   bool `toml:"enable_public_reads"`
+	EnablePublicUploads bool `toml:"enable_public_uploads"`
+	MaxFileUploadSize   int  `toml:"max_file_upload_size"`
+}
+
+// FileFormats is a container for permitted file upload types.
+type FileFormats struct {
+	ImageFormats []string `toml:"image_formats"`
+	VideoFormats []string `toml:"video_formats"`
+	AudioFormats []string `toml:"audio_formats"`
+	TextFormats  []string `toml:"text_formats"`
+	OtherFormats []string `toml:"other_formats"`
 	fileFormats  map[string]string
-	indexCounter int
-	commentLines []ConfigSet
 }
 
-// Get the value associated with a config parameter.
-func (c *Config) Get(name string) string {
-	return c.params[name].val
-}
+// NewConfig initialises a new configuration for a memory service.
+func NewConfig(rootPath string) (conf *Config, err error) {
+	conf = new(Config)
+	conf.rootPath = rootPath
+	conf.file = conf.rootPath + "/config/settings.ini"
 
-// Get the value associated with a config parameter casted as a boolean.
-func (c *Config) GetBool(name string) bool {
-	return c.params[name].val == "true"
-}
+	debug := flag.Int("debug", 0, "1=INCOMING/INPUT/CREATION, 2=OUTPUT")
+	flag.Parse()
 
-// Get the value associated with a config parameter casted as a boolean.
-func (c *Config) GetInt(name string) (port int, err error) {
-	port, err = strconv.Atoi(c.params[name].val)
+	switch *debug {
+	case 1:
+		Incoming.Enable()
+		Outgoing.Enable()
+		Input.Enable()
+		Creation.Enable()
+	case 2:
+		Output.Enable()
+	}
+
+	// pull config from file
+	if err = conf.Load(); err != nil {
+		return
+	}
+	conf.CollateFileFormats()
+
+	Info.Logf("running version [%v]", conf.Version)
+
 	return
 }
 
-// Set the value associated with a config parameter.
-func (c *Config) set(name string, value string) {
-	oldConf := c.params[name]
-	oldConf.val = value
-	c.params[name] = oldConf
+// Load service config from file.
+func (c *Config) Load() (err error) {
+	// parse TOML config file
+	if _, err = toml.DecodeFile(c.file, &c); err != nil {
+		return
+	}
+
+	// process config values
+	c.MaxFileUploadSize *= 1024 * 1024
+
+	Input.Log(ToJSON(*c, true))
+	return
 }
 
-// Check if the value associated with a config parameter has been set.
-func (c *Config) IsDefined(name string) bool {
-	return c.params[name].val != ""
-}
-
-// Load server config from local file.
-func (c *Config) LoadConfig(RootPath string) (err error) {
-	c.RootPath = RootPath
-	c.file = c.RootPath + "/config/server.conf"
-	c.params = make(map[string]ConfigSet)
-
-	// open config file
-	file, err := os.Open(c.file)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer file.Close()
-
-	// read file by line
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// skip empty lines or # comments
-		if strings.TrimSpace(line) == "" {
-			c.commentLines = append(c.commentLines, ConfigSet{c.indexCounter, "\n"})
-			c.indexCounter++
-			continue
-		}
-		if []rune(line)[0] == '#' {
-			c.commentLines = append(c.commentLines, ConfigSet{c.indexCounter, line})
-			c.indexCounter++
-			continue
-		}
-		// check if param is valid
-		paramSplit := strings.Split(line, "=")
-		if len(paramSplit) < 2 {
-			continue
-		}
-		c.params[paramSplit[0]] = ConfigSet{c.indexCounter, line[len(paramSplit[0])+1:]}
-		c.indexCounter++
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-		return err
-	}
-
-	// set up media type pairings
+// CollateFileFormats collates all file types from config and constructs a map of format:type pairs.
+func (c *Config) CollateFileFormats() {
 	c.fileFormats = make(map[string]string)
-	c.fileFormats[IMAGE] = c.params["image_formats"].val
-	c.fileFormats[VIDEO] = c.params["video_formats"].val
-	c.fileFormats[AUDIO] = c.params["audio_formats"].val
-	c.fileFormats[TEXT] = c.params["text_formats"].val
-	c.fileFormats[OTHER] = c.params["other_formats"].val
 
-	Info.Logf("running version [%v]\n", c.params["version"].val)
+	formatMapping := []string{Image, Video, Audio, Text, Other}
+	formatTypes := [][]string{c.ImageFormats, c.VideoFormats, c.AudioFormats, c.TextFormats, c.OtherFormats}
+	for i, formatType := range formatTypes {
+		for _, format := range formatType {
+			c.fileFormats[format] = formatMapping[i]
+		}
+	}
 
-	return nil
 }
 
-// Set a param/value pair in config.
-func (c *Config) Set(param string, value string) {
-	c.params[param] = ConfigSet{c.indexCounter, value}
-	c.indexCounter++
-	c.SaveConfig()
-}
-
-// Get the media type grouping for the provided file extension.
+// CheckMediaType Get the media type grouping for the provided file extension.
 func (c *Config) CheckMediaType(fileExtension string) string {
-	// check for malicious commas before parsing
-	if strings.Contains(fileExtension, ",") {
-		return UNSUPPORTED
+	if mediaType, ok := c.fileFormats[fileExtension]; ok {
+		return mediaType
 	}
 
-	for mediaType, formats := range c.fileFormats {
-		if strings.Contains(formats, fileExtension) {
-			return mediaType
-		}
-	}
-	return UNSUPPORTED
-}
-
-// Save server config to local file.
-func (c *Config) SaveConfig() error {
-	type ConfigPairSet struct {
-		key string
-		val string
-	}
-	// order while mapping map to slice
-	confSlice := make([]ConfigPairSet, c.indexCounter)
-	for key, value := range c.params {
-		confSlice[value.index] = ConfigPairSet{key, value.val}
-	}
-	for _, value := range c.commentLines {
-		confSlice[value.index] = ConfigPairSet{"", value.val}
-	}
-
-	// slice to string
-	var configStr string
-	for _, value := range confSlice {
-		if value.key == "" {
-			configStr += value.val
-			if value.val != "\n" {
-				configStr += "\n"
-			}
-			continue
-		}
-		configStr += value.key + "=" + value.val + "\n"
-	}
-
-	// write to file
-	file, err := os.OpenFile(c.file, os.O_WRONLY|os.O_TRUNC, 0666)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(strings.TrimSpace(configStr))
-	return err
+	return Unsupported
 }

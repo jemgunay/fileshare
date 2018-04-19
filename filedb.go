@@ -15,18 +15,18 @@ import (
 )
 
 const (
-	// IMAGE represents an image media file type.
-	IMAGE       = "image"
-	// VIDEO represents an video media file type.
-	VIDEO       = "video"
-	// AUDIO represents an audio media file type.
-	AUDIO       = "audio"
-	// TEXT represents an text media file type.
-	TEXT        = "text"
-	// OTHER represents any other supported media file type.
-	OTHER       = "other" // zip/rar
-	// UNSUPPORTED represents an unsupported media file type.
-	UNSUPPORTED = "unsupported"
+	// Image represents an image media file type.
+	Image       = "image"
+	// Video represents an video media file type.
+	Video       = "video"
+	// Audio represents an audio media file type.
+	Audio       = "audio"
+	// Text represents an text media file type.
+	Text        = "text"
+	// Other represents any other supported media file type (i.e. zip or rar).
+	Other       = "other"
+	// Unsupported represents an unsupported media file type.
+	Unsupported = "unsupported"
 )
 
 // MetaData contains memory orientated data associated with a File.
@@ -41,14 +41,14 @@ type MetaData struct {
 type State int
 
 const (
-	// UPLOADED represents a File which has been privately uploaded but not published.
-	UPLOADED State = iota
-	// PUBLISHED represents a File which has been published and is publicly viewable by any logged in users. Published
+	// Uploaded represents a File which has been privately uploaded but not published.
+	Uploaded State = iota
+	// Published represents a File which has been published and is publicly viewable by any logged in users. Published
 	// Files will have a corresponding Transaction.
-	PUBLISHED
-	// DELETED represents a published File which has been marked as deleted and which is no longer visible to users.
+	Published
+	// Deleted represents a published File which has been marked as deleted and which is no longer visible to users.
 	// There will be another Transaction corresponding with the deletion.
-	DELETED
+	Deleted
 )
 
 // File contains details about a media file and its corresponding memory metadata.
@@ -67,20 +67,24 @@ type File struct {
 
 // AbsolutePath determines the full absolute path to file.
 func (f *File) AbsolutePath() string {
-	if f.State == UPLOADED {
-		return config.RootPath + "/db/temp/" + f.UploaderUsername + "/" + f.UUID + "." + f.Extension
+	if f.State == Uploaded {
+		return config.rootPath + "/db/temp/" + f.UploaderUsername + "/" + f.UUID + "." + f.Extension
 	}
-	return config.RootPath + "/static/content/" + f.UUID + "." + f.Extension
+	return config.rootPath + "/static/content/" + f.UUID + "." + f.Extension
 }
 
 // TransactionType the type of memory transformation operation documented.
 type TransactionType int
 
 const (
-	CREATE TransactionType = iota
-	EDIT
-	DELETE
-	MERGE
+	// Create transactions represent a memory creation.
+	Create TransactionType = iota
+	// Edit transactions represent a memory transformation.
+	Edit
+	// Delete transactions represent a memory deletion.
+	Delete
+	// Merge transactions represent a memory merge with a duplicate memory from another service host.
+	Merge
 )
 
 // Transaction is an immutable record of a successful FileDB transforming request.
@@ -107,7 +111,7 @@ func (tm *TransactionMutex) Create(transactionType TransactionType, fileUUID str
 		CreationTimestamp: time.Now().Unix(),
 		Type:              transactionType,
 		TargetFileUUID:    fileUUID,
-		Version:           config.Get("version"),
+		Version:           config.Version,
 	}
 	tm.Transactions = append(tm.Transactions, newTransaction)
 }
@@ -192,7 +196,7 @@ func (db *FileDB) UnlockAll() {
 // a new file is created containing the serialized empty FileDB.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	// check db/temp & static/content directories exists
-	if err = EnsureDirExists(dbDir+"/temp/", config.RootPath+"/static/content/"); err != nil {
+	if err = EnsureDirExists(dbDir+"/temp/", config.rootPath+"/static/content/"); err != nil {
 		return
 	}
 
@@ -206,7 +210,7 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	}
 
 	// store to file
-	err = fileDB.deserializeFromFile()
+	err = fileDB.DeserializeFromFile()
 	return
 }
 
@@ -218,9 +222,9 @@ type FileSearchResult struct {
 	state       string
 }
 
-// uploadFile handler the uploading of files to the temp dir in a subdir named after the username of the session user.
+// UploadFile handler the uploading of files to the temp dir in a subdir named after the username of the session user.
 // These files have not yet been published and will only be viewable by the uploader below the upload form.
-func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err error) {
+func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err error) {
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {
@@ -231,7 +235,7 @@ func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err 
 	defer newFormFile.Close()
 
 	// if a temp file for the user does not exist, create one named by their UUID
-	tempFilePath := config.RootPath + "/db/temp/" + user.Username + "/"
+	tempFilePath := config.rootPath + "/db/temp/" + user.Username + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
 		Critical.Log(err)
 		err = fmt.Errorf("error")
@@ -239,7 +243,7 @@ func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err 
 	}
 
 	// create new file object
-	newTempFile = File{UploadedTimestamp: time.Now().UnixNano(), State: UPLOADED, UUID: NewUUID(), UploaderUsername: user.Username}
+	newTempFile = File{UploadedTimestamp: time.Now().UnixNano(), State: Uploaded, UUID: NewUUID(), UploaderUsername: user.Username}
 
 	// separate & validate file name/extension
 	newTempFile.Name, newTempFile.Extension = SplitFileName(handler.Filename)
@@ -247,7 +251,7 @@ func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err 
 		err = fmt.Errorf("invalid_file")
 		return
 	}
-	if newTempFile.MediaType = config.CheckMediaType(newTempFile.Extension); newTempFile.MediaType == UNSUPPORTED {
+	if newTempFile.MediaType = config.CheckMediaType(newTempFile.Extension); newTempFile.MediaType == Unsupported {
 		err = fmt.Errorf("format_not_supported")
 		return
 	}
@@ -319,14 +323,14 @@ func (db *FileDB) uploadFile(r *http.Request, user User) (newTempFile File, err 
 
 	// add to temp file DB
 	db.Uploaded.Set(newTempFile.UUID, newTempFile)
-	db.serializeToFile()
+	db.SerializeToFile()
 
 	return newTempFile, nil
 }
 
-// publishFile publishes the file, making it visible to all logged in users. User input Metadata is also added to the
+// PublishFile publishes the file, making it visible to all logged in users. User input Metadata is also added to the
 // file here and the original temp file will be deleted.
-func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
+func (db *FileDB) PublishFile(fileUUID string, metaData MetaData) (err error) {
 	// append new details to file object
 	uploadedFile, ok := db.Uploaded.Get(fileUUID)
 	if !ok {
@@ -340,7 +344,7 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 
 	// set state to published - causes AbsolutePath to return new static location instead of temp location
 	tempFilePath := uploadedFile.AbsolutePath()
-	uploadedFile.State = PUBLISHED
+	uploadedFile.State = Published
 
 	// delete from temp DB
 	db.Uploaded.Delete(fileUUID)
@@ -353,17 +357,17 @@ func (db *FileDB) publishFile(fileUUID string, metaData MetaData) (err error) {
 
 	// add to file DB & record transaction
 	db.Published.Set(fileUUID, uploadedFile)
-	db.FileTransactions.Create(CREATE, fileUUID)
+	db.FileTransactions.Create(Create, fileUUID)
 
-	db.serializeToFile()
+	db.SerializeToFile()
 	return nil
 }
 
-// getMetaData returns a specified type of DB related metadata.
-func (db *FileDB) getMetaData(target string) (result []string) {
+// GetMetaData returns a specified type of DB related metadata.
+func (db *FileDB) GetMetaData(target string) (result []string) {
 	// min/max dates data request
 	if target == "dates" {
-		sortedFiles := SortFilesByDate(db.toSlice())
+		sortedFiles := SortFilesByDate(db.ToSlice())
 		if len(sortedFiles) > 0 {
 			minDate := fmt.Sprintf("%d", sortedFiles[len(sortedFiles)-1].PublishedTimestamp)
 			maxDate := fmt.Sprintf("%d", sortedFiles[0].PublishedTimestamp)
@@ -405,8 +409,8 @@ func (db *FileDB) getMetaData(target string) (result []string) {
 	return
 }
 
-// deleteFile marks a published file in the DB as deleted, or deletes an actual temp uploaded file.
-func (db *FileDB) deleteFile(fileUUID string) (err error) {
+// DeleteFile marks a published file in the DB as deleted, or deletes an actual temp uploaded file.
+func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 	// check if file exists in either published or temp/uploaded DB
 	file, ok := db.Uploaded.Get(fileUUID)
 	if !ok {
@@ -418,30 +422,30 @@ func (db *FileDB) deleteFile(fileUUID string) (err error) {
 
 	// set state to deleted (so that other servers will hide the file also)
 	switch file.State {
-	case UPLOADED:
+	case Uploaded:
 		if err = os.Remove(file.AbsolutePath()); err != nil {
 			Critical.Log(err)
 			return fmt.Errorf("file_processing_error")
 		}
 		db.Uploaded.Delete(fileUUID)
 
-	case PUBLISHED:
-		file.State = DELETED
+	case Published:
+		file.State = Deleted
 		db.Published.Set(fileUUID, file)
-		db.FileTransactions.Create(DELETE, file.UUID)
+		db.FileTransactions.Create(Delete, file.UUID)
 
-	case DELETED:
+	case Deleted:
 		return fmt.Errorf("file_already_deleted")
 	}
 
-	db.serializeToFile()
+	db.SerializeToFile()
 	return nil
 }
 
 // SortFilesByDate sorts a list of Files by date.
 func SortFilesByDate(files []File) []File {
 	sort.Slice(files, func(i, j int) bool {
-		if files[i].State == UPLOADED {
+		if files[i].State == Uploaded {
 			return files[i].UploadedTimestamp > files[j].UploadedTimestamp
 		}
 		return files[i].PublishedTimestamp > files[j].PublishedTimestamp
@@ -449,9 +453,9 @@ func SortFilesByDate(files []File) []File {
 	return files
 }
 
-// search searches the DB for Files which match the specified criteria.
-func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
-	files := db.toSlice()
+// Search searches the DB for Files which match the specified criteria.
+func (db *FileDB) Search(searchReq SearchRequest) FileSearchResult {
+	files := db.ToSlice()
 	var filterResults, searchResults []File
 
 	// fuzzy search by description
@@ -586,8 +590,8 @@ func (db *FileDB) search(searchReq SearchRequest) FileSearchResult {
 	return FileSearchResult{Files: filterResults, ResultCount: len(filterResults), TotalCount: totalCount, state: state}
 }
 
-// getFilesByUser retrieves all uploaded or published files corresponding to a User's username.
-func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
+// GetFilesByUser retrieves all uploaded or published files corresponding to a User's username.
+func (db *FileDB) GetFilesByUser(username string, state State) (files []File) {
 	filesByUser := func(m FileMapDB, mapName string) interface{} {
 		for _, file := range m {
 			if file.UploaderUsername == username {
@@ -598,21 +602,21 @@ func (db *FileDB) getFilesByUser(username string, state State) (files []File) {
 	}
 
 	// get uploaded/temp files only
-	if state == UPLOADED {
+	if state == Uploaded {
 		return SortFilesByDate(db.Uploaded.PerformFunc(filesByUser).([]File))
 	}
 
 	// get published files only
-	if state == PUBLISHED {
+	if state == Published {
 		return SortFilesByDate(db.Published.PerformFunc(filesByUser).([]File))
 	}
 
 	return SortFilesByDate(files)
 }
 
-// getRandomFile returns a randomly selected file.
-func (db *FileDB) getRandomFile() (File, error) {
-	UUIDs := db.getUUIDs()
+// GetRandomFile returns a randomly selected file.
+func (db *FileDB) GetRandomFile() (File, error) {
+	UUIDs := db.GetUUIDs()
 
 	if len(UUIDs) == 0 {
 		return File{}, fmt.Errorf("no files have been uploaded")
@@ -628,9 +632,9 @@ func (db *FileDB) getRandomFile() (File, error) {
 	return file, nil
 }
 
-// getUUIDs gets all File UUIDs stored in the FileDB.
-func (db *FileDB) getUUIDs() []string {
-	getUUIDs := func(m FileMapDB, mapName string) interface{} {
+// GetUUIDs gets all File UUIDs stored in the FileDB.
+func (db *FileDB) GetUUIDs() []string {
+	accumulateUUID := func(m FileMapDB, mapName string) interface{} {
 		UUIDs := make([]string, len(m))
 		counter := 0
 		for UUID := range m {
@@ -640,17 +644,17 @@ func (db *FileDB) getUUIDs() []string {
 		return UUIDs
 	}
 
-	return db.Published.PerformFunc(getUUIDs).([]string)
+	return db.Published.PerformFunc(accumulateUUID).([]string)
 }
 
-// toSlice generates slice representations of the published file map.
-func (db *FileDB) toSlice() []File {
+// ToSlice generates slice representations of the published file map.
+func (db *FileDB) ToSlice() []File {
 	// generate slice from Published map
 	publishedToSlice := func(m FileMapDB, mapName string) interface{} {
 		files := make([]File, 0, len(m))
 
 		for _, file := range m {
-			if file.State != DELETED {
+			if file.State != Deleted {
 				files = append(files, file)
 			}
 		}
@@ -661,8 +665,8 @@ func (db *FileDB) toSlice() []File {
 	return db.Published.PerformFunc(publishedToSlice).([]File)
 }
 
-// serializeToFile serializes the entire FileDB to a file on disk via gob.
-func (db *FileDB) serializeToFile() (err error) {
+// SerializeToFile serializes the entire FileDB to a file on disk via gob.
+func (db *FileDB) SerializeToFile() (err error) {
 	db.LockAll()
 	defer db.UnlockAll()
 
@@ -686,14 +690,14 @@ func (db *FileDB) serializeToFile() (err error) {
 	return nil
 }
 
-// deserializeFromFile deserializes a file to the FileDB structure, overwriting current map values.
-func (db *FileDB) deserializeFromFile() (err error) {
+// DeserializeFromFile deserializes a file to the FileDB structure, overwriting current map values.
+func (db *FileDB) DeserializeFromFile() (err error) {
 	db.LockAll()
 
 	// if db file does not exist, create a new one
 	if _, err := os.Stat(db.file); os.IsNotExist(err) {
 		db.UnlockAll()
-		db.serializeToFile()
+		db.SerializeToFile()
 		return nil
 	}
 	defer db.UnlockAll()
@@ -725,7 +729,7 @@ func (db *FileDB) reset() (err error) {
 	}
 
 	// delete all content files
-	RemoveDirContents(config.RootPath + "/static/content/")
+	RemoveDirContents(config.rootPath + "/static/content/")
 	RemoveDirContents(db.dir + "/temp/")
 
 	// reinitialise DB

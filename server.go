@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,51 +31,37 @@ type Server struct {
 }
 
 // NewServer initialises the file & user databases, then launches the HTTP server.
-func NewServer(conf *Config) (err error, httpServer Server) {
+func NewServer(conf *Config) (httpServer Server, err error) {
 	config = conf
 
 	// create new file DB
-	fileDB, err := NewFileDB(config.RootPath + "/db")
+	fileDB, err := NewFileDB(config.rootPath + "/db")
 	if err != nil {
 		Critical.Logf("Server error: %v", err)
 		return
 	}
 
 	// create new user DB
-	userDB, err := NewUserDB(config.RootPath + "/db")
+	userDB, err := NewUserDB(config.rootPath + "/db")
 	if err != nil {
 		Critical.Logf("Server error: %v", err)
 		return
 	}
 
-	// get port from config
-	port, err := config.GetInt("http_port")
-	if err != nil {
-		port = 8000
-	}
-
 	// start http server
 	httpServer = Server{
-		host:           "localhost",
-		port:           port,
-		fileDB:         fileDB,
-		startTimestamp: time.Now().Unix(),
-		userDB:         userDB,
+		host:              "localhost",
+		port:              config.HTTPPort,
+		fileDB:            fileDB,
+		startTimestamp:    time.Now().Unix(),
+		userDB:            userDB,
+		maxFileUploadSize: config.MaxFileUploadSize,
 	}
 
 	// set host (allow_public_webapp)
-	if config.GetBool("allow_public_webapp") {
+	if config.AllowPublicWebApp {
 		httpServer.host = "0.0.0.0"
 	}
-	// set port (http_port)
-	if httpServer.port, err = config.GetInt("http_port"); err != nil {
-		Critical.Logf("Server error: %v", "invalid port value found in config file - using default")
-	}
-	// set maxFileUploadSize (default 50MB)
-	if httpServer.maxFileUploadSize, err = config.GetInt("max_file_upload_size"); err != nil {
-		httpServer.maxFileUploadSize = 50
-	}
-	httpServer.maxFileUploadSize *= 1024 * 1024
 
 	httpServer.Start()
 	return
@@ -106,10 +91,10 @@ func (s *Server) Start() {
 	router.HandleFunc("/upload", s.authHandler(s.uploadHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/upload/{type}", s.authHandler(s.uploadHandler)).Methods(http.MethodPost)
 	// static uploaded file server
-	staticFileHandler := http.StripPrefix("/static/", http.FileServer(http.Dir(config.RootPath+"/static/")))
+	staticFileHandler := http.StripPrefix("/static/", http.FileServer(http.Dir(config.rootPath+"/static/")))
 	router.Handle(`/static/{rest:[a-zA-Z0-9=\-\/._]+}`, s.fileServerAuthHandler(staticFileHandler))
 	// temp uploaded file server
-	tempFileHandler := http.StripPrefix("/temp_uploaded/", http.FileServer(http.Dir(config.RootPath+"/db/temp/")))
+	tempFileHandler := http.StripPrefix("/temp_uploaded/", http.FileServer(http.Dir(config.rootPath+"/db/temp/")))
 	router.Handle(`/temp_uploaded/{user_id:[a-zA-Z0-9=\-_]+}/{file:[a-zA-Z0-9=\-\/._]+}`, s.fileServerAuthHandler(tempFileHandler))
 
 	s.server = &http.Server{
@@ -124,23 +109,23 @@ func (s *Server) Start() {
 
 	go func(server *http.Server) {
 		if err := server.ListenAndServe(); err != nil {
-			log.Println(err)
+			Critical.Log(err)
 		}
 	}(s.server)
 }
 
-// Request handler wrapper for auth.
+// authHandler is a HTTP handler wrapper which authenticates requests.
 func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		Incoming.Logf("%v -> %v [%v]", r.Host, r.URL, r.Method)
+		Incoming.Logf("%v -> [%v] %v", r.Host, r.Method, r.URL)
 
 		// authenticate
-		authorised, authErr := s.userDB.authenticateUser(r)
+		authorised, authErr := s.userDB.AuthenticateUser(r)
 
 		// file servers
 		// prevent dir listings
 		if r.URL.String() != "/" && strings.HasSuffix(r.URL.String(), "/") {
-			s.respond(w, "404 page not found")
+			s.Respond(w, r, "404 page not found")
 			return
 		}
 		// prevent unauthorised access to /static/content
@@ -152,9 +137,9 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
 			vars := mux.Vars(r)
 
-			sessionUser, err := s.userDB.getSessionUser(r)
+			sessionUser, err := s.userDB.GetSessionUser(r)
 			if sessionUser.Username != vars["user_id"] || err != nil {
-				s.respond(w, "404 page not found")
+				s.Respond(w, r, "404 page not found")
 				return
 			}
 		}
@@ -165,7 +150,7 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 				if r.Method == http.MethodGet {
 					http.Redirect(w, r, "/", 302)
 				} else {
-					s.respond(w, "already authenticated")
+					s.Respond(w, r, "already authenticated")
 				}
 			} else {
 				h(w, r)
@@ -181,7 +166,7 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/login", 302)
 			} else {
-				s.respond(w, "unauthorised")
+				s.Respond(w, r, "unauthorised")
 			}
 			return
 		}
@@ -191,14 +176,14 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// File server auth wrapper.
+// fileServerAuthHandler is a file server authentication wrapper.
 func (s *Server) fileServerAuthHandler(h http.Handler) http.Handler {
 	return s.authHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r)
 	}))
 }
 
-// Handle user password reset request.
+// resetHandler is a HTTP handler which manages user password reset requests.
 func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch login form
@@ -211,16 +196,16 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Reset Password",
-			config.Get("brand_name"),
+			config.ServiceName,
 			"",
 			"",
 		}
 
-		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
-		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/reset_password.html", templateData)
-		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/login_footer.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/reset_password.html", templateData)
+		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, result)
+		s.Respond(w, r, result)
 
 	// submit password reset request
 	case http.MethodPost:
@@ -234,12 +219,12 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 		msg := gomail.NewMessage()
 		msg.SetHeader("From", "admin@memoryshare.com") // config.Get("display_email_addr")
 		msg.SetHeader("To", "jemgunay@yahoo.co.uk")
-		msg.SetHeader("Subject", config.Get("brand_name")+": Password Reset")
+		msg.SetHeader("Subject", config.ServiceName+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
 		/**/ /*port, err := strconv.Atoi(config.Get("core_email_port"))
 		if err != nil {
-			s.respond(w, "error", 2)
+			s.Respond(w, r, "error", 2)
 			return
 		}*/ /*
 
@@ -250,19 +235,19 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 			// sent email
 			if err := d.DialAndSend(msg); err != nil {
 				log.Println(err)
-				s.respond(w, "error")
+				s.Respond(w, r, "error")
 				return
 			}
 
-			s.respond(w, "success")*/
+			s.Respond(w, r, "success")*/
 
-		s.respond(w, "not yet implemented")
+		s.Respond(w, r, "not yet implemented")
 		return
 
 	}
 }
 
-// Handle login.
+// loginHandler is a HTTP handler which manages user logins.
 func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch login form
@@ -275,53 +260,53 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Login",
-			config.Get("brand_name"),
+			config.ServiceName,
 			"",
 			"",
 		}
 
-		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/login_footer.html", templateData)
-		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/login.html", templateData)
-		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/login_footer.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/login.html", templateData)
+		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, result)
+		s.Respond(w, r, result)
 
 	// submit login request
 	case http.MethodPost:
-		success, err := s.userDB.loginUser(w, r)
+		success, err := s.userDB.LoginUser(w, r)
 
 		switch {
 		case err != nil:
-			s.respond(w, "error")
+			s.Respond(w, r, "error")
 		case success:
-			s.respond(w, "success")
+			s.Respond(w, r, "success")
 		default:
-			s.respond(w, "unauthorised")
+			s.Respond(w, r, "unauthorised")
 		}
 	}
 }
 
-// Handle logout.
+// logoutHandler is a HTTP handler which manages user logouts.
 func (s *Server) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	if err := s.userDB.logoutUser(w, r); err != nil {
-		s.respond(w, "error")
+	if err := s.userDB.LogoutUser(w, r); err != nil {
+		s.Respond(w, r, "error")
 		return
 	}
 	http.Redirect(w, r, "/login", 302)
 }
 
-// Process HTTP view users request.
+// viewUsersHandler is a HTTP handler which provides a view of all service users.
 func (s *Server) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
-	sessionUser, err := s.userDB.getSessionUser(r)
+	sessionUser, err := s.userDB.GetSessionUser(r)
 	if err != nil {
 		Critical.Log(err)
-		s.respond(w, "error")
+		s.Respond(w, r, "error")
 		return
 	}
 
 	// get list of all users
-	allUsers := s.userDB.getUsers()
+	allUsers := s.userDB.GetUsers()
 
 	// HTML template data
 	templateData := struct {
@@ -335,7 +320,7 @@ func (s *Server) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML template.HTML
 	}{
 		"Users",
-		config.Get("brand_name"),
+		config.ServiceName,
 		sessionUser,
 		allUsers,
 		"",
@@ -344,38 +329,38 @@ func (s *Server) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 		"",
 	}
 
-	templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-	templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-	templateData.ContentHTML = s.completeTemplate("/dynamic/templates/users_list.html", templateData)
-	result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+	templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
+	templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+	templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/users_list.html", templateData)
+	result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
-	s.respond(w, result)
+	s.Respond(w, r, result)
 }
 
-// Process a single user request.
+// manageUserHandler is a HTTP handler which manages requests relating to a single user.
 func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			Critical.Log(err)
-			s.respond(w, "error")
+			s.Respond(w, r, "error")
 			return
 		}
 	}
 
 	// get session user
-	sessionUser, err := s.userDB.getSessionUser(r)
+	sessionUser, err := s.userDB.GetSessionUser(r)
 	if err != nil {
 		Critical.Log(err)
-		s.respond(w, "error")
+		s.Respond(w, r, "error")
 		return
 	}
 
 	if vars["username"] != "" {
 		// get user corresponding with
-		user, err := s.userDB.getUserByUsername(vars["username"])
+		user, err := s.userDB.GetUserByUsername(vars["username"])
 		if err != nil {
-			s.respond(w, err)
+			s.Respond(w, r, err)
 			return
 		}
 
@@ -398,7 +383,7 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				Status      string
 			}{
 				"Profile",
-				config.Get("brand_name"),
+				config.ServiceName,
 				sessionUser,
 				user,
 				[]File{},
@@ -427,18 +412,18 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			if vars["username"] == sessionUser.Username {
 				templateData.NavbarFocus = "user"
 			}
-			templateData.FilesHTML = s.completeTemplate(filesHTMLTarget, templateData)
-			templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-			templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-			templateData.ContentHTML = s.completeTemplate("/dynamic/templates/user_content.html", templateData)
-			result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+			templateData.FilesHTML = s.CompleteTemplate(filesHTMLTarget, templateData)
+			templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
+			templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+			templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/user_content.html", templateData)
+			result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
-			s.respond(w, result)
+			s.Respond(w, r, result)
 
 		// update specific user details -> /user/{username}
 		case http.MethodPost:
 			// check auth or admin privs first
-			s.respond(w, "not yet implemented")
+			s.Respond(w, r, "not yet implemented")
 		}
 	} else {
 		switch r.Method {
@@ -448,16 +433,16 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			case "favourite":
 				state, _ := strconv.ParseBool(r.Form.Get("state"))
 
-				err := s.userDB.setFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state)
+				err := s.userDB.SetFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state)
 				if err != nil {
-					s.respond(w, err)
+					s.Respond(w, r, err)
 					return
 				}
 
 				if state {
-					s.respond(w, "favourite_successfully_added")
+					s.Respond(w, r, "favourite_successfully_added")
 				} else {
-					s.respond(w, "favourite_successfully_removed")
+					s.Respond(w, r, "favourite_successfully_removed")
 				}
 			}
 
@@ -468,7 +453,7 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// Search request query container.
+// SearchRequest is a container for all of the search criteria required by the FileDB's search function.
 type SearchRequest struct {
 	description    string
 	tags           []string
@@ -480,8 +465,18 @@ type SearchRequest struct {
 	page           int64
 }
 
-// Search files by their properties.
-// URL params: [desc, start_date, end_date, file_types, tags, people, format(json/html_tiled/html_detailed), pretty, results_per_page(0=all)]
+// searchMemoriesHandler is a HTTP handler which processes & validates input search criteria then writes formatted
+// search results. URL params: {
+//     desc,
+//     start_date,
+//     end_date,
+//     file_types (comma separated list),
+//     tags (comma separated list),
+//     people (comma separated list),
+//     format = ["json", "html_tiled", "html_detailed"],
+//     pretty = [true, false],
+//     results_per_page (0=all memories)
+// }
 func (s *Server) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// construct search query from url params
@@ -506,7 +501,7 @@ func (s *Server) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// perform search
-	fileResults := s.fileDB.search(searchReq)
+	fileResults := s.fileDB.Search(searchReq)
 
 	// respond with JSON or HTML?
 	if q.Get("format") == "html_tiled" || q.Get("format") == "html_detailed" {
@@ -528,8 +523,8 @@ func (s *Server) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 			templateFile = "/dynamic/templates/no_match.html"
 		}
 
-		filesListResult := s.completeTemplate(templateFile, templateData)
-		s.respond(w, filesListResult)
+		filesListResult := s.CompleteTemplate(templateFile, templateData)
+		s.Respond(w, r, filesListResult)
 		return
 	}
 
@@ -537,11 +532,19 @@ func (s *Server) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	prettyPrint, _ := strconv.ParseBool(q.Get("pretty"))
 	filesJSON := ToJSON(fileResults, prettyPrint)
 
-	s.respond(w, filesJSON)
+	s.Respond(w, r, filesJSON)
 }
 
-// Get specific JSON data such as all tags & people.
-// URL params (data is returned for metadata types included in the fetch param): ?fetch=tags,people,file_types,dates
+// getDataHandler is a HTTP handler which retrieves specific JSON metadata or specific memory data.
+// GET URL params: {
+//     fetch = tags,people,file_types,dates (comma separated list, each is optional),
+// }
+// POST JSON params: {
+//     type = ["file", "user"]
+//     UUID = "random" or a specific file UUID (used only when type == "file"),
+//     username (used only when type == "user"),
+//     format = ["json", "html_tiled", "html_detailed"],
+// }
 func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// get groups of meta data
@@ -551,40 +554,40 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 
 		metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
 		for _, dataType := range metaDataTypes {
-			resultsList[dataType] = s.fileDB.getMetaData(dataType)
+			resultsList[dataType] = s.fileDB.GetMetaData(dataType)
 		}
 
 		// parse query result to json
 		response, err := json.Marshal(resultsList)
 		if err != nil {
 			Critical.Log(err)
-			s.respond(w, "error")
+			s.Respond(w, r, "error")
 			return
 		}
-		s.respond(w, response)
+		s.Respond(w, r, response)
 
 	// get specific item by UUID (a file or user): ?UUID=X|random&type=file|user&format=html|json_pretty|json)
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			Critical.Log(err)
-			s.respond(w, "error")
-			return
-		}
-
-		// check UUID provided
-		targetUUID := r.Form.Get("UUID")
-		if targetUUID == "" {
-			s.respond(w, "no_UUID_provided")
+			s.Respond(w, r, "error")
 			return
 		}
 
 		switch r.Form.Get("type") {
 		// get specific file
 		case "file":
+			// check UUID provided
+			targetUUID := r.Form.Get("UUID")
+			if targetUUID == "" {
+				s.Respond(w, r, "no_UUID_provided")
+				return
+			}
+
 			if targetUUID == "random" {
-				randomFile, err := s.fileDB.getRandomFile()
+				randomFile, err := s.fileDB.GetRandomFile()
 				if err != nil {
-					s.respond(w, "no files found")
+					s.Respond(w, r, "no files found")
 					return
 				}
 
@@ -594,7 +597,7 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			// fetch file from DB
 			file, ok := s.fileDB.Published.Get(targetUUID)
 			if ok && file.UUID == "" {
-				s.respond(w, "no_UUID_match")
+				s.Respond(w, r, "no_UUID_match")
 				return
 			}
 
@@ -602,9 +605,9 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			switch r.Form.Get("format") {
 			case "html":
 				// get user
-				user, err := s.userDB.getUserByUsername(file.UploaderUsername)
+				user, err := s.userDB.GetUserByUsername(file.UploaderUsername)
 				if err != nil {
-					s.respond(w, "error finding corresponding user")
+					s.Respond(w, r, "error finding corresponding user")
 					return
 				}
 				isFavourite := user.FavouriteFileUUIDs[file.UUID]
@@ -619,55 +622,60 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 					isFavourite,
 				}
 
-				result := s.completeTemplate("/dynamic/templates/file_content_overlay.html", templateData)
-				s.respond(w, result)
+				result := s.CompleteTemplate("/dynamic/templates/file_content_overlay.html", templateData)
+				s.Respond(w, r, result)
 
 			case "json_pretty":
-				s.respond(w, ToJSON(file, true))
+				s.Respond(w, r, ToJSON(file, true))
 
 			case "json":
 				fallthrough
 			default:
-				s.respond(w, ToJSON(file, false))
+				s.Respond(w, r, ToJSON(file, false))
 			}
 
 		// get specific user from DB
 		case "user":
-			// fetch file from DB
-			user, err := s.userDB.getUserByUsername(targetUUID)
+			// check if username provided
+			targetUsername := r.Form.Get("username")
+			if targetUsername == "" {
+				s.Respond(w, r, "no_username_provided")
+				return
+			}
+
+			// fetch User from DB
+			user, err := s.userDB.GetUserByUsername(targetUsername)
 			if err != nil {
-				s.respond(w, "error finding corresponding user")
+				s.Respond(w, r, "error finding corresponding user")
 				return
 			}
 			if user.Username == "" {
-				s.respond(w, "no_UUID_match")
+				s.Respond(w, r, "no_username_match")
 				return
 			}
 
 			switch r.Form.Get("format") {
-			case "html":
-				s.respond(w, "html_not_supported")
 			case "json_pretty":
-				s.respond(w, ToJSON(user, true))
+				s.Respond(w, r, ToJSON(user, true))
 			case "json":
 				fallthrough
 			default:
-				s.respond(w, ToJSON(user, false))
+				s.Respond(w, r, ToJSON(user, false))
 			}
 
 		default:
-			s.respond(w, "no_type_provided")
+			s.Respond(w, r, "no_type_provided")
 		}
 	}
 }
 
-// Process HTTP view files request.
+// viewMemoriesHandler is a HTTP handler which displays the memory view & search page.
 func (s *Server) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
-	sessionUser, err := s.userDB.getSessionUser(r)
+	sessionUser, err := s.userDB.GetSessionUser(r)
 	if err != nil {
 		Critical.Log(err)
-		s.respond(w, "error")
+		s.Respond(w, r, "error")
 		return
 	}
 
@@ -684,7 +692,7 @@ func (s *Server) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML template.HTML
 		}{
 			"Memories",
-			config.Get("brand_name"),
+			config.ServiceName,
 			sessionUser,
 			"",
 			"search",
@@ -692,22 +700,22 @@ func (s *Server) viewMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 			"",
 		}
 
-		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/search_footer.html", templateData)
-		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/search.html", templateData)
-		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+		templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/search_footer.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/search.html", templateData)
+		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, result)
+		s.Respond(w, r, result)
 	}
 }
 
-// Process HTTP file upload request.
+// uploadHandler is a HTTP handler which manages file upload requests and displaying the upload UI.
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
-	sessionUser, err := s.userDB.getSessionUser(r)
+	sessionUser, err := s.userDB.GetSessionUser(r)
 	if err != nil {
 		Critical.Log(err)
-		s.respond(w, "error")
+		s.Respond(w, r, "error")
 		return
 	}
 
@@ -729,7 +737,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			MaxFileUploadSize int64
 		}{
 			"Upload",
-			config.Get("brand_name"),
+			config.ServiceName,
 			sessionUser,
 			"",
 			"upload",
@@ -741,7 +749,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// get all uploaded/temp files for session user
-		files := s.fileDB.getFilesByUser(sessionUser.Username, UPLOADED)
+		files := s.fileDB.GetFilesByUser(sessionUser.Username, Uploaded)
 
 		// generate upload description forms for each unpublished image
 		for _, f := range files {
@@ -751,16 +759,16 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				f,
 			}
 
-			result := s.completeTemplate("/dynamic/templates/upload_form.html", uploadTemplateData)
+			result := s.CompleteTemplate("/dynamic/templates/upload_form.html", uploadTemplateData)
 			templateData.UploadFormsHTML += result
 		}
 
-		templateData.NavbarHTML = s.completeTemplate("/dynamic/templates/navbar.html", templateData)
-		templateData.FooterHTML = s.completeTemplate("/dynamic/templates/footers/upload_footer.html", templateData)
-		templateData.ContentHTML = s.completeTemplate("/dynamic/templates/upload.html", templateData)
-		result := s.completeTemplate("/dynamic/templates/main.html", templateData)
+		templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/upload_footer.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/upload.html", templateData)
+		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
-		s.respond(w, result)
+		s.Respond(w, r, result)
 
 	// file upload
 	case http.MethodPost:
@@ -770,16 +778,14 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			// limit request size to prevent DOS & get data from form
 			r.Body = http.MaxBytesReader(w, r.Body, int64(s.maxFileUploadSize))
 			if err := r.ParseMultipartForm(0); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				Input.Log(err.Error())
-				s.respond(w, "error")
+				Input.Log(err)
+				s.RespondStatus(w, r, "error", http.StatusBadRequest)
 				return
 			}
 			// move form file to temp dir
-			uploadedFile, err := s.fileDB.uploadFile(r, sessionUser)
+			uploadedFile, err := s.fileDB.UploadFile(r, sessionUser)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, err)
+				s.RespondStatus(w, r, err, http.StatusBadRequest)
 				return
 			}
 
@@ -790,35 +796,34 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				uploadedFile,
 			}
 
-			result := s.completeTemplate("/dynamic/templates/upload_form.html", templateData)
+			result := s.CompleteTemplate("/dynamic/templates/upload_form.html", templateData)
 			if result == "" {
-				w.WriteHeader(http.StatusBadRequest)
-				s.respond(w, "error")
+				s.RespondStatus(w, r, "error", http.StatusBadRequest)
 				return
 			}
-			s.respond(w, result)
+			s.Respond(w, r, result)
 
 		// delete a file from user temp dir
 		case "temp_delete":
 			if err := r.ParseForm(); err != nil {
 				Input.Log(err)
-				s.respond(w, "error")
+				s.Respond(w, r, "error")
 				return
 			}
 
 			// remove file
-			if err := s.fileDB.deleteFile(r.Form.Get("fileUUID")); err != nil {
-				s.respond(w, err)
+			if err := s.fileDB.DeleteFile(r.Form.Get("fileUUID")); err != nil {
+				s.Respond(w, r, err)
 				return
 			}
 
-			s.respond(w, "success")
+			s.Respond(w, r, "success")
 
 		// move temp file to content dir (allow global user access)
 		case "publish":
 			if err := r.ParseForm(); err != nil {
 				Input.Log(err)
-				s.respond(w, "error")
+				s.Respond(w, r, "error")
 				return
 			}
 
@@ -830,37 +835,39 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// validate form field lengths
 			if len(desc) == 0 {
-				s.respond(w, "no_description")
+				s.Respond(w, r, "no_description")
 				return
 			}
 			if len(tags) == 0 {
-				s.respond(w, "no_tags")
+				s.Respond(w, r, "no_tags")
 				return
 			}
 			if len(people) == 0 {
-				s.respond(w, "no_people")
+				s.Respond(w, r, "no_people")
 				return
 			}
 
 			// add file to DB & move from db/temp dir to db/content dir
-			if err := s.fileDB.publishFile(r.Form.Get("fileUUID"), metaData); err != nil {
-				s.respond(w, err)
+			if err := s.fileDB.PublishFile(r.Form.Get("fileUUID"), metaData); err != nil {
+				s.Respond(w, r, err)
 				return
 			}
 
 			// success
-			s.respond(w, "success")
+			s.Respond(w, r, "success")
 		}
 	}
 }
 
-// Write a HTTP response to a ResponseWriter with a status code of 200.
-func (s *Server) respond(w http.ResponseWriter, response interface{}) {
-	s.respondStatus(w, response, http.StatusOK)
+// Respond writes a HTTP response to a ResponseWriter with a status code of 200.
+func (s *Server) Respond(w http.ResponseWriter, r *http.Request, response interface{}) {
+	s.RespondStatus(w, r, response, http.StatusOK)
 }
 
-// Write a HTTP response to a ResponseWriter with a specific status code.
-func (s *Server) respondStatus(w http.ResponseWriter, response interface{}, statusCode int) {
+// RespondStatus write a HTTP response to a ResponseWriter with a specific status code.
+func (s *Server) RespondStatus(w http.ResponseWriter, r *http.Request, response interface{}, statusCode int) {
+	defer r.Body.Close()
+
 	// type cast response into string
 	switch response.(type) {
 	case template.HTML:
@@ -878,9 +885,9 @@ func (s *Server) respondStatus(w http.ResponseWriter, response interface{}, stat
 	}
 }
 
-// Replace variables in HTML templates with corresponding values in TemplateData.
-func (s *Server) completeTemplate(filePath string, data interface{}) (result template.HTML) {
-	filePath = config.RootPath + filePath
+// CompleteTemplate replaces variables in HTML templates with corresponding values in TemplateData.
+func (s *Server) CompleteTemplate(filePath string, data interface{}) (result template.HTML) {
+	filePath = config.rootPath + filePath
 
 	// load HTML template from disk
 	htmlTemplate, err := ioutil.ReadFile(filePath)
@@ -916,7 +923,7 @@ func (s *Server) completeTemplate(filePath string, data interface{}) (result tem
 	return template.HTML(buffer.String())
 }
 
-// Gracefully stop the server and save DB to file.
+// Stop gracefully stops the HTTP server.
 func (s *Server) Stop() context.CancelFunc {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := s.server.Shutdown(ctx); err != nil {
