@@ -140,7 +140,7 @@ function initUploadForm() {
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
                 }
-                else if (result === "invalid_file" || result === "file_not_found" || result === "file_already_deleted") {
+                else if (result === "file_not_found" || result === "file_already_deleted" || result === "delete_error") {
                     notifier.queueAlert("File has already been deleted!", "success");
 
                     panel.fadeOut(500, function() {

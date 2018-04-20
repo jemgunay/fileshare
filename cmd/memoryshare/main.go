@@ -2,11 +2,8 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/jemgunay/memoryshare"
@@ -40,26 +37,21 @@ func main() {
 	if config.EnableConsoleCommands {
 		time.Sleep(time.Millisecond * 300)
 		for {
-			input := getConsoleInput("Enter command")
+			input, err := memoryshare.ReadStdin("Enter command", false)
+			if err != nil {
+				memoryshare.Critical.Log(err)
+			}
+
 			switch input {
-			// terminate
+			// terminate service
 			case "exit":
 				server.Stop()
 				return
 			default:
-				memoryshare.Info.Log("Unsupported command.\n")
+				memoryshare.Info.Log("Unsupported command.")
 			}
 		}
 	} else {
 		<-exit
 	}
-}
-
-// Format & print input requirement and get console input.
-func getConsoleInput(inputMsg string) string {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("> " + inputMsg + ":")
-	text, _ := reader.ReadString('\n')
-	text = strings.TrimSpace(text)
-	return text
 }

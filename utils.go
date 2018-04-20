@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -48,17 +49,16 @@ func ToJSON(obj interface{}, pretty bool) string {
 func RemoveDirContents(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to open directory")
 	}
 	defer d.Close()
 	names, err := d.Readdirnames(-1)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to read directory contents")
 	}
 	for _, name := range names {
-		err = os.RemoveAll(filepath.Join(dir, name))
-		if err != nil {
-			return err
+		if err = os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			return errors.Wrap(err, "failed to delete file in directory")
 		}
 	}
 	return nil
@@ -111,7 +111,7 @@ func FileOrDirExists(path string) (bool, error) {
 	if os.IsNotExist(err) {
 		return false, nil
 	}
-	return true, err
+	return true, errors.Wrap(err, "failed to determine file existence state")
 }
 
 // EnsureDirExists creates a directory if it does not exist.
@@ -123,9 +123,8 @@ func EnsureDirExists(paths ...string) error {
 		}
 		if result == false {
 			// attempt to create
-			err = os.Mkdir(path, 0755)
-			if err != nil {
-				return fmt.Errorf("%v", "failed to create "+path+" directory.")
+			if err = os.Mkdir(path, 0755); err != nil {
+				return errors.Wrapf(err, "failed to create %v directory", path)
 			}
 		}
 	}
@@ -133,15 +132,17 @@ func EnsureDirExists(paths ...string) error {
 }
 
 // MoveFile moves a file to a new location (works across different drives, unlike os.Rename).
-func MoveFile(src, dst string) error {
+func MoveFile(src, dst string) (err error) {
 	// copy
-	err := CopyFile(src, dst)
-	if err != nil {
-		return err
+	if err = CopyFile(src, dst); err != nil {
+		return errors.Wrap(err, "failed to copy file")
 	}
 
 	// delete src file
-	return os.Remove(src)
+	if err = os.Remove(src); err != nil {
+		errors.Wrap(err, "failed to remove file")
+	}
+	return
 }
 
 // CopyFile copies a file to a new location (works across drives, unlike os.Rename).
@@ -149,21 +150,20 @@ func CopyFile(src, dst string) error {
 	// open src file
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to open src file")
 	}
 	defer in.Close()
 
 	// create dst file
 	out, err := os.Create(dst)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create dst file")
 	}
 	defer out.Close()
 
 	// copy from src to dst
-	_, err = io.Copy(out, in)
-	if err != nil {
-		return err
+	if _, err = io.Copy(out, in); err != nil {
+		return errors.Wrap(err, "failed to copy from src file to dst file")
 	}
 	return nil
 }
@@ -189,13 +189,13 @@ func SplitFileName(file string) (name, extension string) {
 func GenerateFileHash(file string) (hash string, err error) {
 	f, err := os.Open(file)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "failed to open file")
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+		return "", errors.Wrap(err, "failed to write file to hash writer")
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
@@ -234,8 +234,7 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 	if isPassword {
 		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 		if err != nil {
-			Critical.Log(err)
-			return "", err
+			return "", errors.Wrap(err, "failed to read password")
 		}
 
 		return strings.TrimSpace(string(bytePassword)), nil
@@ -243,7 +242,7 @@ func ReadStdin(message string, isPassword bool) (response string, err error) {
 
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		Critical.Log(err)
+		err = errors.Wrap(err, "failed to read from Stdin")
 	}
 	return strings.TrimSpace(input), err
 }

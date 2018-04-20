@@ -46,16 +46,18 @@ type GeneralSettings struct {
 type ServerSettings struct {
 	HTTPPort int `toml:"http_port"`
 
-	EmailServer string `toml:"email_server"`
-	EmailPort   int    `toml:"email_port"`
-	EmailAddr   string `toml:"email_addr"`
-	EmailPass   string `toml:"email_pass"`
+	EmailServer      string `toml:"email_server"`
+	EmailPort        int    `toml:"email_port"`
+	EmailAddr        string `toml:"email_addr"`
+	EmailPass        string `toml:"email_pass"`
+	EmailDisplayAddr string `toml:"email_display_addr"`
 
 	AllowPublicWebApp   bool `toml:"allow_public_web_app"`
 	ServePublicUpdates  bool `toml:"serve_public_updates"`
 	EnablePublicReads   bool `toml:"enable_public_reads"`
 	EnablePublicUploads bool `toml:"enable_public_uploads"`
 	MaxFileUploadSize   int  `toml:"max_file_upload_size"`
+	MaxSessionAge       int  `toml:"max_session_age"`
 }
 
 // FileFormats is a container for permitted file upload types.
@@ -74,7 +76,7 @@ func NewConfig(rootPath string) (conf *Config, err error) {
 	conf.rootPath = rootPath
 	conf.file = conf.rootPath + "/config/settings.ini"
 
-	debug := flag.Int("debug", 0, "1=INCOMING/INPUT/CREATION, 2=OUTPUT")
+	debug := flag.Int("debug", 0, "1=INCOMING/OUTGOING/INPUT/CREATION, 2=OUTPUT")
 	flag.Parse()
 
 	switch *debug {

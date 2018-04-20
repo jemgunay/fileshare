@@ -11,20 +11,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/sahilm/fuzzy"
 )
 
 const (
 	// Image represents an image media file type.
-	Image       = "image"
+	Image = "image"
 	// Video represents an video media file type.
-	Video       = "video"
+	Video = "video"
 	// Audio represents an audio media file type.
-	Audio       = "audio"
+	Audio = "audio"
 	// Text represents an text media file type.
-	Text        = "text"
+	Text = "text"
 	// Other represents any other supported media file type (i.e. zip or rar).
-	Other       = "other"
+	Other = "other"
 	// Unsupported represents an unsupported media file type.
 	Unsupported = "unsupported"
 )
@@ -197,7 +198,7 @@ func (db *FileDB) UnlockAll() {
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	// check db/temp & static/content directories exists
 	if err = EnsureDirExists(dbDir+"/temp/", config.rootPath+"/static/content/"); err != nil {
-		return
+		return nil, errors.Wrap(err, "a FileDB directory could not be created")
 	}
 
 	// init file DB
@@ -209,8 +210,10 @@ func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 		file:             dbDir + "/file_db.dat",
 	}
 
-	// store to file
-	err = fileDB.DeserializeFromFile()
+	// load DB from file
+	if err = fileDB.DeserializeFromFile(); err != nil {
+		err = errors.Wrap(err, "could not deserialize FileDB from file")
+	}
 	return
 }
 
@@ -222,61 +225,92 @@ type FileSearchResult struct {
 	state       string
 }
 
+// InvalidFileError implies a file name or extension were invalid.
+var InvalidFileError = errors.New("invalid file name or extension")
+
+// UnsupportedFormatError implies the file is of an unsupported file format.
+var UnsupportedFormatError = errors.New("unsupported file format")
+
+// FileExistsError implies a file has already been uploaded or published.
+type FileExistsError struct {
+	state       State
+	userIsOwner bool
+}
+
+// FileExistsError returns an error message.
+func (e *FileExistsError) Error() string {
+	return "file already exists in DB"
+}
+
+// ConstructResponse constructs the response required by the calling HTTP handler.
+func (e *FileExistsError) ConstructResponse() string {
+	response := "already_"
+	if e.state == Published {
+		response += "published"
+	} else {
+		response += "uploaded"
+	}
+	if e.userIsOwner {
+		response += "_self"
+	}
+	return response
+}
+
 // UploadFile handler the uploading of files to the temp dir in a subdir named after the username of the session user.
 // These files have not yet been published and will only be viewable by the uploader below the upload form.
 func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err error) {
 	// check form file
 	newFormFile, handler, err := r.FormFile("file-input")
 	if err != nil {
-		Input.Log(err)
-		err = fmt.Errorf("error")
+		err = errors.Wrap(err, "unable to parse file in form")
 		return
 	}
 	defer newFormFile.Close()
 
-	// if a temp file for the user does not exist, create one named by their UUID
+	// if a temp dir for the user does not exist, create one named by their UUID
 	tempFilePath := config.rootPath + "/db/temp/" + user.Username + "/"
 	if err = EnsureDirExists(tempFilePath); err != nil {
-		Critical.Log(err)
-		err = fmt.Errorf("error")
+		err = errors.Wrap(err, "could not create temp dir for user")
 		return
 	}
 
 	// create new file object
-	newTempFile = File{UploadedTimestamp: time.Now().UnixNano(), State: Uploaded, UUID: NewUUID(), UploaderUsername: user.Username}
+	newTempFile = File{
+		UploadedTimestamp: time.Now().UnixNano(),
+		State:             Uploaded,
+		UUID:              NewUUID(),
+		UploaderUsername:  user.Username,
+	}
 
 	// separate & validate file name/extension
 	newTempFile.Name, newTempFile.Extension = SplitFileName(handler.Filename)
 	if newTempFile.Name == "" || newTempFile.Extension == "" {
-		err = fmt.Errorf("invalid_file")
+		err = InvalidFileError
 		return
 	}
 	if newTempFile.MediaType = config.CheckMediaType(newTempFile.Extension); newTempFile.MediaType == Unsupported {
-		err = fmt.Errorf("format_not_supported")
+		err = UnsupportedFormatError
 		return
 	}
 
 	// create new empty file
 	tempFile, err := os.OpenFile(newTempFile.AbsolutePath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		Critical.Log(err)
-		err = fmt.Errorf("error")
+		err = errors.Wrap(err, "failed to create new upload copy dst file")
 		return
 	}
 	defer tempFile.Close()
 
 	// copy file from form to new local temp file (must from now on delete file if a failure occurs after copy)
 	if _, err = io.Copy(tempFile, newFormFile); err != nil {
-		Critical.Log(err)
-		err = fmt.Errorf("error")
+		err = errors.Wrap(err, "failed to copy new upload to dst file")
 		return
 	}
 
 	// get file size
 	fileStat, err := tempFile.Stat()
 	if err != nil {
-		Critical.Log(err)
-		err = fmt.Errorf("error")
+		err = errors.Wrap(err, "failed to determine file size")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
 	}
@@ -285,8 +319,7 @@ func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err 
 	// generate hash of file contents
 	newTempFile.Hash, err = GenerateFileHash(newTempFile.AbsolutePath())
 	if err != nil {
-		Critical.Log(err)
-		err = fmt.Errorf("error")
+		err = errors.Wrap(err, "failed to generate hash of file")
 		os.Remove(newTempFile.AbsolutePath()) // delete temp file on error
 		return
 	}
@@ -296,29 +329,27 @@ func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err 
 	hashMatch := func(m FileMapDB, mapName string) interface{} {
 		for _, file := range m {
 			if file.Hash == newTempFile.Hash {
-				dbPrefix := "already_published"
+				existsErr := &FileExistsError{state: Published, userIsOwner: false}
+
 				if mapName == "Uploaded" {
-					dbPrefix = "already_uploaded"
+					existsErr.state = Uploaded
+				}
+				if file.UploaderUsername == user.Username {
+					existsErr.userIsOwner = true
 				}
 
-				if file.UploaderUsername == user.Username {
-					err = fmt.Errorf(dbPrefix + "_self")
-				} else {
-					err = fmt.Errorf(dbPrefix)
-				}
 				os.Remove(newTempFile.AbsolutePath()) // delete temp file if already exists in DB
-				return true
+				return existsErr
 			}
 		}
-		return false
+		return nil
 	}
 
-	if db.Published.PerformFunc(hashMatch).(bool) {
-		return
+	if hashResult := db.Published.PerformFunc(hashMatch); hashResult != nil {
+		return newTempFile, hashResult.(error)
 	}
-
-	if db.Uploaded.PerformFunc(hashMatch).(bool) {
-		return
+	if hashResult := db.Uploaded.PerformFunc(hashMatch); hashResult != nil {
+		return newTempFile, hashResult.(error)
 	}
 
 	// add to temp file DB
@@ -328,13 +359,16 @@ func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err 
 	return newTempFile, nil
 }
 
+// FileNotFoundError implies a file was not found which should exist.
+var FileNotFoundError = errors.New("file not found")
+
 // PublishFile publishes the file, making it visible to all logged in users. User input Metadata is also added to the
 // file here and the original temp file will be deleted.
 func (db *FileDB) PublishFile(fileUUID string, metaData MetaData) (err error) {
 	// append new details to file object
 	uploadedFile, ok := db.Uploaded.Get(fileUUID)
 	if !ok {
-		return fmt.Errorf("file_not_found")
+		return FileNotFoundError
 	}
 
 	uploadedFile.PublishedTimestamp = time.Now().UnixNano()
@@ -351,8 +385,7 @@ func (db *FileDB) PublishFile(fileUUID string, metaData MetaData) (err error) {
 
 	if err = MoveFile(tempFilePath, uploadedFile.AbsolutePath()); err != nil {
 		os.Remove(tempFilePath) // destroy temp file on add failure
-		Critical.Log(err)
-		return fmt.Errorf("file_processing_error")
+		return errors.Wrap(err, "failed to move temp file to uploads")
 	}
 
 	// add to file DB & record transaction
@@ -409,6 +442,8 @@ func (db *FileDB) GetMetaData(target string) (result []string) {
 	return
 }
 
+var FileAlreadyDeletedError = errors.New("file has already been deleted")
+
 // DeleteFile marks a published file in the DB as deleted, or deletes an actual temp uploaded file.
 func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 	// check if file exists in either published or temp/uploaded DB
@@ -416,7 +451,7 @@ func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 	if !ok {
 		file, ok = db.Published.Get(fileUUID)
 		if !ok {
-			return fmt.Errorf("file_not_found")
+			return FileNotFoundError
 		}
 	}
 
@@ -424,8 +459,7 @@ func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 	switch file.State {
 	case Uploaded:
 		if err = os.Remove(file.AbsolutePath()); err != nil {
-			Critical.Log(err)
-			return fmt.Errorf("file_processing_error")
+			return errors.Wrap(err, "target file could not be removed")
 		}
 		db.Uploaded.Delete(fileUUID)
 
@@ -435,7 +469,7 @@ func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 		db.FileTransactions.Create(Delete, file.UUID)
 
 	case Deleted:
-		return fmt.Errorf("file_already_deleted")
+		return FileAlreadyDeletedError
 	}
 
 	db.SerializeToFile()
@@ -614,19 +648,21 @@ func (db *FileDB) GetFilesByUser(username string, state State) (files []File) {
 	return SortFilesByDate(files)
 }
 
+var FileDBEmptyError = errors.New("no files have been published")
+
 // GetRandomFile returns a randomly selected file.
 func (db *FileDB) GetRandomFile() (File, error) {
 	UUIDs := db.GetUUIDs()
 
 	if len(UUIDs) == 0 {
-		return File{}, fmt.Errorf("no files have been uploaded")
+		return File{}, FileDBEmptyError
 	}
 
 	// pick random from slice
 	randomUUID := UUIDs[RandomInt(0, len(UUIDs))]
 	file, ok := db.Published.Get(randomUUID)
 	if !ok {
-		return File{}, fmt.Errorf("error")
+		return File{}, errors.New("file does not exist")
 	}
 
 	return file, nil

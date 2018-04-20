@@ -214,34 +214,25 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(vars)
 
 		// email new randomly generated temp password
+		recipientEmail := "jemgunay@yahoo.co.uk"
 		msgBody := "This is your new temporary password: 'new password here'. Use it to log in and change your password. It will expire in 30 minutes."
 
 		msg := gomail.NewMessage()
-		msg.SetHeader("From", "admin@memoryshare.com") // config.Get("display_email_addr")
-		msg.SetHeader("To", "jemgunay@yahoo.co.uk")
+		msg.SetHeader("From", config.EmailDisplayAddr)
+		msg.SetHeader("To", recipientEmail)
 		msg.SetHeader("Subject", config.ServiceName+": Password Reset")
 		msg.SetBody("text/html", msgBody)
 
-		/**/ /*port, err := strconv.Atoi(config.Get("core_email_port"))
-		if err != nil {
-			s.Respond(w, r, "error", 2)
+		/*d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
+
+		// send email
+		if err := d.DialAndSend(msg); err != nil {
+			Critical.Log(err)
+			s.Respond(w, r, "error")
 			return
-		}*/ /*
+		}*/
 
-			//d := gomail.NewDialer(config.Get("core_email_server"), port, config.Get("core_email_addr"), config.Get("core_email_password"))
-
-			d := gomail.NewDialer("smtp.gmail.com", 465, config.Get("core_email_addr"), config.Get("core_email_password"))
-
-			// sent email
-			if err := d.DialAndSend(msg); err != nil {
-				log.Println(err)
-				s.Respond(w, r, "error")
-				return
-			}
-
-			s.Respond(w, r, "success")*/
-
-		s.Respond(w, r, "not yet implemented")
+		s.Respond(w, r, "success")
 		return
 
 	}
@@ -420,34 +411,33 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 
 			s.Respond(w, r, result)
 
-		// update specific user details -> /user/{username}
+			// update specific user details -> /user/{username}
 		case http.MethodPost:
 			// check auth or admin privs first
 			s.Respond(w, r, "not yet implemented")
 		}
-	} else {
-		switch r.Method {
-		// add a file to a user's favourites -> /user
-		case http.MethodPost:
-			switch r.Form.Get("operation") {
-			case "favourite":
-				state, _ := strconv.ParseBool(r.Form.Get("state"))
+		return
+	}
 
-				err := s.userDB.SetFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state)
-				if err != nil {
-					s.Respond(w, r, err)
-					return
-				}
+	switch r.Method {
+	// add a file to a user's favourites -> /user
+	case http.MethodPost:
+		switch r.Form.Get("operation") {
+		case "favourite":
+			state, _ := strconv.ParseBool(r.Form.Get("state"))
 
-				if state {
-					s.Respond(w, r, "favourite_successfully_added")
-				} else {
-					s.Respond(w, r, "favourite_successfully_removed")
-				}
+			err := s.userDB.SetFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state)
+			if err != nil {
+				s.Respond(w, r, err)
+				return
 			}
 
+			if state {
+				s.Respond(w, r, "favourite_successfully_added")
+			} else {
+				s.Respond(w, r, "favourite_successfully_removed")
+			}
 		}
-
 	}
 
 	return
@@ -549,22 +539,7 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// get groups of meta data
 	case http.MethodGet:
-		q := r.URL.Query()
-		resultsList := make(map[string][]string)
-
-		metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
-		for _, dataType := range metaDataTypes {
-			resultsList[dataType] = s.fileDB.GetMetaData(dataType)
-		}
-
-		// parse query result to json
-		response, err := json.Marshal(resultsList)
-		if err != nil {
-			Critical.Log(err)
-			s.Respond(w, r, "error")
-			return
-		}
-		s.Respond(w, r, response)
+		s.processMetadataRequest(w, r)
 
 	// get specific item by UUID (a file or user): ?UUID=X|random&type=file|user&format=html|json_pretty|json)
 	case http.MethodPost:
@@ -575,64 +550,9 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch r.Form.Get("type") {
-		// get specific file
+		// get specific file from DB
 		case "file":
-			// check UUID provided
-			targetUUID := r.Form.Get("UUID")
-			if targetUUID == "" {
-				s.Respond(w, r, "no_UUID_provided")
-				return
-			}
-
-			if targetUUID == "random" {
-				randomFile, err := s.fileDB.GetRandomFile()
-				if err != nil {
-					s.Respond(w, r, "no files found")
-					return
-				}
-
-				targetUUID = randomFile.UUID
-			}
-
-			// fetch file from DB
-			file, ok := s.fileDB.Published.Get(targetUUID)
-			if ok && file.UUID == "" {
-				s.Respond(w, r, "no_UUID_match")
-				return
-			}
-
-			// pretty print
-			switch r.Form.Get("format") {
-			case "html":
-				// get user
-				user, err := s.userDB.GetUserByUsername(file.UploaderUsername)
-				if err != nil {
-					s.Respond(w, r, "error finding corresponding user")
-					return
-				}
-				isFavourite := user.FavouriteFileUUIDs[file.UUID]
-
-				templateData := struct {
-					File
-					User
-					IsFavourite bool
-				}{
-					file,
-					user,
-					isFavourite,
-				}
-
-				result := s.CompleteTemplate("/dynamic/templates/file_content_overlay.html", templateData)
-				s.Respond(w, r, result)
-
-			case "json_pretty":
-				s.Respond(w, r, ToJSON(file, true))
-
-			case "json":
-				fallthrough
-			default:
-				s.Respond(w, r, ToJSON(file, false))
-			}
+			s.processFileRequest(w, r)
 
 		// get specific user from DB
 		case "user":
@@ -646,10 +566,6 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			// fetch User from DB
 			user, err := s.userDB.GetUserByUsername(targetUsername)
 			if err != nil {
-				s.Respond(w, r, "error finding corresponding user")
-				return
-			}
-			if user.Username == "" {
 				s.Respond(w, r, "no_username_match")
 				return
 			}
@@ -657,8 +573,6 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 			switch r.Form.Get("format") {
 			case "json_pretty":
 				s.Respond(w, r, ToJSON(user, true))
-			case "json":
-				fallthrough
 			default:
 				s.Respond(w, r, ToJSON(user, false))
 			}
@@ -666,6 +580,90 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 		default:
 			s.Respond(w, r, "no_type_provided")
 		}
+	}
+}
+
+// processMetadataRequest processes a MetaData fetch request.
+func (s *Server) processMetadataRequest(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	resultsList := make(map[string][]string)
+
+	metaDataTypes := ProcessInputList(q.Get("fetch"), ",", true)
+	for _, dataType := range metaDataTypes {
+		resultsList[dataType] = s.fileDB.GetMetaData(dataType)
+	}
+
+	// parse query result to json
+	response, err := json.Marshal(resultsList)
+	if err != nil {
+		Critical.Log(err)
+		s.Respond(w, r, "error")
+		return
+	}
+	s.Respond(w, r, response)
+}
+
+// processFileRequest processes a request for a File by UUID.
+func (s *Server) processFileRequest(w http.ResponseWriter, r *http.Request) {
+	// check UUID provided
+	targetUUID := r.Form.Get("UUID")
+	if targetUUID == "" {
+		s.Respond(w, r, "no_UUID_provided")
+		return
+	}
+
+	if targetUUID == "random" {
+		randomFile, err := s.fileDB.GetRandomFile()
+		if err != nil {
+			switch err {
+			case FileDBEmptyError:
+				s.Respond(w, r, "no_files_published")
+			default:
+				s.Respond(w, r, "random_error")
+				Critical.Logf("%+v", err)
+				return
+			}
+			Input.Log(err)
+			return
+		}
+
+		targetUUID = randomFile.UUID
+	}
+
+	// fetch file from DB
+	file, ok := s.fileDB.Published.Get(targetUUID)
+	if ok && file.UUID == "" {
+		s.Respond(w, r, "no_UUID_match")
+		return
+	}
+
+	switch r.Form.Get("format") {
+	case "html":
+		// get user
+		user, err := s.userDB.GetUserByUsername(file.UploaderUsername)
+		if err != nil {
+			s.Respond(w, r, "no_username_match")
+			return
+		}
+		isFavourite := user.FavouriteFileUUIDs[file.UUID]
+
+		templateData := struct {
+			File
+			User
+			IsFavourite bool
+		}{
+			file,
+			user,
+			isFavourite,
+		}
+
+		result := s.CompleteTemplate("/dynamic/templates/file_content_overlay.html", templateData)
+		s.Respond(w, r, result)
+
+	case "json_pretty":
+		s.Respond(w, r, ToJSON(file, true))
+	default:
+		s.Respond(w, r, ToJSON(file, false))
 	}
 }
 
@@ -782,10 +780,26 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				s.RespondStatus(w, r, "error", http.StatusBadRequest)
 				return
 			}
-			// move form file to temp dir
+
+			// move form file to temp dir & create FileDB Uploaded entry
 			uploadedFile, err := s.fileDB.UploadFile(r, sessionUser)
 			if err != nil {
-				s.RespondStatus(w, r, err, http.StatusBadRequest)
+				if err, ok := err.(*FileExistsError); ok {
+					s.RespondStatus(w, r, err.ConstructResponse(), http.StatusBadRequest)
+					return
+				}
+
+				switch err {
+				case InvalidFileError:
+					s.RespondStatus(w, r, "invalid_file", http.StatusBadRequest)
+				case UnsupportedFormatError:
+					s.RespondStatus(w, r, "format_not_supported", http.StatusBadRequest)
+				default:
+					Critical.Logf("%+v", err)
+					s.RespondStatus(w, r, "upload_error", http.StatusInternalServerError)
+					return
+				}
+				Input.Log(err)
 				return
 			}
 
@@ -795,7 +809,6 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}{
 				uploadedFile,
 			}
-
 			result := s.CompleteTemplate("/dynamic/templates/upload_form.html", templateData)
 			if result == "" {
 				s.RespondStatus(w, r, "error", http.StatusBadRequest)
@@ -813,7 +826,17 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// remove file
 			if err := s.fileDB.DeleteFile(r.Form.Get("fileUUID")); err != nil {
-				s.Respond(w, r, err)
+				switch err {
+				case FileNotFoundError:
+					s.RespondStatus(w, r, "file_not_found", http.StatusBadRequest)
+				case FileAlreadyDeletedError:
+					s.RespondStatus(w, r, "file_already_deleted", http.StatusBadRequest)
+				default:
+					Critical.Logf("%+v", err)
+					s.RespondStatus(w, r, "delete_error", http.StatusInternalServerError)
+					return
+				}
+				Input.Log(err)
 				return
 			}
 
@@ -849,7 +872,15 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 			// add file to DB & move from db/temp dir to db/content dir
 			if err := s.fileDB.PublishFile(r.Form.Get("fileUUID"), metaData); err != nil {
-				s.Respond(w, r, err)
+				switch err {
+				case FileNotFoundError:
+					s.Respond(w, r, "file_not_found")
+				default:
+					Critical.Logf("%+v", err)
+					s.RespondStatus(w, r, "publish_error", http.StatusInternalServerError)
+					return
+				}
+				Input.Log(err)
 				return
 			}
 

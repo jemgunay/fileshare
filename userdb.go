@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/pkg/errors"
 )
 
 // AccountState represents the registration state of a User account.
@@ -126,7 +127,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	// get session key
 	key, err := FetchSessionKey()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to fetch session key")
 	}
 
 	userDB = &UserDB{
@@ -136,8 +137,11 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 		Users:   UserMapMutex{Users: make(map[string]User)},
 	}
 
-	// load users
-	userDB.deserializeFromFile()
+	// load DB from file
+	if err = userDB.deserializeFromFile(); err != nil {
+		err = errors.Wrap(err, "could not deserialize UserDB from file")
+		return
+	}
 
 	// create default super admin account if no users exist
 	if userDB.Users.Count() == 0 {
@@ -156,19 +160,19 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 	for {
 		// get forename, surname, email, password
 		if forename, err = ReadStdin("> Forename: \n", false); err != nil {
-			Critical.Log("> Error reading console input...")
+			Critical.Log("> Error reading console input: ", err)
 			continue
 		}
 		if surname, err = ReadStdin("> Surname: \n", false); err != nil {
-			Critical.Log("> Error reading console input...")
+			Critical.Log("> Error reading console input: ", err)
 			continue
 		}
 		if email, err = ReadStdin("> Email: \n", false); err != nil {
-			Critical.Log("> Error reading console input...")
+			Critical.Log("> Error reading console input: ", err)
 			continue
 		}
 		if password, err = ReadStdin("> Password: \n", true); err != nil {
-			Critical.Log("> Error reading console input...")
+			Critical.Log("> Error reading console input: ", err)
 			continue
 		}
 
@@ -181,14 +185,14 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 				err = fmt.Errorf(strings.Replace(err.Error(), "_", " ", -1))
 			}
 
-			Critical.Logf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", err)
+			Critical.Logf("> Account creation failed: %s. Try again to create the account.\n\n", err)
 			continue
 		}
 
 		// set state to ok
 		user, ok := db.Users.Get(username)
 		if !ok {
-			Critical.Logf("> Account creation failed: %s. Try again to create the default super admin account.\n\n", "created user not found")
+			Critical.Logf("> Account creation failed: %s. Try again to create the account.\n\n", "created user not found")
 			continue
 		}
 		user.AccountState = Complete
@@ -284,7 +288,7 @@ func (db *UserDB) AddUser(forename string, surname string, email string, passwor
 func (db *UserDB) AuthenticateUser(r *http.Request) (success bool, err error) {
 	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
-		return false, err
+		return false, errors.Wrap(err, "user has no session cookie")
 	}
 
 	// check if user is authenticated
@@ -299,18 +303,17 @@ func (db *UserDB) AuthenticateUser(r *http.Request) (success bool, err error) {
 func (db *UserDB) GetSessionUser(r *http.Request) (user User, err error) {
 	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
-		return
+		return user, errors.Wrap(err, "user has no session cookie")
 	}
 
-	user, err = db.GetUserByEmail(session.Values["email"].(string))
-	return user, err
+	return db.GetUserByEmail(session.Values["email"].(string))
 }
 
 // SetFavourite adds a file UUID to the favourites list of a user.
 func (db *UserDB) SetFavourite(username string, fileUUID string, state bool) (err error) {
 	user, ok := db.Users.Get(username)
 	if !ok {
-		return fmt.Errorf("user_not_found")
+		return UserNotFoundError
 	}
 
 	favourites := user.FavouriteFileUUIDs
@@ -344,6 +347,9 @@ func (db *UserDB) GetUsers() []User {
 	return users
 }
 
+// UserNotFoundError implies no user matched the request.
+var UserNotFoundError = errors.New("user not found")
+
 // GetUserByEmail returns the User that matches the given email address.
 func (db *UserDB) GetUserByEmail(email string) (User, error) {
 	userSearch := func(m UserMapDB) interface{} {
@@ -358,7 +364,7 @@ func (db *UserDB) GetUserByEmail(email string) (User, error) {
 	user := db.Users.PerformFunc(userSearch).(User)
 
 	if user.Email == "" {
-		return user, fmt.Errorf("user not found")
+		return user, UserNotFoundError
 	}
 	return user, nil
 }
@@ -367,27 +373,26 @@ func (db *UserDB) GetUserByEmail(email string) (User, error) {
 func (db *UserDB) GetUserByUsername(username string) (user User, err error) {
 	user, ok := db.Users.Get(username)
 	if !ok {
-		err = fmt.Errorf("user not found")
+		err = UserNotFoundError
 	}
 	return
 }
 
 // LoginUser handles logging in users.
 func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success bool, err error) {
-	session, err := db.cookies.Get(r, "memory-share")
+	session, _ := db.cookies.Get(r, "memory-share")
 
 	// get form data
 	if err = r.ParseForm(); err != nil {
-		return false, err
+		return false, errors.Wrap(err, "error parsing login form")
 	}
-	emailParam := r.FormValue("email")
-	passwordParam := r.FormValue("password")
+	emailParam, passwordParam := r.FormValue("email"), r.FormValue("password")
 
 	// check form data against user DB
 	hashCompare := func(m UserMapDB) interface{} {
 		for _, user := range m {
 			// compare stored hash against hash of input password
-			err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
+			err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
 			if emailParam == user.Email && err == nil {
 				return true
 			}
@@ -396,7 +401,7 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 	}
 
 	if db.Users.PerformFunc(hashCompare).(bool) == false {
-		return false, nil
+		return false, err
 	}
 
 	// set user as authenticated
@@ -405,10 +410,10 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 	// session expires after 7 days
 	session.Options = &sessions.Options{
 		Path:   "/",
-		MaxAge: 86400 * 7,
+		MaxAge: 86400 * config.MaxSessionAge,
 	}
 	if err := session.Save(r, w); err != nil {
-		return false, err
+		return false, errors.Wrap(err, "error saving session")
 	}
 
 	return true, nil
@@ -418,14 +423,14 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 func (db *UserDB) LogoutUser(w http.ResponseWriter, r *http.Request) (err error) {
 	session, err := db.cookies.Get(r, "memory-share")
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to fetch session cookie")
 	}
 
 	// Revoke users authentication
 	session.Values["authenticated"] = false
 	session.Options.MaxAge = -1
-	if err := session.Save(r, w); err != nil {
-		return err
+	if err = session.Save(r, w); err != nil {
+		return errors.Wrap(err, "error saving session")
 	}
 	return nil
 }
@@ -438,7 +443,7 @@ func FetchSessionKey() (key []byte, err error) {
 	// check if file exists
 	ok, err := FileOrDirExists(sessionFilePath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to check session key file")
 	}
 	if !ok {
 		// create file for writing to
@@ -450,14 +455,13 @@ func FetchSessionKey() (key []byte, err error) {
 
 		key := securecookie.GenerateRandomKey(64)
 		if key == nil {
-			return nil, fmt.Errorf("could not generate session key")
+			return nil, errors.New("could not generate session key")
 		}
 
 		// encode to file
 		encoder := gob.NewEncoder(file)
-		err = encoder.Encode(&key)
-		if err != nil {
-			return nil, err
+		if err = encoder.Encode(&key); err != nil {
+			return nil, errors.Wrap(err, "failed to save session key to file")
 		}
 
 		return key, nil
@@ -466,14 +470,14 @@ func FetchSessionKey() (key []byte, err error) {
 	// open file to read from
 	file, err := os.Open(sessionFilePath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to open session key file")
 	}
 	defer file.Close()
 
 	// decode file contents to store map
 	decoder := gob.NewDecoder(file)
 	if err = decoder.Decode(&key); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to decode session key from file")
 	}
 
 	return key, nil
