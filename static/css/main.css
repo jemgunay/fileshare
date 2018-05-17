@@ -247,6 +247,9 @@ h1, h2, h3 {
 #search-freewall {
     margin: 0 15px 15px 15px;
 }
+#search-freewall img {
+    width: 100%;
+}
 #search-freewall .free-wall-tile, #upload-results-panel .upload-result-panel,
 .overlay-media img, .overlay-media audio, .overlay-media video,
 .upload-result-container img, .upload-result-container audio, .upload-result-container video {

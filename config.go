@@ -72,19 +72,17 @@ type FileFormats struct {
 
 // NewConfig initialises a new configuration for a memory service.
 func NewConfig(rootPath string) (conf *Config, err error) {
-	conf = new(Config)
-	conf.rootPath = rootPath
-	conf.file = conf.rootPath + "/config/settings.ini"
+	conf = &Config{
+		rootPath: rootPath,
+		file:     rootPath + "/config/settings.ini",
+	}
 
 	debug := flag.Int("debug", 0, "1=INCOMING/OUTGOING/INPUT/CREATION, 2=OUTPUT")
 	flag.Parse()
 
 	switch *debug {
 	case 1:
-		Incoming.Enable()
-		Outgoing.Enable()
-		Input.Enable()
-		Creation.Enable()
+		logger.SetEnabledByCategory(true, "INCOMING", "OUTGOING", "INPUT", "CREATED")
 	case 2:
 		Output.Enable()
 	}
@@ -110,7 +108,7 @@ func (c *Config) Load() (err error) {
 	// process config values
 	c.MaxFileUploadSize *= 1024 * 1024
 
-	Input.Log(ToJSON(*c, true))
+	Input.Log("\n", ToJSON(*c, true))
 	return
 }
 
@@ -128,7 +126,7 @@ func (c *Config) CollateFileFormats() {
 
 }
 
-// CheckMediaType Get the media type grouping for the provided file extension.
+// CheckMediaType determines the media type grouping for the provided file extension.
 func (c *Config) CheckMediaType(fileExtension string) string {
 	if mediaType, ok := c.fileFormats[fileExtension]; ok {
 		return mediaType

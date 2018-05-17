@@ -125,7 +125,7 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// file servers
 		// prevent dir listings
 		if r.URL.String() != "/" && strings.HasSuffix(r.URL.String(), "/") {
-			s.Respond(w, r, "404 page not found")
+			s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
 			return
 		}
 		// prevent unauthorised access to /static/content
@@ -139,7 +139,7 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 
 			sessionUser, err := s.userDB.GetSessionUser(r)
 			if sessionUser.Username != vars["user_id"] || err != nil {
-				s.Respond(w, r, "404 page not found")
+				s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
 				return
 			}
 		}
@@ -148,7 +148,7 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if r.URL.String() == "/login" {
 			if authorised {
 				if r.Method == http.MethodGet {
-					http.Redirect(w, r, "/", 302)
+					http.Redirect(w, r, "/", http.StatusFound)
 				} else {
 					s.Respond(w, r, "already authenticated")
 				}

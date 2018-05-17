@@ -251,6 +251,7 @@ function initSearchTiles(overlayOnClick) {
         animate: true,
         cellW: 200,
         cellH: 'auto',
+        keepOrder: true,
         onResize: function() {
             wall.fitWidth();
         }

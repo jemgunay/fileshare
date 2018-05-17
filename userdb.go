@@ -14,8 +14,8 @@ import (
 
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // AccountState represents the registration state of a User account.
@@ -39,10 +39,11 @@ type UserType int
 
 const (
 	// Standard accounts can perform standard actions.
-	Standard    UserType = iota
+	Standard UserType = iota
 	// Admin accounts can add/block users and can make others admin.
 	Admin
-	// SuperAdmin accounts cannot be removed, can change user details (such as admin privs, but not on self) and can complete file edit/delete requests.
+	// SuperAdmin accounts cannot be removed, can change user details (such as admin privs, but not on self) and can
+	// complete file edit/delete requests.
 	SuperAdmin
 	// Guest accounts can view/search files only and cannot upload.
 	Guest
@@ -138,7 +139,7 @@ func NewUserDB(dbDir string) (userDB *UserDB, err error) {
 	}
 
 	// load DB from file
-	if err = userDB.deserializeFromFile(); err != nil {
+	if err = userDB.DeserializeFromFile(); err != nil {
 		err = errors.Wrap(err, "could not deserialize UserDB from file")
 		return
 	}
@@ -508,7 +509,7 @@ func (db *UserDB) SerializeToFile() (err error) {
 }
 
 // DeserializeFromFile deserializes a file to the UserDB structure, overwriting current map values.
-func (db *UserDB) deserializeFromFile() (err error) {
+func (db *UserDB) DeserializeFromFile() (err error) {
 	db.Users.mu.Lock()
 
 	// if db file does not exist, create a new one

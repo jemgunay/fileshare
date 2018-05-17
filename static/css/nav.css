@@ -13,6 +13,44 @@
     z-index: 888;
 }
 
+.navbar-brand {
+    height: 100%;
+}
+
+@media (min-width: 768px) {
+    .navbar.navbar-default {
+        /*background-color: rgba(217, 237, 247, 0.63);*/
+        border: 0;
+        -webkit-box-shadow: none;
+        box-shadow: none;
+    }
+}
+
+.navbar-toggle {
+    background-color: #fff;
+}
+
+.navbar-default .navbar-nav>li>a {
+
+}
+
+.navbar-default .navbar-nav>.active>a {
+    background-color: #fff;
+    box-sizing: border-box;
+    border: 1px solid #e7e7e7;
+    border-bottom: 0;
+}
+
+@media (min-width: 768px) {
+    #navbar-border {
+        position: absolute;
+        height: 100%;
+        width: 100%;
+        box-sizing: border-box;
+        border-bottom: 1px solid #e7e7e7;
+    }
+}
+
 /* burger icon animation */
 .icon-bar {
     margin-top: 2px;
