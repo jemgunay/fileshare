@@ -73,21 +73,13 @@
                                             <p>
                                             {{ if eq .User.AccountState 0 }}
                                                 <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                                <strong>Awaiting admin & email confirmation</strong>
-                                            {{ end }}
-                                            {{ if eq .User.AccountState 1 }}
-                                                <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
                                                 <strong>Awaiting email confirmation</strong>
                                             {{ end }}
-                                            {{ if eq .User.AccountState 2 }}
-                                                <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                                <strong>Awaiting admin confirmation</strong>
-                                            {{ end }}
-                                            {{ if eq .User.AccountState 3 }}
+                                            {{ if eq .User.AccountState 1 }}
                                                 <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
                                                 <strong>Registered</strong>
                                             {{ end }}
-                                            {{ if eq .User.AccountState 4 }}
+                                            {{ if eq .User.AccountState 2 }}
                                                 <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
                                                 <strong>Blocked</strong>
                                             {{ end }}

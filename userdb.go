@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/dchest/uniuri"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
@@ -22,14 +23,10 @@ import (
 type AccountState int
 
 const (
-	// Unregistered represents an account waiting for both admin confirmation & user email confirmation.
-	Unregistered AccountState = iota
-	// AdminConfirmed represents an account waiting for user email confirmation only.
-	AdminConfirmed
-	// EmailConfirmed represents an account waiting for admin confirmation only.
-	EmailConfirmed
-	// Complete represents an account which has completed the registration process.
-	Complete
+	// AwaitingConfirmation represents an account waiting for user email confirmation.
+	AwaitingConfirmation AccountState = iota
+	// Registered represents an account which has been confirmed by .
+	Registered
 	// Blocked represents an account which has been blocked from logging in.
 	Blocked
 )
@@ -40,7 +37,7 @@ type UserType int
 const (
 	// Standard accounts can perform standard actions.
 	Standard UserType = iota
-	// Admin accounts can add/block users and can make others admin.
+	// Admin accounts can add/block users and can change user privs
 	Admin
 	// SuperAdmin accounts cannot be removed, can change user details (such as admin privs, but not on self) and can
 	// complete file edit/delete requests.
@@ -55,6 +52,7 @@ type User struct {
 	Email              string
 	Password           string
 	TempResetPassword  string
+	PasswordResetTimestamp  time.Time
 	Forename           string
 	Surname            string
 	Type               UserType
@@ -196,7 +194,7 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 			Critical.Logf("> Account creation failed: %s. Try again to create the account.\n\n", "created user not found")
 			continue
 		}
-		user.AccountState = Complete
+		user.AccountState = Registered
 		db.Users.Set(username, user)
 		return
 	}
@@ -397,18 +395,28 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 			if emailParam == user.Email && err == nil {
 				return true
 			}
+
+			// check against temp reset password
+			if user.TempResetPassword == "" || time.Since(user.PasswordResetTimestamp).Hours() > 1 {
+				continue
+			}
+			err = bcrypt.CompareHashAndPassword([]byte(user.TempResetPassword), []byte(passwordParam))
+			if emailParam == user.Email && err == nil {
+				user.TempResetPassword = ""
+				return true
+			}
 		}
 		return false
 	}
 
 	if db.Users.PerformFunc(hashCompare).(bool) == false {
-		return false, err
+		return false, nil
 	}
 
 	// set user as authenticated
 	session.Values["authenticated"] = true
 	session.Values["email"] = emailParam
-	// session expires after 7 days
+	// session expires the number of days specified in the config
 	session.Options = &sessions.Options{
 		Path:   "/",
 		MaxAge: 86400 * config.MaxSessionAge,
@@ -434,6 +442,32 @@ func (db *UserDB) LogoutUser(w http.ResponseWriter, r *http.Request) (err error)
 		return errors.Wrap(err, "error saving session")
 	}
 	return nil
+}
+
+// this list of chars are randomly selected from and included in random reset/registration passwords
+var randomPassChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!$%^&*()@#?")
+
+// SetTempPassword sets a temporary password for a user and returns it.
+func (db *UserDB) SetTempPassword(email string) (tempPass string, err error) {
+	user, err := db.GetUserByEmail(email)
+	if err != nil {
+		return
+	}
+
+	// generate random password
+	tempPass = uniuri.NewLenChars(15, randomPassChars)
+
+	// hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPass), 14)
+	if err != nil {
+		Critical.Log("error hashing password")
+		return
+	}
+	user.TempResetPassword = string(hashedPassword)
+	user.PasswordResetTimestamp = time.Now()
+
+	db.Users.Set(user.Username, user)
+	return
 }
 
 // FetchSessionKey gets the session secure key from session_key.dat if one was created in the previous run, otherwise

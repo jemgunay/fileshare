@@ -186,7 +186,7 @@ func (s *Server) fileServerAuthHandler(h http.Handler) http.Handler {
 // resetHandler is a HTTP handler which manages user password reset requests.
 func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	// fetch login form
+	// fetch reset form
 	case http.MethodGet:
 		// HTML template data
 		templateData := struct {
@@ -209,28 +209,43 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 	// submit password reset request
 	case http.MethodPost:
-		r.ParseForm()
-		vars := mux.Vars(r)
-		fmt.Println(vars)
-
-		// email new randomly generated temp password
-		recipientEmail := "jemgunay@yahoo.co.uk"
-		msgBody := "This is your new temporary password: 'new password here'. Use it to log in and change your password. It will expire in 30 minutes."
-
-		msg := gomail.NewMessage()
-		msg.SetHeader("From", config.EmailDisplayAddr)
-		msg.SetHeader("To", recipientEmail)
-		msg.SetHeader("Subject", config.ServiceName+": Password Reset")
-		msg.SetBody("text/html", msgBody)
-
-		/*d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
-
-		// send email
-		if err := d.DialAndSend(msg); err != nil {
+		if err := r.ParseForm(); err != nil {
 			Critical.Log(err)
 			s.Respond(w, r, "error")
 			return
-		}*/
+		}
+
+		recipientEmail := r.FormValue("email")
+
+		// perform password reset & email sending in the background
+		go func() {
+			// set temp password if user exists (don't inform user of failed reset attempt to prevent address brute forcing)
+			tempPass, err := s.userDB.SetTempPassword(recipientEmail)
+			if err != nil {
+				return
+			}
+
+			// construct new email with randomly generated temp password
+			msgBody := fmt.Sprintf("This is your new temporary password: <br><br>%v<br><br>", tempPass)
+			msgBody += "Use it to log in and change your password. It will expire in one hour."
+
+			msg := gomail.NewMessage()
+			msg.SetHeader("From", config.EmailDisplayAddr)
+			msg.SetHeader("To", recipientEmail)
+			msg.SetHeader("Subject", config.ServiceName+": Password Reset")
+			msg.SetBody("text/html", msgBody)
+
+			fmt.Println(tempPass)
+
+			/*
+			d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
+
+			// send email
+			if err := d.DialAndSend(msg); err != nil {
+				Critical.Log(err)
+				return
+			}*/
+		}()
 
 		s.Respond(w, r, "success")
 		return
@@ -916,6 +931,18 @@ func (s *Server) RespondStatus(w http.ResponseWriter, r *http.Request, response 
 	}
 }
 
+// functions that can be utilised by HTML templates
+var templateFuncs = template.FuncMap{
+	"formatEpoch": func(epoch int64) string {
+		t := time.Unix(0, epoch)
+		return t.Format("02/01/2006 [15:04]")
+	},
+	"formatByteCount": func(bytes int64, si bool) string {
+		return FormatByteCount(bytes, si)
+	},
+	"toTitleCase": strings.Title,
+}
+
 // CompleteTemplate replaces variables in HTML templates with corresponding values in TemplateData.
 func (s *Server) CompleteTemplate(filePath string, data interface{}) (result template.HTML) {
 	filePath = config.rootPath + filePath
@@ -928,16 +955,7 @@ func (s *Server) CompleteTemplate(filePath string, data interface{}) (result tem
 	}
 
 	// parse HTML template & register template functions
-	templateParsed, err := template.New("t").Funcs(template.FuncMap{
-		"formatEpoch": func(epoch int64) string {
-			t := time.Unix(0, epoch)
-			return t.Format("02/01/2006 [15:04]")
-		},
-		"formatByteCount": func(bytes int64, si bool) string {
-			return FormatByteCount(bytes, si)
-		},
-		"toTitleCase": strings.Title,
-	}).Parse(string(htmlTemplate))
+	templateParsed, err := template.New("t").Funcs(templateFuncs).Parse(string(htmlTemplate))
 
 	if err != nil {
 		Critical.Log(err)
@@ -945,7 +963,7 @@ func (s *Server) CompleteTemplate(filePath string, data interface{}) (result tem
 	}
 
 	// perform template variable replacement
-	buffer := new(bytes.Buffer)
+	buffer := &bytes.Buffer{}
 	if err = templateParsed.Execute(buffer, data); err != nil {
 		Critical.Log(err)
 		return

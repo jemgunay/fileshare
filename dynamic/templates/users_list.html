@@ -48,21 +48,13 @@
                                     <p>
                                         {{ if eq $user.AccountState 0 }}
                                             <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                            Awaiting admin & email confirmation
-                                        {{ end }}
-                                        {{ if eq $user.AccountState 1 }}
-                                            <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
                                             Awaiting email confirmation
                                         {{ end }}
-                                        {{ if eq $user.AccountState 2 }}
-                                            <span class="glyphicon glyphicon-refresh" aria-hidden="true"></span>
-                                            Awaiting admin confirmation
-                                        {{ end }}
-                                        {{ if eq $user.AccountState 3 }}
+                                        {{ if eq $user.AccountState 1 }}
                                             <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
                                             Registered
                                         {{ end }}
-                                        {{ if eq $user.AccountState 4 }}
+                                        {{ if eq $user.AccountState 2 }}
                                             <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
                                             Blocked
                                         {{ end }}
