@@ -172,6 +172,8 @@ function performSearch(append) {
         return
     }
 
+    var scrollY = $(window).scrollTop();
+
     if (append !== true && append !== false) append = false;
     if (append === true) {
         currentPage++;
@@ -213,9 +215,10 @@ function performSearch(append) {
             }
 
             initSearchTiles(true);
-            $(this).fadeIn(100);
-
-            $(window).trigger('resize'); // fix tokenfield bug
+            $(this).fadeIn(100, function() {
+                $(window).trigger('resize'); // fix tokenfield bug
+                $(window).scrollTop(scrollY);
+            });
         });
     });
 }
@@ -336,7 +339,6 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
                     $("#overlay-fav-btn span").removeClass("glyphicon-heart-empty").addClass("glyphicon-heart");
 
                     if (favResponse.trim() === "favourite_successfully_added") {
-                        notifier.queueAlert("Memory added to favourites!", "success");
                         $("#overlay-content").find("#is-favourite").val(true);
                     }
                     else {

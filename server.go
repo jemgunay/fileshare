@@ -226,25 +226,23 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// construct new email with randomly generated temp password
-			msgBody := fmt.Sprintf("This is your new temporary password: <br><br>%v<br><br>", tempPass)
-			msgBody += "Use it to log in and change your password. It will expire in one hour."
+			msgBody := fmt.Sprintf("<html><body><p>This is your temporary one time use password: <br><br><b>%v", tempPass)
+			msgBody += "</b><br><br>Use it to log in and change your password. It will expire in one hour.</p></body></html>"
 
 			msg := gomail.NewMessage()
-			msg.SetHeader("From", config.EmailDisplayAddr)
+			msg.SetAddressHeader("From", config.EmailDisplayAddr, "Memory Share")
 			msg.SetHeader("To", recipientEmail)
 			msg.SetHeader("Subject", config.ServiceName+": Password Reset")
 			msg.SetBody("text/html", msgBody)
 
-			fmt.Println(tempPass)
-
-			/*
 			d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
+			//d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 			// send email
 			if err := d.DialAndSend(msg); err != nil {
 				Critical.Log(err)
 				return
-			}*/
+			}
 		}()
 
 		s.Respond(w, r, "success")
@@ -280,7 +278,7 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	// submit login request
 	case http.MethodPost:
 		success, err := s.userDB.LoginUser(w, r)
-
+		fmt.Println(err)
 		switch {
 		case err != nil:
 			s.Respond(w, r, "error")
@@ -385,7 +383,6 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				NavbarFocus string
 				FooterHTML  template.HTML
 				ContentHTML template.HTML
-				FilesHTML   template.HTML
 				Status      string
 			}{
 				"Profile",
@@ -397,28 +394,13 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 				"users",
 				"",
 				"",
-				"",
 				"ok",
 			}
 
-			// get favourite memories
-			for fileUUID := range user.FavouriteFileUUIDs {
-				file, ok := s.fileDB.Published.Get(fileUUID)
-				if ok && file.UUID != "" {
-					templateData.Files = append(templateData.Files, file)
-				}
-			}
-
-			var filesHTMLTarget = "/dynamic/templates/files_list_tiled.html"
-			if len(templateData.Files) == 0 {
-				filesHTMLTarget = "/static/templates/no_match_favourites.html"
-			}
-
-			// set navbarfocus based on if viewed user IS the session user
+			// set navbar focus based on if viewed user IS the session user
 			if vars["username"] == sessionUser.Username {
 				templateData.NavbarFocus = "user"
 			}
-			templateData.FilesHTML = s.CompleteTemplate(filesHTMLTarget, templateData)
 			templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
 			templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/search_footer.html", templateData)
 			templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/user_content.html", templateData)

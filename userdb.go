@@ -37,28 +37,28 @@ type UserType int
 const (
 	// Standard accounts can perform standard actions.
 	Standard UserType = iota
+	// Guest accounts can view/search files only and cannot upload.
+	Guest
 	// Admin accounts can add/block users and can change user privs
 	Admin
 	// SuperAdmin accounts cannot be removed, can change user details (such as admin privs, but not on self) and can
 	// complete file edit/delete requests.
 	SuperAdmin
-	// Guest accounts can view/search files only and cannot upload.
-	Guest
 )
 
 // User represents a user account.
 type User struct {
-	Username           string // generally found in URLs
-	Email              string
-	Password           string
-	TempResetPassword  string
-	PasswordResetTimestamp  time.Time
-	Forename           string
-	Surname            string
-	Type               UserType
-	CreatedTimestamp   int64
-	Image              string
-	FavouriteFileUUIDs map[string]bool // fileUUID key
+	Username               string // unique, though generally only used for display (found in URLs/search)
+	Email                  string // used for unique identification/logging in etc
+	Password               string
+	TempResetPassword      string
+	PasswordResetTimestamp time.Time
+	Forename               string
+	Surname                string
+	Type                   UserType
+	CreatedTimestamp       int64
+	Image                  string
+	FavouriteFileUUIDs     map[string]bool // fileUUID key
 	AccountState
 }
 
@@ -196,6 +196,7 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 		}
 		user.AccountState = Registered
 		db.Users.Set(username, user)
+		db.SerializeToFile()
 		return
 	}
 }
@@ -387,31 +388,37 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 	}
 	emailParam, passwordParam := r.FormValue("email"), r.FormValue("password")
 
-	// check form data against user DB
-	hashCompare := func(m UserMapDB) interface{} {
-		for _, user := range m {
-			// compare stored hash against hash of input password
-			err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam))
-			if emailParam == user.Email && err == nil {
-				return true
-			}
+	// check to see if a user corresponds with email address
+	user, err := db.GetUserByEmail(emailParam)
+	if err != nil {
+		return false, nil
+	}
 
-			// check against temp reset password
-			if user.TempResetPassword == "" || time.Since(user.PasswordResetTimestamp).Hours() > 1 {
-				continue
-			}
-			err = bcrypt.CompareHashAndPassword([]byte(user.TempResetPassword), []byte(passwordParam))
-			if emailParam == user.Email && err == nil {
-				user.TempResetPassword = ""
+	// user with email found
+	loggedIn := func() bool {
+		// compare stored hash against hash of input password
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam)); err == nil {
+			return true
+		}
+
+		// check against temp reset password
+		if user.TempResetPassword != "" && time.Since(user.PasswordResetTimestamp).Hours() < 1 {
+			if err := bcrypt.CompareHashAndPassword([]byte(user.TempResetPassword), []byte(passwordParam)); err == nil {
 				return true
 			}
 		}
 		return false
-	}
+	}()
 
-	if db.Users.PerformFunc(hashCompare).(bool) == false {
+	// login failed
+	if loggedIn == false {
 		return false, nil
 	}
+
+	// destroy temp password
+	user.TempResetPassword = ""
+	db.Users.Set(user.Username, user)
+	db.SerializeToFile()
 
 	// set user as authenticated
 	session.Values["authenticated"] = true
@@ -467,6 +474,7 @@ func (db *UserDB) SetTempPassword(email string) (tempPass string, err error) {
 	user.PasswordResetTimestamp = time.Now()
 
 	db.Users.Set(user.Username, user)
+	db.SerializeToFile()
 	return
 }
 
@@ -520,15 +528,14 @@ func FetchSessionKey() (key []byte, err error) {
 
 // SerializeToFile serializes the entire UserDB to a file on disk via gob.
 func (db *UserDB) SerializeToFile() (err error) {
-	db.Users.mu.Lock()
-	defer db.Users.mu.Unlock()
-
 	// create/truncate file for writing to
 	file, err := os.Create(db.file)
 	if err != nil {
 		Critical.Log(err)
 		return err
 	}
+	db.Users.mu.Lock()
+	defer db.Users.mu.Unlock()
 	defer file.Close()
 
 	// encode store map to file

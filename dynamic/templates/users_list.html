@@ -34,9 +34,10 @@
                                     <h4>
                                         <strong>
                                             <a href="/user/{{ $user.Username }}">{{ $user.Forename }} {{ $user.Surname }}</a>
-                                            {{ if eq $user.Type 1 }} (Admin) {{ end }}
-                                            {{ if eq $user.Type 2 }} (Super Admin) {{ end }}
-                                            {{ if eq $user.Type 3 }} (Guest) {{ end }}
+                                            {{ if eq .User.Type 0 }} Standard {{ end }}
+                                            {{ if eq .User.Type 1 }} Guest {{ end }}
+                                            {{ if eq .User.Type 2 }} Admin {{ end }}
+                                            {{ if eq .User.Type 3 }} Super Admin {{ end }}
                                         </strong>
                                     </h4>
 
