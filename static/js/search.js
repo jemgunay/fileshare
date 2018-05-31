@@ -23,10 +23,8 @@ $(document).ready(function() {
 
         // init view toggle
         $("#view-search-input").bootstrapToggle({
-            on: "Tiled View",
-            off: "Detailed View",
-            width: "100%",
-            height: "21px"
+            on: "Tiled",
+            off: "Detailed",
         }).change(function() {
             performSearch();
 

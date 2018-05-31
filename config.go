@@ -81,10 +81,11 @@ func NewConfig(rootPath string) (conf *Config, err error) {
 	flag.Parse()
 
 	switch *debug {
-	case 1:
-		logger.SetEnabledByCategory(true, "INCOMING", "OUTGOING", "INPUT", "CREATED")
 	case 2:
 		Output.Enable()
+		fallthrough
+	case 1:
+		logger.SetEnabledByCategory(true, "INCOMING", "OUTGOING", "INPUT", "CREATED")
 	}
 
 	// pull config from file

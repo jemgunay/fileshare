@@ -21,13 +21,13 @@
                             <!-- description -->
                             <div class="col-sm-6 form-group">
                                 <label for="desc-search-input">Description Search</label>
-                                <input type="text" id="desc-search-input" class="form-control">
+                                <input type="text" id="desc-search-input" class="form-control input-sm">
                             </div>
 
                             <!-- date inputs -->
                             <div class="col-xs-6 col-sm-3 form-group">
                                 <label for="min-date-search-input">Min Date</label>
-                                <div class='input-group date' id='min-date-picker'>
+                                <div class='input-group date input-group-sm' id='min-date-picker'>
                                     <input type='text' class="form-control" id="min-date-search-input">
                                     <span class="input-group-addon">
                                         <span class="glyphicon glyphicon-calendar"></span>
@@ -36,7 +36,7 @@
                             </div>
                             <div class="col-xs-6 col-sm-3 form-group">
                                 <label for="max-date-search-input">Max Date</label>
-                                <div class='input-group date' id='max-date-picker'>
+                                <div class='input-group date input-group-sm' id='max-date-picker'>
                                     <input type='text' class="form-control" id="max-date-search-input">
                                     <span class="input-group-addon">
                                         <span class="glyphicon glyphicon-calendar"></span>
@@ -48,7 +48,7 @@
                             <div class="col-sm-6 form-group">
                                 <div class="tags-container">
                                     <label for="tags-search-input">Tags Filter</label>
-                                    <input type="text" id="tags-search-input" class="form-control">
+                                    <input type="text" id="tags-search-input" class="form-control input-sm">
                                 </div>
                             </div>
 
@@ -56,20 +56,20 @@
                             <div class="col-sm-6 form-group">
                                 <div class="tags-container">
                                     <label for="people-search-input">People Filter</label>
-                                    <input type="text" id="people-search-input" class="form-control">
+                                    <input type="text" id="people-search-input" class="form-control input-sm">
                                 </div>
                             </div>
 
                             <!-- media_type -->
                             <div class="col-sm-6 form-group">
                                 <label for="type-search-input">File Type Filter</label>
-                                <input type="text" id="type-search-input" class="form-control">
+                                <input type="text" id="type-search-input" class="form-control input-sm">
                             </div>
 
                             <!-- number of results per page -->
                             <div class="col-xs-6 col-sm-3 form-group">
                                 <label for="count-search-input">Memories Per Page</label><br>
-                                <select id="count-search-input" class="form-control">
+                                <select id="count-search-input" class="form-control input-sm">
                                     <option value="10">10</option>
                                     <option value="20">20</option>
                                     <option value="50">50</option>
@@ -78,7 +78,8 @@
 
                             <!-- results view format (detailed or tiled) -->
                             <div class="col-xs-6 col-sm-3 form-group">
-                                <input type="checkbox" id="view-search-input">
+                                <label for="view-search-input">View Format</label><br>
+                                <input type="checkbox" id="view-search-input" data-width="100%" data-height="18" data-size="small">
                             </div>
                         </form>
 

@@ -180,8 +180,10 @@ func SplitFileName(file string) (name, extension string) {
 		return
 	}
 
-	name = components[0]
-	extension = strings.ToLower(strings.Join(components[1:], ""))
+	// an extension is any chars following the last dot
+	nameComponents := components[0 : len(components)-1]
+	name = strings.Join(nameComponents, "")
+	extension = strings.ToLower(strings.Join(components[len(components)-1:], ""))
 	return
 }
 
