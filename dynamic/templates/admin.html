@@ -1,16 +1,96 @@
 {{ .NavbarHTML }}
 
-<div class="container-fluid" id="view-user-container">
+<div class="container-fluid" id="admin-container">
     <div class="row">
         <div class="col-md-offset-2 col-md-8">
 
             <h2 class="section-header">Admin</h2>
 
-            <div class="panel panel-default">
-                <div class="panel-body">
+            <div>
+                <!-- nav tabs -->
+                <ul class="nav nav-tabs" role="tablist" id="admin-tabs">
+                    <li role="presentation" class="active"><a href="#create" aria-controls="create_user" role="tab" data-toggle="tab">Create User</a></li>
+                    <li role="presentation"><a href="#manage" aria-controls="manage_users" role="tab" data-toggle="tab">Manage Users</a></li>
+                    <li role="presentation"><a href="#requests" aria-controls="requests" role="tab" data-toggle="tab">Requests</a></li>
+                    <li role="presentation"><a href="#settings" aria-controls="settings" role="tab" data-toggle="tab">Settings</a></li>
+                    <li role="presentation"><a href="#stats" aria-controls="stats" role="tab" data-toggle="tab">Statistics</a></li>
+                </ul>
 
+                <!-- tab panes -->
+                <div class="tab-content">
+                    <!-- create new user -->
+                    <div role="tabpanel" class="tab-pane active" id="create">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
 
+                                <form id="create-user-form">
+                                    <div class="col-sm-3 form-group">
+                                        <label for="account-type-input">Account Type</label>
+                                        <select class="form-control input-sm" name="account-type-input">
+                                            <option value="0">Standard</option>
+                                            <option value="1">Guest</option>
+                                            <option value="2">Admin</option>
+                                            <option value="3">Super Admin</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-sm-9 form-group">
+                                        <div class="input-group">
+                                            <label for="email-input">Email Address</label>
+                                            <input type="text" class="form-control input-sm" name="email-input">
+
+                                            <!-- buttons -->
+                                            <span class="input-group-btn">
+                                                <button type="button" class="btn btn-primary input-sm">
+                                                    <strong class="btn-label">Create</strong>
+                                                    <span class="btn-spinner glyphicon glyphicon-refresh spinning"></span>
+                                                </button>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </form>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- manage existing users -->
+                    <div role="tabpanel" class="tab-pane" id="manage">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <p>manage </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- handle admin requests -->
+                    <div role="tabpanel" class="tab-pane" id="requests">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <p>requests</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- service settings -->
+                    <div role="tabpanel" class="tab-pane" id="settings">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <p>settings</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- service statistics -->
+                    <div role="tabpanel" class="tab-pane" id="stats">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <p>stats</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
             </div>
 
         </div>

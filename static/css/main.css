@@ -208,7 +208,7 @@ h1, h2, h3 {
     width: 100%;
 }
 .upload-result-container .media-container {
-    margin-bottom: 15px;
+    margin-bottom: 5px;
 }
 .upload-result-container h4 {
     margin-top: 0;
@@ -243,8 +243,13 @@ h1, h2, h3 {
     padding: 5px 5px 0 5px;
     margin-bottom: 0;
 }
-#search-panel label {
-    margin-bottom: 0px;
+.upload-result-panel .form-group {
+    margin-bottom: 5px;
+}
+.upload-result-panel .col-sm-12 {
+    padding-right: 10px;
+    padding-left: 10px;
+    padding-bottom: 5px;
 }
 #search-freewall {
     margin: 0 15px 15px 15px;
@@ -446,4 +451,26 @@ h1, h2, h3 {
 #dropzone-panel {
     position: relative;
     z-index: 7;
+}
+
+/* admin */
+#admin-container .tab-content .panel-default {
+    border-top: 0;
+}
+#admin-container .form-group {
+    padding-left: 5px;
+    padding-right: 5px;
+    margin-bottom: 5px;
+}
+@media (max-width: 767px) {
+    .js-tabcollapse-panel-body .panel, .js-tabcollapse-panel-body .panel-body {
+        border: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+    }
+}
+#admin-container .btn-primary {
+    margin-top: 28px;
+    padding-top: 5px;
 }

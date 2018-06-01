@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"gopkg.in/gomail.v2"
+	"net"
 )
 
 var config *Config
@@ -82,6 +83,8 @@ func (s *Server) Start() {
 	// single user
 	router.HandleFunc("/user", s.authHandler(s.manageUserHandler)).Methods(http.MethodPost)
 	router.HandleFunc("/user/{username}", s.authHandler(s.manageUserHandler)).Methods(http.MethodGet, http.MethodPost)
+	router.HandleFunc("/admin", s.authHandler(s.adminHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/admin/{type}", s.authHandler(s.adminHandler)).Methods(http.MethodPost)
 	// memory/file data viewing
 	router.HandleFunc("/", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet)
 	router.HandleFunc("/memory/{fileUUID}", s.authHandler(s.viewMemoriesHandler)).Methods(http.MethodGet) // passive route, JS utilises fileUUID
@@ -99,7 +102,7 @@ func (s *Server) Start() {
 
 	s.server = &http.Server{
 		Handler:      router,
-		Addr:         s.host + ":" + fmt.Sprintf("%d", s.port),
+		Addr:         net.JoinHostPort(s.host, fmt.Sprint(s.port)),
 		WriteTimeout: 5 * time.Second,
 		ReadTimeout:  5 * time.Second,
 	}
@@ -436,8 +439,86 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
 
-	return
+func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
+	// get session user
+	sessionUser, err := s.userDB.GetSessionUser(r)
+	if err != nil {
+		Critical.Log(err)
+		s.Respond(w, r, "error")
+		return
+	}
+
+	// check user is admin
+	if sessionUser.Type < Admin {
+		Input.Log("user does not have admin privileges")
+		s.Respond(w, r, "error")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// HTML template data
+		templateData := struct {
+			Title       string
+			BrandName   string
+			SessionUser User
+			NavbarHTML  template.HTML
+			NavbarFocus string
+			FooterHTML  template.HTML
+			ContentHTML template.HTML
+		}{
+			"Admin",
+			config.ServiceName,
+			sessionUser,
+			"",
+			"admin",
+			"",
+			"",
+		}
+
+		templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/admin_footer.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/admin.html", templateData)
+		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
+
+		s.Respond(w, r, result)
+		return
+
+	case http.MethodPost:
+		vars := mux.Vars(r)
+		if r.Method == http.MethodPost {
+			if err := r.ParseForm(); err != nil {
+				Critical.Log(err)
+				s.Respond(w, r, "error")
+				return
+			}
+		}
+
+		switch vars["type"] {
+		case "":
+			Input.Log("invalid request type")
+			s.RespondStatus(w, r, "invalid request type", http.StatusBadRequest)
+
+		case "add_user":
+			s.Respond(w, r, "ok")
+
+		case "manage_users":
+			s.Respond(w, r, "ok")
+
+		case "requests":
+			s.Respond(w, r, "ok")
+
+		case "settings":
+			s.Respond(w, r, "ok")
+
+		case "stats":
+			s.Respond(w, r, "ok")
+
+		}
+
+	}
 }
 
 // SearchRequest is a container for all of the search criteria required by the FileDB's search function.

@@ -77,18 +77,14 @@
                 </div>
             </div>
 
-            {{ if gt .User.Type 1 }}
-            <h2 class="section-header">Admin Settings</h2>
+            <!-- pending admin requests -->
+            <h2 class="section-header">Admin Requests</h2>
 
-            <!-- favourites pane -->
             <div class="panel panel-default">
                 <div class="panel-body">
-                    <div class="results-window">
-                    {{ if eq .User.Type 1 }} Admin {{ end }}
-                    </div>
+                    <p class="text-center">-- pending admin requests here --</p>
                 </div>
             </div>
-            {{ end }}
 
         </div>
     </div>

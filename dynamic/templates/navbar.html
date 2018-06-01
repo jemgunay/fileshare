@@ -29,13 +29,9 @@
 
         <!-- right side -->
         <ul class="nav navbar-nav navbar-right">
-            <li class="dropdown">
-                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Admin <span class="caret"></span></a>
-                <ul class="dropdown-menu">
-                    <li {{ if eq .NavbarFocus "admin" }}class="active"{{ end }}><a href="/admin">Add User</a></li>
-                    <li {{ if eq .NavbarFocus "admin_2" }}class="active"{{ end }}><a href="/admin">Settings</a></li>
-                </ul>
-            </li>
+            {{ if gt .SessionUser.Type 1 }}
+                <li {{ if eq .NavbarFocus "admin" }}class="active"{{ end }}><a href="/admin">Admin</a></li>
+            {{ end }}
 
             <li {{ if eq .NavbarFocus "user" }}class="active"{{ end }}><a href="/user/{{ .SessionUser.Username }}">Profile</a></li>
 
