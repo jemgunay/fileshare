@@ -231,7 +231,7 @@ func FormatByteCount(bytes int64, si bool) string {
 // ReadStdin reads either visible plaintext or hidden password from Stdin.
 func ReadStdin(message string, isPassword bool) (response string, err error) {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Printf(message)
+	Info.Log(message)
 
 	if isPassword {
 		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))

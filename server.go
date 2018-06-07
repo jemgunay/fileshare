@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"gopkg.in/gomail.v2"
-	"net"
 )
 
 var config *Config
@@ -76,8 +77,8 @@ func (s *Server) Start() {
 	// user auth
 	router.HandleFunc("/login", s.authHandler(s.loginHandler)).Methods(http.MethodGet, http.MethodPost)
 	router.HandleFunc("/logout", s.authHandler(s.logoutHandler)).Methods(http.MethodGet)
-	router.HandleFunc("/reset", s.resetHandler).Methods(http.MethodGet)
-	router.HandleFunc("/reset/{type}", s.resetHandler).Methods(http.MethodPost)
+	router.HandleFunc("/reset", s.authHandler(s.resetHandler)).Methods(http.MethodGet)
+	router.HandleFunc("/reset/{type}", s.authHandler(s.resetHandler)).Methods(http.MethodPost)
 	// list all users
 	router.HandleFunc("/users", s.authHandler(s.viewUsersHandler)).Methods(http.MethodGet)
 	// single user
@@ -109,7 +110,6 @@ func (s *Server) Start() {
 
 	// listen for HTTP requests
 	Info.Logf("starting HTTP server on port %d", s.port)
-
 	go func(server *http.Server) {
 		if err := server.ListenAndServe(); err != nil {
 			Critical.Log(err)
@@ -123,53 +123,41 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		Incoming.Logf("%v -> [%v] %v", r.Host, r.Method, r.URL)
 
 		// authenticate
-		authorised, authErr := s.userDB.AuthenticateUser(r)
-
-		// file servers
-		// prevent dir listings
-		if r.URL.String() != "/" && strings.HasSuffix(r.URL.String(), "/") {
-			s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
-			return
-		}
-		// prevent unauthorised access to /static/content
-		if strings.HasPrefix(r.URL.String(), "/static/") && !strings.HasPrefix(r.URL.String(), "/static/content/") {
-			h(w, r)
-			return
-		}
-		// prevent unauthorised access to temp uploaded files
-		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
-			vars := mux.Vars(r)
-
-			sessionUser, err := s.userDB.GetSessionUser(r)
-			if sessionUser.Username != vars["user_id"] || err != nil {
-				s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
-				return
-			}
-		}
-
-		// if already logged in, redirect these page requests
-		if r.URL.String() == "/login" {
-			if authorised {
-				if r.Method == http.MethodGet {
-					http.Redirect(w, r, "/", http.StatusFound)
-				} else {
-					s.Respond(w, r, "already authenticated")
-				}
-			} else {
+		authorised := s.userDB.AuthenticateUser(r)
+		// if not logged in
+		if authorised == false {
+			// permitted routes for unauthenticated users
+			if r.URL.String() == "/login" || strings.HasPrefix(r.URL.String(), "/reset") {
 				h(w, r)
 				return
 			}
-		}
-		// if auth failed (error or wrong password)
-		if authErr != nil || authorised == false {
-			if authErr != nil {
-				Input.Log(authErr)
-			}
 
+			// forbidden routes for unauthenticated users (redirect to login page)
 			if r.Method == http.MethodGet {
-				http.Redirect(w, r, "/login", 302)
+				http.Redirect(w, r, "/login", http.StatusFound)
 			} else {
 				s.Respond(w, r, "unauthorised")
+			}
+			return
+		}
+
+		// get logged in session user
+		sessionUser, err := s.userDB.GetSessionUser(r)
+		if err != nil {
+			return
+		}
+		// new user has not created a password or user has logged in with reset temp password
+		if sessionUser.PasswordResetRequired {
+			s.createNewPasswordHandler(w, r)
+			return
+		}
+
+		// prevent login/reset page access when logged in
+		if r.URL.String() == "/login" || strings.HasPrefix(r.URL.String(), "/reset") {
+			if r.Method == http.MethodGet {
+				http.Redirect(w, r, "/", http.StatusFound)
+			} else {
+				s.Respond(w, r, "already logged in")
 			}
 			return
 		}
@@ -181,12 +169,68 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 
 // fileServerAuthHandler is a file server authentication wrapper.
 func (s *Server) fileServerAuthHandler(h http.Handler) http.Handler {
-	return s.authHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// prevent dir listings
+		if r.URL.String() != "/" && strings.HasSuffix(r.URL.String(), "/") {
+			s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
+			return
+		}
+
+		// prevent unauthorised access to /static/content
+		if strings.HasPrefix(r.URL.String(), "/static/") && !strings.HasPrefix(r.URL.String(), "/static/content/") {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		// prevent unauthorised access to temp uploaded files
+		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
+			vars := mux.Vars(r)
+			sessionUser, err := s.userDB.GetSessionUser(r)
+
+			if sessionUser.Username != vars["user_id"] || err != nil {
+				s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
+				return
+			}
+		}
+
 		h.ServeHTTP(w, r)
-	}))
+	})
 }
 
-// resetHandler is a HTTP handler which manages user password reset requests.
+// ServerError is an error type which contains a sensitive error message and a user friendly error message which can
+// be safely returned to the user client.
+type ServerError struct {
+	// err is the error message which may be logged & may contain sensitive server error information
+	err error
+	// response is the response message which can be safely returned to the user client
+	response string
+}
+
+// Error returns the potentially sensitive error message.
+func (e *ServerError) Error() string {
+	return e.err.Error()
+}
+
+// ResponseState represents an operation success state and is used by the UI to indicate the result of an operation.
+type ResponseState string
+
+var (
+	// SuccessState represents a successful operation.
+	SuccessState ResponseState = "success"
+	// WarningState represents a failed operation due to invalid/forbidden user input.
+	WarningState ResponseState = "warning"
+	// ErrorState represents an internal server error.
+	ErrorState ResponseState = "error"
+)
+
+// JSONResponse is used to return whether the operation was a success along with a value. When passed to respond(), it
+// is automatically parsed into a JSON string.
+type JSONResponse struct {
+	Status ResponseState `json:"status"`
+	Value  string        `json:"value"`
+}
+
+// resetHandler is a HTTP handler which manages user password reset requests and password setting requests.
 func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// fetch reset form
@@ -212,45 +256,58 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 	// submit password reset request
 	case http.MethodPost:
-		if err := r.ParseForm(); err != nil {
-			Critical.Log(err)
-			s.Respond(w, r, "error")
+		if s.ParseFormBody(w, r) != nil {
 			return
 		}
 
-		recipientEmail := r.FormValue("email")
+		vars := mux.Vars(r)
 
-		// perform password reset & email sending in the background
-		go func() {
-			// set temp password if user exists (don't inform user of failed reset attempt to prevent address brute forcing)
-			tempPass, err := s.userDB.SetTempPassword(recipientEmail)
-			if err != nil {
-				return
-			}
+		switch vars["type"] {
+		// request new password reset email
+		case "request":
+			recipientEmail := r.FormValue("email")
 
-			// construct new email with randomly generated temp password
-			msgBody := fmt.Sprintf("<html><body><p>This is your temporary one time use password: <br><br><b>%v", tempPass)
-			msgBody += "</b><br><br>Use it to log in and change your password. It will expire in one hour.</p></body></html>"
+			// perform password reset & email sending in the background
+			go s.sendPasswordResetEmail(recipientEmail)
 
-			msg := gomail.NewMessage()
-			msg.SetAddressHeader("From", config.EmailDisplayAddr, "Memory Share")
-			msg.SetHeader("To", recipientEmail)
-			msg.SetHeader("Subject", config.ServiceName+": Password Reset")
-			msg.SetBody("text/html", msgBody)
+		// set new password
+		case "set":
 
-			d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
-			//d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-
-			// send email
-			if err := d.DialAndSend(msg); err != nil {
-				Critical.Log(err)
-				return
-			}
-		}()
+		}
 
 		s.Respond(w, r, "success")
 		return
+	}
+}
 
+// sendPasswordResetEmail sends an email with a temp password for account recovery & registration.
+func (s *Server) sendPasswordResetEmail(recipientEmail string) {
+	// set temp password if user exists (don't inform user of failed reset attempt to prevent address brute forcing)
+	tempPass, err := s.userDB.SetTempPassword(recipientEmail)
+	if err != nil {
+		return
+	}
+
+	// TODO: delete me
+	Info.Log("New password: ", tempPass)
+
+	// construct new email with randomly generated temp password
+	msgBody := fmt.Sprintf("<html><body><p>This is your temporary one time use password: <br><br><b>%v", tempPass)
+	msgBody += "</b><br><br>Use it to log in and change your password. It will expire in one hour.</p></body></html>"
+
+	msg := gomail.NewMessage()
+	msg.SetAddressHeader("From", config.EmailDisplayAddr, "Memory Share")
+	msg.SetHeader("To", recipientEmail)
+	msg.SetHeader("Subject", config.ServiceName+": Password Reset")
+	msg.SetBody("text/html", msgBody)
+
+	d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
+	//d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+
+	// send email
+	if err := d.DialAndSend(msg); err != nil {
+		Critical.Log(errors.Wrap(err, "failed to reset email"))
+		return
 	}
 }
 
@@ -281,9 +338,9 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	// submit login request
 	case http.MethodPost:
 		success, err := s.userDB.LoginUser(w, r)
-		fmt.Println(err)
 		switch {
 		case err != nil:
+			Input.Log(err)
 			s.Respond(w, r, "error")
 		case success:
 			s.Respond(w, r, "success")
@@ -296,10 +353,21 @@ func (s *Server) loginHandler(w http.ResponseWriter, r *http.Request) {
 // logoutHandler is a HTTP handler which manages user logouts.
 func (s *Server) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	if err := s.userDB.LogoutUser(w, r); err != nil {
-		s.Respond(w, r, "error")
+		Input.Log(errors.Wrap(err, "error logging out"))
+		s.Respond(w, r, "error logging out")
 		return
 	}
-	http.Redirect(w, r, "/login", 302)
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// createNewPasswordHandler is a HTTP handler which forces a user password reset upon login.
+func (s *Server) createNewPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+
+	case http.MethodPost:
+
+	}
 }
 
 // viewUsersHandler is a HTTP handler which provides a view of all service users.
@@ -347,13 +415,6 @@ func (s *Server) viewUsersHandler(w http.ResponseWriter, r *http.Request) {
 // manageUserHandler is a HTTP handler which manages requests relating to a single user.
 func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	if r.Method == http.MethodPost {
-		if err := r.ParseForm(); err != nil {
-			Critical.Log(err)
-			s.Respond(w, r, "error")
-			return
-		}
-	}
 
 	// get session user
 	sessionUser, err := s.userDB.GetSessionUser(r)
@@ -413,6 +474,10 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 
 			// update specific user details -> /user/{username}
 		case http.MethodPost:
+			if s.ParseFormBody(w, r) != nil {
+				return
+			}
+
 			// check auth or admin privs first
 			s.Respond(w, r, "not yet implemented")
 		}
@@ -422,6 +487,10 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// add a file to a user's favourites -> /user
 	case http.MethodPost:
+		if s.ParseFormBody(w, r) != nil {
+			return
+		}
+
 		switch r.Form.Get("operation") {
 		case "favourite":
 			state, _ := strconv.ParseBool(r.Form.Get("state"))
@@ -441,6 +510,16 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// represents a user creation request
+type UserCreationDetails struct {
+	Forename    string `json:"forename"`
+	Surname     string `json:"surname"`
+	AccountType int    `json:"account-type,string"`
+	Email       string `json:"email"`
+}
+
+// adminHandler is a HTTP handler which manages all admin related tasks such as user creation & management, service
+// settings & statistics.
 func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 	// get session user
 	sessionUser, err := s.userDB.GetSessionUser(r)
@@ -450,10 +529,10 @@ func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check user is admin
+	// check user is admin or super admin
 	if sessionUser.Type < Admin {
-		Input.Log("user does not have admin privileges")
-		s.Respond(w, r, "error")
+		Input.Log(fmt.Sprintf("user %v does not have admin privileges", sessionUser.Username))
+		s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
 		return
 	}
 
@@ -488,23 +567,38 @@ func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		vars := mux.Vars(r)
-		if r.Method == http.MethodPost {
-			if err := r.ParseForm(); err != nil {
-				Critical.Log(err)
-				s.Respond(w, r, "error")
-				return
-			}
-		}
 
 		switch vars["type"] {
-		case "":
-			Input.Log("invalid request type")
-			s.RespondStatus(w, r, "invalid request type", http.StatusBadRequest)
+		case "createuser":
+			// read JSON user creation details from body
+			var details UserCreationDetails
+			if err := json.NewDecoder(r.Body).Decode(&details); err != nil {
+				Input.Log(errors.Wrap(err, "failed to parse createuser body to JSON"))
+				s.Respond(w, r, JSONResponse{WarningState, "invalid request"})
+				return
+			}
 
-		case "add_user":
-			s.Respond(w, r, "ok")
+			// prevent creating accounts of higher permissions than the session user
+			if UserType(details.AccountType) > sessionUser.Type && sessionUser.Type <= SuperAdmin {
+				Input.Log("insufficient permissions")
+				s.Respond(w, r, JSONResponse{WarningState, "insufficient_permissions"})
+				return
+			}
 
-		case "manage_users":
+			// create new user
+			user, err := s.userDB.AddUser(details.Forename, details.Surname, details.Email, UserType(details.AccountType))
+			if err != nil {
+				Input.Log(errors.Wrap(err, "failed to create new user"))
+				s.Respond(w, r, JSONResponse{WarningState, err.response})
+				return
+			}
+
+			// email temp password to new user
+			go s.sendPasswordResetEmail(user.Email)
+
+			s.Respond(w, r, JSONResponse{SuccessState, user.Username})
+
+		case "manageusers":
 			s.Respond(w, r, "ok")
 
 		case "requests":
@@ -516,6 +610,9 @@ func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 		case "stats":
 			s.Respond(w, r, "ok")
 
+		default:
+			Input.Log("invalid request type")
+			s.Respond(w, r, "invalid request type")
 		}
 
 	}
@@ -621,9 +718,7 @@ func (s *Server) getDataHandler(w http.ResponseWriter, r *http.Request) {
 
 	// get specific item by UUID (a file or user): ?UUID=X|random&type=file|user&format=html|json_pretty|json)
 	case http.MethodPost:
-		if err := r.ParseForm(); err != nil {
-			Critical.Log(err)
-			s.Respond(w, r, "error")
+		if s.ParseFormBody(w, r) != nil {
 			return
 		}
 
@@ -896,9 +991,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		// delete a file from user temp dir
 		case "temp_delete":
-			if err := r.ParseForm(); err != nil {
-				Input.Log(err)
-				s.Respond(w, r, "error")
+			if s.ParseFormBody(w, r) != nil {
 				return
 			}
 
@@ -922,9 +1015,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		// move temp file to content dir (allow global user access)
 		case "publish":
-			if err := r.ParseForm(); err != nil {
-				Input.Log(err)
-				s.Respond(w, r, "error")
+			if s.ParseFormBody(w, r) != nil {
 				return
 			}
 
@@ -979,6 +1070,12 @@ func (s *Server) RespondStatus(w http.ResponseWriter, r *http.Request, response 
 
 	// type cast response into string
 	switch response.(type) {
+	case JSONResponse:
+		json, err := json.Marshal(response)
+		if err != nil {
+			Output.Log("failed to parse JSON response: ", err)
+		}
+		response = string(json)
 	case template.HTML:
 		response = string(response.(template.HTML))
 	case []byte:
@@ -1043,4 +1140,14 @@ func (s *Server) Stop() context.CancelFunc {
 	}
 
 	return cancel
+}
+
+// ParseFormBody parses a request's form based body.
+func (s *Server) ParseFormBody(w http.ResponseWriter, r *http.Request) error {
+	if err := r.ParseForm(); err != nil {
+		Input.Log(errors.Wrap(err, "error parsing body form"))
+		s.Respond(w, r, "error")
+		return err
+	}
+	return nil
 }

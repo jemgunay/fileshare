@@ -77,7 +77,15 @@ func NewConfig(rootPath string) (conf *Config, err error) {
 		file:     rootPath + "/config/settings.ini",
 	}
 
+	// pull config from file
+	if err = conf.Load(); err != nil {
+		return
+	}
+	conf.CollateFileFormats()
+
+	// parse flags
 	debug := flag.Int("debug", 0, "1=INCOMING/OUTGOING/INPUT/CREATION, 2=OUTPUT")
+	flag.IntVar(&conf.HTTPPort, "port", conf.HTTPPort, "overrides the port setting in the config file")
 	flag.Parse()
 
 	switch *debug {
@@ -87,12 +95,6 @@ func NewConfig(rootPath string) (conf *Config, err error) {
 	case 1:
 		logger.SetEnabledByCategory(true, "INCOMING", "OUTGOING", "INPUT", "CREATED")
 	}
-
-	// pull config from file
-	if err = conf.Load(); err != nil {
-		return
-	}
-	conf.CollateFileFormats()
 
 	Info.Logf("running version [%v]", conf.Version)
 

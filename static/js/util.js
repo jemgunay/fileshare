@@ -1,27 +1,73 @@
 $(document).ready(function() {
-    //animate burger menu button
+    // animate burger menu button
     $('#navbar').on('hide.bs.collapse show.bs.collapse', function () {
         $('#nav-animated-icon').toggleClass('open');
     });
 });
 
-var hostname = location.protocol + '//' + location.host;
-// Create an instance of an AlertNotifier.
-var notifier = new AlertNotifier(5, 4000);
+// A logger which logs to console only if debug is enabled & maintains a history of all logs.
+function Logger(outputDebug) {
+    // A record of all debug logs
+    var history = ["Logs since: " + new Date().toLocaleString()];
+
+    // Perform a standard console write.
+    this.log = function (msg) {
+        console.log(msg);
+        history.push({msg: msg, stack: getStackTrace()})
+    };
+
+    // Perform a debug console write.
+    this.debugLog = function (msg) {
+        msg = "[debug] " + msg;
+        if (outputDebug === true) {
+            console.log(msg);
+        }
+        history.push({msg: msg, stack: getStackTrace()})
+    };
+
+    // Enable debug logging.
+    this.disableDebug = function () {
+        outputDebug = true;
+    };
+
+    // Disable debug logging.
+    this.disableDebug = function () {
+        outputDebug = false;
+    };
+
+    this.dumpLogs = function () {
+        console.log(history);
+    };
+}
+
+function getStackTrace () {
+    var stack;
+
+    try {
+        throw new Error('');
+    }
+    catch (error) {
+        stack = error.stack || '';
+    }
+
+    stack = stack.split('\n').map(function (line) { return line.trim(); });
+    return stack.splice(stack[0] == 'Error' ? 2 : 1);
+}
 
 // Perform basic AJAX request.
 function performRequest(URL, httpMethod, data, resultMethod) {
-    console.log("> [", httpMethod, "] ", URL, ": ", data);
+    logger.debugLog("> [" + httpMethod + "] " + URL + ": " + data);
     $.ajax({
         url: URL,
         type: httpMethod,
         dataType: 'text',
         data: data,
         error: function(e) {
-            console.log(e);
+            logger.debugLog(e);
             notifier.queueAlert("Could not connect to the server.", "danger");
         },
         success: function(e) {
+            logger.debugLog(e);
             resultMethod(e);
         },
         timeout: 10000
@@ -104,3 +150,20 @@ function setButtonProcessing(element, enabled) {
     element.find(".btn-spinner").css("display", "none");
     element.attr("disabled", false);
 }
+
+// Parse form data into a JSON object.
+function formToJSON(form) {
+    var arr = form.serializeArray();
+    var returnArray = {};
+    for (var i = 0; i < arr.length; i++){
+        returnArray[arr[i]['name']] = arr[i]['value'];
+    }
+    return JSON.stringify(returnArray);
+}
+
+/* Global vars */
+var hostname = location.protocol + '//' + location.host;
+// Create an instance of an AlertNotifier.
+var notifier = new AlertNotifier(5, 4000);
+// Create an instance of a Logger.
+var logger = new Logger(false);

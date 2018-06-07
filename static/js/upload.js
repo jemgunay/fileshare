@@ -39,7 +39,7 @@ $(document).ready(function() {
                     refinedError = "The file '" + file.name + "' is too large."
                 }
                 else {
-                    console.log(errorMessage);
+                    logger.debugLog(errorMessage);
                     refinedError = "A file upload error occurred for '" + file.name + "'."
                 }
                 var msgEl = $(file.previewElement).find('.dz-error-message');
@@ -116,7 +116,7 @@ function initUploadForm() {
                     });
                 }
                 else {
-                    //console.log(result);
+                    logger.debugLog(result);
                     notifier.queueAlert("A server error occurred (" + fileName + ").", "danger");
                 }
             });
@@ -150,7 +150,7 @@ function initUploadForm() {
                     });
                 }
                 else {
-                    console.log(result);
+                    logger.debugLog(result);
                     notifier.queueAlert("A server error occurred (" + fileName + ").", "danger");
                 }
             });
