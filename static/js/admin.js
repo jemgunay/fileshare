@@ -37,7 +37,7 @@ function initCreateUser() {
                 }
             }
             else {
-                debugLog(result);
+                logger.debugLog(result);
                 notifier.queueAlert("A server error occurred.", "danger");
             }
 

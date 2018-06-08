@@ -318,7 +318,6 @@ h1, h2, h3 {
         top: 52px;
         left: 102px;
     }
-
     #view-user-container img {
         margin: auto auto 15px;
     }
@@ -391,24 +390,33 @@ h1, h2, h3 {
 }
 
 /* login & reset password page */
-#login-container, #reset-password-container {
+.login-style-window {
     background-color: rgba(217, 237, 247, 0.63);
     height: 100vh;
-    padding-top: 50px;
     overflow: hidden;
+    padding-top: 15px;
 }
-#login-container h2, #reset-password-container h2 {
+.login-style-window h2 {
     margin-bottom: 25px;
     margin-top: 15px;
     text-align: center;
 }
-#login-container button, #reset-password-container button {
+.login-style-window button {
     width: 100%;
     margin-bottom: 15px;
 }
-#login-container .alert, #reset-password-container .alert {
+.login-style-window .alert {
     margin-top: 15px;
     margin-bottom: 0;
+}
+#create-password-container.login-style-window {
+    position: fixed;
+}
+#create-password-container.login-style-window button {
+    margin-bottom: 0;
+}
+#create-password-container #error-window .alert {
+    margin-top: 65px;
 }
 
 /* loading spinner */

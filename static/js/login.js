@@ -55,4 +55,62 @@ $(document).ready(function() {
             });
         });
     }
+
+
+    // create password page
+    else if (window.location.pathname === "/") {
+        setButtonProcessing($("#create-password-btn"), false);
+
+        // reset form submit
+        $("#create-password-form").submit(function (e) {
+            e.preventDefault();
+
+            setButtonProcessing($("#create-password-btn"), true);
+            var data = $(this).serialize();
+
+            performRequest(hostname + "/reset/set", "post", data, function(result) {
+                result = JSON.parse(result.trim());
+
+                if (result.status === "success") {
+                    $("#reset-form").fadeOut(200);
+                    window.location = "/";
+                }
+                else if (result.status === "warning") {
+                    $("#password, #password-confirm").val("");
+                    $("#password").focus();
+
+                    if (result.value === "invalid_password_matching") {
+                        setAlertWindow("warning", "Both passwords must match.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_empty") {
+                        setAlertWindow("warning", "Password length must be a minimum of 8 characters.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_confirm_empty") {
+                        setAlertWindow("warning", "Password length must be a minimum of 8 characters.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_length") {
+                        setAlertWindow("warning", "Password length must be a minimum of 8 characters.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_lower") {
+                        setAlertWindow("warning", "Password must contain at least one lowercase letter.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_upper") {
+                        setAlertWindow("warning", "Password must contain at least one uppercase letter.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_number") {
+                        setAlertWindow("warning", "Password must contain at least one number.", "#error-window");
+                    }
+                    else if (result.value === "invalid_password_special") {
+                        setAlertWindow("warning", "Password must contain at least one special character.", "#error-window");
+                    }
+
+                    setButtonProcessing($("#create-password-btn"), false);
+                }
+                else {
+                    logger.debugLog(result);
+                    setAlertWindow("danger", "A server error occurred.", "#error-window");
+                }
+            });
+        });
+    }
 });

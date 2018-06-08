@@ -136,7 +136,7 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/login", http.StatusFound)
 			} else {
-				s.Respond(w, r, "unauthorised")
+				s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
 			}
 			return
 		}
@@ -144,10 +144,24 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// get logged in session user
 		sessionUser, err := s.userDB.GetSessionUser(r)
 		if err != nil {
+			Input.Log(errors.Wrap(err, "could not fetch corresponding user session"))
 			return
 		}
+
+		// redirect blocked users
+		if sessionUser.AccountState == Blocked {
+			s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
+			return
+		}
+
 		// new user has not created a password or user has logged in with reset temp password
 		if sessionUser.PasswordResetRequired {
+			// permit logging out when creating password after login
+			if r.URL.String() == "/logout" {
+				h(w, r)
+				return
+			}
+
 			s.createNewPasswordHandler(w, r)
 			return
 		}
@@ -177,18 +191,41 @@ func (s *Server) fileServerAuthHandler(h http.Handler) http.Handler {
 		}
 
 		// prevent unauthorised access to /static/content
-		if strings.HasPrefix(r.URL.String(), "/static/") && !strings.HasPrefix(r.URL.String(), "/static/content/") {
+		/*if strings.HasPrefix(r.URL.String(), "/static/") && !strings.HasPrefix(r.URL.String(), "/static/content/") {
 			h.ServeHTTP(w, r)
 			return
-		}
+		}*/
 
-		// prevent unauthorised access to temp uploaded files
-		if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
-			vars := mux.Vars(r)
+		// authenticate
+		authorised := s.userDB.AuthenticateUser(r)
+		// if not logged in
+		if authorised {
+			// whitelist
 			sessionUser, err := s.userDB.GetSessionUser(r)
+			if err != nil {
+				Input.Log(errors.Wrap(err, "could not fetch corresponding user session"))
+				return
+			}
 
-			if sessionUser.Username != vars["user_id"] || err != nil {
-				s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
+			// prevent blocked users
+			if sessionUser.AccountState == Blocked {
+				s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
+				return
+			}
+
+			// prevent unauthorised access to temp uploaded files
+			if strings.HasPrefix(r.URL.String(), "/temp_uploaded/") {
+				vars := mux.Vars(r)
+
+				if sessionUser.Username != vars["user_id"] {
+					s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
+					return
+				}
+			}
+		} else {
+			// blacklist
+			if strings.HasPrefix(r.URL.String(), "/static/content/") {
+				s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
 				return
 			}
 		}
@@ -211,23 +248,23 @@ func (e *ServerError) Error() string {
 	return e.err.Error()
 }
 
-// ResponseState represents an operation success state and is used by the UI to indicate the result of an operation.
-type ResponseState string
+// ResponseStatus represents an operation success state and is used by the UI to indicate the result of an operation.
+type ResponseStatus string
 
 var (
-	// SuccessState represents a successful operation.
-	SuccessState ResponseState = "success"
-	// WarningState represents a failed operation due to invalid/forbidden user input.
-	WarningState ResponseState = "warning"
-	// ErrorState represents an internal server error.
-	ErrorState ResponseState = "error"
+	// SuccessStatus represents a successful operation.
+	SuccessStatus ResponseStatus = "success"
+	// WarningStatus represents a failed operation due to invalid/forbidden user input.
+	WarningStatus ResponseStatus = "warning"
+	// ErrorStatus represents an internal server error.
+	ErrorStatus ResponseStatus = "error"
 )
 
 // JSONResponse is used to return whether the operation was a success along with a value. When passed to respond(), it
 // is automatically parsed into a JSON string.
 type JSONResponse struct {
-	Status ResponseState `json:"status"`
-	Value  string        `json:"value"`
+	Status ResponseStatus `json:"status"`
+	Value  string         `json:"value"`
 }
 
 // resetHandler is a HTTP handler which manages user password reset requests and password setting requests.
@@ -249,7 +286,7 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/login_footer.html", templateData)
-		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/reset_password.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/forgotten_password.html", templateData)
 		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
 
 		s.Respond(w, r, result)
@@ -272,7 +309,12 @@ func (s *Server) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 		// set new password
 		case "set":
+			s.createNewPasswordHandler(w, r)
+			return
 
+		default:
+			s.RespondStatus(w, r, "unsupported request", http.StatusBadRequest)
+			return
 		}
 
 		s.Respond(w, r, "success")
@@ -288,7 +330,7 @@ func (s *Server) sendPasswordResetEmail(recipientEmail string) {
 		return
 	}
 
-	// TODO: delete me
+	// TODO: delete me (exposes temp passwords to terminal)
 	Info.Log("New password: ", tempPass)
 
 	// construct new email with randomly generated temp password
@@ -362,11 +404,67 @@ func (s *Server) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 // createNewPasswordHandler is a HTTP handler which forces a user password reset upon login.
 func (s *Server) createNewPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	// get session user
+	sessionUser, err := s.userDB.GetSessionUser(r)
+	if err != nil {
+		Critical.Log(err)
+		s.Respond(w, r, "error")
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
+		// HTML template data
+		templateData := struct {
+			Title       string
+			BrandName   string
+			SessionUser User
+			NavbarHTML  template.HTML
+			NavbarFocus string
+			FooterHTML  template.HTML
+			ContentHTML template.HTML
+		}{
+			"Create Password",
+			config.ServiceName,
+			sessionUser,
+			"",
+			"",
+			"",
+			"",
+		}
+
+		templateData.NavbarHTML = s.CompleteTemplate("/dynamic/templates/navbar.html", templateData)
+		templateData.FooterHTML = s.CompleteTemplate("/dynamic/templates/footers/login_footer.html", templateData)
+		templateData.ContentHTML = s.CompleteTemplate("/dynamic/templates/create_password.html", templateData)
+		result := s.CompleteTemplate("/dynamic/templates/main.html", templateData)
+
+		s.Respond(w, r, result)
 
 	case http.MethodPost:
+		// form is already parsed in calling func
+		password := r.FormValue("password")
+		passwordConfirm := r.FormValue("confirm-password")
 
+		// validate password
+		if err := s.userDB.ValidatePassword(password); err != nil {
+			s.Respond(w, r, JSONResponse{WarningStatus, err.response})
+			return
+		}
+
+		// passwords don't match
+		if password != passwordConfirm {
+			s.Respond(w, r, JSONResponse{WarningStatus, "invalid_password_matching"})
+			return
+		}
+
+		// attempt to set password
+		if err := s.userDB.SetNewUserPassword(sessionUser.Username, password); err != nil {
+			Input.Log(err.Error())
+			s.Respond(w, r, JSONResponse{WarningStatus, err.response})
+			return
+		}
+
+		s.Respond(w, r, JSONResponse{SuccessStatus, "success"})
 	}
 }
 
@@ -532,7 +630,7 @@ func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 	// check user is admin or super admin
 	if sessionUser.Type < Admin {
 		Input.Log(fmt.Sprintf("user %v does not have admin privileges", sessionUser.Username))
-		s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
@@ -574,14 +672,14 @@ func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 			var details UserCreationDetails
 			if err := json.NewDecoder(r.Body).Decode(&details); err != nil {
 				Input.Log(errors.Wrap(err, "failed to parse createuser body to JSON"))
-				s.Respond(w, r, JSONResponse{WarningState, "invalid request"})
+				s.Respond(w, r, JSONResponse{WarningStatus, "invalid request"})
 				return
 			}
 
 			// prevent creating accounts of higher permissions than the session user
 			if UserType(details.AccountType) > sessionUser.Type && sessionUser.Type <= SuperAdmin {
 				Input.Log("insufficient permissions")
-				s.Respond(w, r, JSONResponse{WarningState, "insufficient_permissions"})
+				s.Respond(w, r, JSONResponse{WarningStatus, "insufficient_permissions"})
 				return
 			}
 
@@ -589,14 +687,14 @@ func (s *Server) adminHandler(w http.ResponseWriter, r *http.Request) {
 			user, err := s.userDB.AddUser(details.Forename, details.Surname, details.Email, UserType(details.AccountType))
 			if err != nil {
 				Input.Log(errors.Wrap(err, "failed to create new user"))
-				s.Respond(w, r, JSONResponse{WarningState, err.response})
+				s.Respond(w, r, JSONResponse{WarningStatus, err.response})
 				return
 			}
 
 			// email temp password to new user
 			go s.sendPasswordResetEmail(user.Email)
 
-			s.Respond(w, r, JSONResponse{SuccessState, user.Username})
+			s.Respond(w, r, JSONResponse{SuccessStatus, user.Username})
 
 		case "manageusers":
 			s.Respond(w, r, "ok")

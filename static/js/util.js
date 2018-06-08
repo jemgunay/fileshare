@@ -74,16 +74,31 @@ function performRequest(URL, httpMethod, data, resultMethod) {
     });
 }
 
-// Get HTML for a warning/error HTML message.
+// HTML for window alert.
+var alertWindowHTML = "";
+
+// Set an alert window warning/error HTML message and display.
 function setAlertWindow(type, msg, target) {
-    performRequest(hostname + "/static/templates/alert.html", "GET", "", function(result) {
-        var replaced = result.replace("{{type}}", type);
+    // set window
+    var setAlert = function() {
+        var replaced = alertWindowHTML.replace("{{type}}", type);
         replaced = replaced.replace("{{msg}}", msg);
         if (typeof target === 'string' || target instanceof String) {
             target = $(target);
         }
         target.hide().empty().append(replaced).fadeIn(400);
-    });
+    };
+
+    // fetch window html via GET request
+    if (alertWindowHTML === "") {
+        performRequest(hostname + "/static/templates/alert.html", "GET", "", function (result) {
+            alertWindowHTML = result;
+            setAlert();
+        });
+    } else {
+        // use already acquired HTML
+        setAlert();
+    }
 }
 
 // A queue for notify alerts to limit number of alerts on screen at a time.

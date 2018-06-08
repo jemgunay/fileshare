@@ -323,6 +323,7 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
                         $("#overlay-content").find("#is-favourite").val(false);
                     }
                     else {
+                        logger.debugLog(favResponse);
                         notifier.queueAlert("Error removing memory from favourites.", "warning");
                     }
                 });
@@ -340,6 +341,7 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
                         $("#overlay-content").find("#is-favourite").val(true);
                     }
                     else {
+                        logger.debugLog(favResponse);
                         notifier.queueAlert("Error adding memory to favourites.", "warning");
                     }
                 });

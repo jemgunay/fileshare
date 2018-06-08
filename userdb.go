@@ -50,6 +50,7 @@ type User struct {
 	Username               string // unique, though generally only used for display (found in URLs/search)
 	Email                  string // used for unique identification/logging in etc
 	Password               string
+	LoginCount             int
 	TempResetPassword      string
 	PasswordResetTimestamp time.Time
 	PasswordResetRequired  bool
@@ -184,8 +185,14 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 			if password, err = ReadStdin("> Password:\n", true); err != nil {
 				return err
 			}
+			if err = db.ValidatePassword(password); err != nil {
+				return err
+			}
 			if retypePassword, err = ReadStdin("> Retype Password:\n", true); err != nil {
 				return err
+			}
+			if password != retypePassword {
+				return errors.New("passwords do not match")
 			}
 			return nil
 		}()
@@ -218,11 +225,13 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 		}
 		user.AccountState = Registered
 		user.PasswordResetRequired = false
+		user.TempResetPassword = ""
 		db.Users.Set(user.Username, user)
 		if err = db.SetNewUserPassword(user.Username, password); err != nil {
 			Critical.Logf("> Account creation failed: %s. Try again to create the account.\n\n", errors.Wrap(err, "could not set password"))
 			continue
 		}
+		db.SerializeToFile()
 		return
 	}
 }
@@ -287,9 +296,8 @@ func (db *UserDB) AddUser(forename string, surname string, email string, userTyp
 	return
 }
 
-// SetNewUserPassword sets a new password for an existing user. This is used after a user account is created in order to
-// complete the registration and after a password reset of an existing account.
-func (db *UserDB) SetNewUserPassword(username string, password string) *ServerError {
+// ValidatePassword validates a password based on the password policy criteria.
+func (db *UserDB) ValidatePassword(password string) *ServerError {
 	// minimum eight characters, at least one upper case letter, one number and one special character
 	var containsUpper, containsLower, containsNumber, containsSpecial bool
 
@@ -307,6 +315,8 @@ func (db *UserDB) SetNewUserPassword(username string, password string) *ServerEr
 	}
 
 	switch {
+	case len(password) < 8:
+		return &ServerError{errors.New("password is too short"), "invalid_password_length"}
 	case !containsLower:
 		return &ServerError{errors.New("password does not contain a lower case character"), "invalid_password_lower"}
 	case !containsUpper:
@@ -315,10 +325,14 @@ func (db *UserDB) SetNewUserPassword(username string, password string) *ServerEr
 		return &ServerError{errors.New("password does not contain a numerical character"), "invalid_password_number"}
 	case !containsSpecial:
 		return &ServerError{errors.New("password does not contain a special character"), "invalid_password_special"}
-	case len(password) < 8:
-		return &ServerError{errors.New("password is too short"), "invalid_password_length"}
 	}
 
+	return nil
+}
+
+// SetNewUserPassword sets a new password for an existing user. This is used after a user account is created in order to
+// complete the registration and after a password reset of an existing account.
+func (db *UserDB) SetNewUserPassword(username string, password string) *ServerError {
 	// hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
@@ -335,6 +349,7 @@ func (db *UserDB) SetNewUserPassword(username string, password string) *ServerEr
 	// destroy/invalidate temp password
 	user.TempResetPassword = ""
 	user.PasswordResetRequired = false
+	user.AccountState = Registered
 
 	db.Users.Set(username, user)
 	db.SerializeToFile()
@@ -455,16 +470,22 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 	// user with email found
 	loggedIn := func() bool {
 		// compare stored hash against hash of input password
-		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam)); err == nil {
-			return true
-		}
-
-		// check against temp reset password
-		if user.PasswordResetRequired && user.TempResetPassword != "" && time.Since(user.PasswordResetTimestamp).Hours() < 1 {
-			if err := bcrypt.CompareHashAndPassword([]byte(user.TempResetPassword), []byte(passwordParam)); err == nil {
+		if user.Password != "" {
+			if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordParam)); err == nil {
+				user.PasswordResetRequired = false
+				user.TempResetPassword = ""
 				return true
 			}
 		}
+
+		// check against temp reset password
+		if user.TempResetPassword != "" && time.Since(user.PasswordResetTimestamp).Hours() < 1 {
+			if err := bcrypt.CompareHashAndPassword([]byte(user.TempResetPassword), []byte(passwordParam)); err == nil {
+				user.PasswordResetRequired = true
+				return true
+			}
+		}
+
 		return false
 	}()
 
@@ -472,6 +493,10 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 	if loggedIn == false {
 		return false, nil
 	}
+
+	user.LoginCount++
+	db.Users.Set(user.Username, user)
+	db.SerializeToFile()
 
 	// set user as authenticated
 	session.Values["authenticated"] = true
