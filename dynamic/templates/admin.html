@@ -14,6 +14,7 @@
                     <li role="presentation"><a href="#requests" aria-controls="requests" role="tab" data-toggle="tab">Requests</a></li>
                     <li role="presentation"><a href="#settings" aria-controls="settings" role="tab" data-toggle="tab">Settings</a></li>
                     <li role="presentation"><a href="#stats" aria-controls="stats" role="tab" data-toggle="tab">Statistics</a></li>
+                    <li role="presentation"><a href="#transactions" aria-controls="transactions" role="tab" data-toggle="tab">Transactions</a></li>
                 </ul>
 
                 <!-- tab panes -->
@@ -40,9 +41,9 @@
                                             <option value="0">Standard</option>
                                             <option value="1">Guest</option>
                                             <option value="2">Admin</option>
-
-                                            <option value="3">Super Admin</option>
-
+                                            {{ if eq .SessionUser.Type 3 }}
+                                                <option value="3">Super Admin</option>
+                                            {{ end }}
                                         </select>
                                     </div>
 
@@ -98,6 +99,15 @@
                         <div class="panel panel-default">
                             <div class="panel-body">
                                 <p>service stats</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- transaction history -->
+                    <div role="tabpanel" class="tab-pane" id="transactions">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <p>Transactions</p>
                             </div>
                         </div>
                     </div>

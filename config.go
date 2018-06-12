@@ -96,8 +96,8 @@ func NewConfig(rootPath string) (conf *Config, err error) {
 		logger.SetEnabledByCategory(true, "INCOMING", "OUTGOING", "INPUT", "CREATED")
 	}
 
+	Input.Log("\n", ToJSON(*conf, true))
 	Info.Logf("running version [%v]", conf.Version)
-
 	return
 }
 
@@ -110,8 +110,6 @@ func (c *Config) Load() (err error) {
 
 	// process config values
 	c.MaxFileUploadSize *= 1024 * 1024
-
-	Input.Log("\n", ToJSON(*c, true))
 	return
 }
 

@@ -24,7 +24,7 @@ $(document).ready(function() {
         // init view toggle
         $("#view-search-input").bootstrapToggle({
             on: "Tiled",
-            off: "Detailed",
+            off: "Detailed"
         }).change(function() {
             performSearch();
 
@@ -94,6 +94,21 @@ $(document).ready(function() {
         });
     }
 
+    // init search hide/show options button click event
+    if (localStorage.getItem("search-visible-state") !== "enabled") {
+        setSearchVisible("disabled", false);
+    } else {
+        setSearchVisible("enabled", false);
+    }
+    $(".search-hide-btn").on("click", function(e) {
+        e.preventDefault();
+        if ($(".search-hide-btn span").hasClass("glyphicon-eye-open")) {
+            setSearchVisible("disabled", true);
+        } else {
+            setSearchVisible("enabled", true);
+        }
+    });
+
     // init random memory button click event
     $(".search-random-btn").on("click", function(e) {
         e.preventDefault();
@@ -102,6 +117,31 @@ $(document).ready(function() {
         setOverlayMemory("random", true);
     });
 });
+
+// Shows or hides the search/filter options.
+function setSearchVisible(targetState, animated) {
+    var rate = 0;
+    if (animated === true) {
+        rate = 200;
+    }
+
+    if (targetState === "disabled") {
+        // show search options
+        $(".search-hide-btn span").removeClass("glyphicon-eye-open").addClass("glyphicon-eye-close");
+        $("#search-panel").animate({'height': $("#search-panel .panel-body").prop('scrollHeight')}, rate, "swing", function() {
+            $("#search-panel").css("height", "auto");
+        });
+        $("#search-panel").css("border-top-color", "#ddd");
+
+    } else {
+        // hide search options
+        $(".search-hide-btn span").removeClass("glyphicon-eye-close").addClass("glyphicon-eye-open");
+        $("#search-panel").animate({'height': '0px'}, rate, "swing", function() {
+            $("#search-panel").css("border-top-color", "#fff");
+        });
+    }
+    localStorage.setItem("search-visible-state", targetState);
+}
 
 // Pull required data from server & initialise search/filter inputs.
 function initMetaDataFields(parsedData, tokenfieldSets) {

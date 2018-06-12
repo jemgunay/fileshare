@@ -23,7 +23,9 @@
             <ul class="nav navbar-nav">
                 <li {{ if eq .NavbarFocus "search" }}class="active"{{ end }}><a href="/">Memories</a></li>
 
-                <li {{ if eq .NavbarFocus "upload" }}class="active"{{ end }}><a href="/upload">Upload</a></li>
+                {{ if ne .SessionUser.Type 1 }}
+                    <li {{ if eq .NavbarFocus "upload" }}class="active"{{ end }}><a href="/upload">Upload</a></li>
+                {{ end }}
 
                 <li {{ if eq .NavbarFocus "users" }}class="active"{{ end }}><a href="/users">Users</a></li>
             </ul>

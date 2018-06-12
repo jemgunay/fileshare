@@ -144,13 +144,16 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		// get logged in session user
 		sessionUser, err := s.userDB.GetSessionUser(r)
 		if err != nil {
-			Input.Log(errors.Wrap(err, "could not fetch corresponding user session"))
+			// if the user DB has been reset, this can invalidate sessions - users with invalid sessions will be logged
+			// out automatically
+			Input.Log(errors.Wrap(err, "could not fetch corresponding user session (maybe user DB was recently reset)"))
+			s.logoutHandler(w, r)
 			return
 		}
 
 		// redirect blocked users
 		if sessionUser.AccountState == Blocked {
-			s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
+			s.RespondStatus(w, r, "user has been blocked", http.StatusUnauthorized)
 			return
 		}
 
@@ -189,12 +192,6 @@ func (s *Server) fileServerAuthHandler(h http.Handler) http.Handler {
 			s.RespondStatus(w, r, "404 page not found", http.StatusNotFound)
 			return
 		}
-
-		// prevent unauthorised access to /static/content
-		/*if strings.HasPrefix(r.URL.String(), "/static/") && !strings.HasPrefix(r.URL.String(), "/static/content/") {
-			h.ServeHTTP(w, r)
-			return
-		}*/
 
 		// authenticate
 		authorised := s.userDB.AuthenticateUser(r)
@@ -992,6 +989,12 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		// prevent guests from uploading
+		if sessionUser.Type == Guest {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
 		// fetch upload page
 		templateData := struct {
 			Title             string
@@ -1041,6 +1044,11 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// file upload
 	case http.MethodPost:
+		if sessionUser.Type == Guest {
+			s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
+			return
+		}
+
 		// upload file to temp dir under user UUID subdir ready for processing (only uploading user can access)
 		switch vars["type"] {
 		case "temp":
@@ -1052,7 +1060,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// move form file to temp dir & create FileDB Uploaded entry
+			// move from form file to temp dir & create FileDB Uploaded entry
 			uploadedFile, err := s.fileDB.UploadFile(r, sessionUser)
 			if err != nil {
 				if err, ok := err.(*FileExistsError); ok {
@@ -1073,6 +1081,10 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				Input.Log(err)
 				return
 			}
+
+			// increment uploads count for user
+			sessionUser.UploadsCount++
+			s.userDB.Users.Set(sessionUser.Username, sessionUser)
 
 			// html details form response
 			templateData := struct {
@@ -1150,6 +1162,10 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				Input.Log(err)
 				return
 			}
+
+			// increment published count for user
+			sessionUser.PublishedCount++
+			s.userDB.Users.Set(sessionUser.Username, sessionUser)
 
 			// success
 			s.Respond(w, r, "success")

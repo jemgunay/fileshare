@@ -38,10 +38,9 @@ const (
 	Standard UserType = iota
 	// Guest accounts can view/search files only and cannot upload.
 	Guest
-	// Admin accounts can add/block users and can change user privs.
+	// Admin accounts can add/block users and can change user privs and can complete file edit/delete requests.
 	Admin
-	// SuperAdmin accounts cannot be removed, can change user details (such as admin privs, but not on self) and can
-	// complete file edit/delete requests.
+	// SuperAdmin accounts cannot be removed, can change user details (such as admin privs, but not on self).
 	SuperAdmin
 )
 
@@ -51,6 +50,7 @@ type User struct {
 	Email                  string // used for unique identification/logging in etc
 	Password               string
 	LoginCount             int
+	LoginTimestamp         int64
 	TempResetPassword      string
 	PasswordResetTimestamp time.Time
 	PasswordResetRequired  bool
@@ -60,6 +60,8 @@ type User struct {
 	CreatedTimestamp       int64
 	Image                  string
 	FavouriteFileUUIDs     map[string]bool // fileUUID key
+	UploadsCount           int
+	PublishedCount         int
 	AccountState
 }
 
@@ -160,13 +162,13 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 	// get forename, surname, email
 	for {
 		inputDetailsErr := func() error {
-			if forename, err = ReadStdin("> Forename:\n", false); err != nil {
+			if forename, err = ReadStdin("> Forename:", false); err != nil {
 				return err
 			}
-			if surname, err = ReadStdin("> Surname:\n", false); err != nil {
+			if surname, err = ReadStdin("> Surname:", false); err != nil {
 				return err
 			}
-			if email, err = ReadStdin("> Email:\n", false); err != nil {
+			if email, err = ReadStdin("> Email:", false); err != nil {
 				return err
 			}
 			return nil
@@ -182,13 +184,15 @@ func (db *UserDB) CreateActivatedUser(accountType UserType) {
 	// get password
 	for {
 		inputPassErr := func() error {
-			if password, err = ReadStdin("> Password:\n", true); err != nil {
+			if password, err = ReadStdin("> Password:", true); err != nil {
+				Info.Log("1", err)
 				return err
 			}
-			if err = db.ValidatePassword(password); err != nil {
+			if err := db.ValidatePassword(password); err != nil {
+				Info.Log("2", err)
 				return err
 			}
-			if retypePassword, err = ReadStdin("> Retype Password:\n", true); err != nil {
+			if retypePassword, err = ReadStdin("> Retype Password:", true); err != nil {
 				return err
 			}
 			if password != retypePassword {
@@ -268,6 +272,7 @@ func (db *UserDB) AddUser(forename string, surname string, email string, userTyp
 		Type:                  userType,
 		Forename:              forename,
 		Surname:               surname,
+		AccountState:          AwaitingConfirmation,
 		CreatedTimestamp:      time.Now().UnixNano(),
 		FavouriteFileUUIDs:    make(map[string]bool),
 		PasswordResetRequired: true,
@@ -494,6 +499,8 @@ func (db *UserDB) LoginUser(w http.ResponseWriter, r *http.Request) (success boo
 		return false, nil
 	}
 
+	// record login
+	user.LoginTimestamp = time.Now().UnixNano()
 	user.LoginCount++
 	db.Users.Set(user.Username, user)
 	db.SerializeToFile()
