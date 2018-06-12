@@ -60,7 +60,7 @@ func NewServer(conf *Config) (httpServer Server, err error) {
 		maxFileUploadSize: config.MaxFileUploadSize,
 	}
 
-	// set host (allow_public_webapp)
+	// set host
 	if config.AllowPublicWebApp {
 		httpServer.host = "0.0.0.0"
 	}

@@ -63,8 +63,8 @@ $(document).ready(function() {
     });
 
     initUploadForm();
+    initUploadTools();
 });
-
 
 function initUploadForm() {
     // set up autocomplete fields
@@ -166,5 +166,21 @@ function initUploadTokenfields() {
         var parsedData = JSON.parse(result);
 
         initMetaDataFields(parsedData, tokenfieldSets, null);
+    });
+}
+
+// Set up upload tools UI.
+function initUploadTools() {
+    // select all
+    $("#select-all-btn").on("click", function(i) {
+        $(".upload-result-panel .panel-body").each(function() {
+           $(this).addClass("tool-selected");
+        });
+    });
+    // deselect all
+    $("#deselect-all-btn").on("click", function(i) {
+        $(".upload-result-panel .panel-body").each(function() {
+            $(this).removeClass("tool-selected");
+        });
     });
 }

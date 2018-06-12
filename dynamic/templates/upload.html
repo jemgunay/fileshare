@@ -3,28 +3,65 @@
 <div class="container-fluid">
 
     <div class="row">
-        <div class="col-md-offset-2 col-md-8">
+        <div class="col-md-offset-2 col-md-8" id="upload-settings-container">
             <h2 class="section-header">File Upload</h2>
 
-            <!-- dropzone -->
-            <div class="panel panel-default" id="dropzone-panel">
-                <div class="panel-body">
-                    <div id="max-file-size" data-size="{{ .MaxFileUploadSize }}"></div>
-                    <p>Add comma separated tags and people in order to group memories and to identify the people who were present; start typing for suggestions of previously added tags and people.</p>
+            <ul class="nav nav-tabs" role="tablist">
+                <li role="presentation" class="pull-right"><a href="#tools" aria-controls="tools" role="tab" data-toggle="tab">Tools</a></li>
+                <li role="presentation" class="active pull-right"><a href="#upload" aria-controls="upload" role="tab" data-toggle="tab">Upload</a></li>
+            </ul>
 
-                    <p>The maximum file upload size is {{ formatByteCount .MaxFileUploadSize true }}.</p>
+            <div class="tab-content">
 
-                    <!-- file dropzone -->
-                    <form action="/upload/temp" class="dropzone" id="file-input">
-                        <div class="dz-message needsclick">
-                            <strong>Drop files here or click to upload.</strong><br>
-                            <span class="note needsclick">(Files are not published instantly after upload - you'll be able to add details first!)</span>
+                <!-- dropzone -->
+                <div role="tabpanel" class="tab-pane active" id="upload">
+                    <div class="panel panel-default" id="dropzone-panel">
+                        <div class="panel-body">
+                            <div id="max-file-size" data-size="{{ .MaxFileUploadSize }}"></div>
+                            <p>Add comma separated tags and people in order to group memories and to identify the people who were present. Start typing in the tags and people fields for previously used suggestions.</p>
+
+                            <p>The maximum file upload size is {{ formatByteCount .MaxFileUploadSize true }}.</p>
+
+                            <!-- file dropzone -->
+                            <form action="/upload/temp" class="dropzone" id="file-input">
+                                <div class="dz-message needsclick">
+                                    <strong>Drop files here or click to upload.</strong><br>
+                                    <span class="note needsclick">(Files are not published instantly after upload - you'll be able to add details first!)</span>
+                                </div>
+                            </form>
+
                         </div>
-                    </form>
-
+                    </div>
                 </div>
-            </div>
 
+                <!-- tools -->
+                <div role="tabpanel" class="tab-pane" id="tools">
+                    <div class="panel panel-default">
+                        <div class="panel-body">
+                            <p>Use the tools below to select multiple uploaded files which can then be processed all at once. When selected, a file will have an orange border surrounding it.</p>
+
+                            <div class="row">
+                                <div class="col-sm-4" id="selection-tools">
+                                    <h4>Selection</h4>
+
+                                    <button type="button" class="btn btn-sm btn-default" id="select-all-btn">Select All</button>
+                                    <button type="button" class="btn btn-sm btn-default" id="deselect-all-btn">Deselect All</button>
+                                    <button type="button" class="btn btn-sm btn-default" id="select-manual-btn">Manual Select</button>
+                                </div>
+
+                                <div class="col-sm-8" id="operation-tools">
+                                    <h4>Operation</h4>
+
+                                    <button type="button" class="btn btn-sm btn-warning" id="delete-selected-btn"><strong>Delete Selected</strong></button>
+                                    <button type="button" class="btn btn-sm btn-warning" id="publish-selected-btn"><strong>Publish Selected</strong></button>
+                                    <button type="button" class="btn btn-sm btn-warning" id="edit-selected-btn"><strong>Edit Selected</strong></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
 
         <div class="col-md-12">

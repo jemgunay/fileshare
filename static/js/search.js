@@ -145,7 +145,8 @@ function setSearchVisible(targetState, animated) {
 
 // Pull required data from server & initialise search/filter inputs.
 function initMetaDataFields(parsedData, tokenfieldSets) {
-    // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield value will be populated pre-with all retrieved data.
+    // iterate over tokenfield types (tags, people & file_types) and initialise. If 3rd array value is true, tokenfield
+    // value will be populated pre-with all retrieved data.
     for (var i = 0; i < tokenfieldSets.length; i++) {
         var metaType = tokenfieldSets[i][0];
         var tagIDs = tokenfieldSets[i][1];
