@@ -624,8 +624,7 @@ func (db *UserDB) SerializeToFile() (err error) {
 	defer file.Close()
 
 	// encode store map to file
-	encoder := gob.NewEncoder(file)
-	err = encoder.Encode(&db)
+	err = gob.NewEncoder(file).Encode(&db)
 	if err != nil {
 		Critical.Log(err)
 		return err
@@ -655,8 +654,7 @@ func (db *UserDB) DeserializeFromFile() (err error) {
 	defer file.Close()
 
 	// decode file contents to store map
-	decoder := gob.NewDecoder(file)
-	if err = decoder.Decode(&db); err != nil {
+	if err = gob.NewDecoder(file).Decode(&db); err != nil {
 		Critical.Log(err)
 		return err
 	}
