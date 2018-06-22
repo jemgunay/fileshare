@@ -340,7 +340,7 @@ func (s *Server) sendPasswordResetEmail(recipientEmail string) {
 	msg.SetHeader("Subject", config.ServiceName+": Password Reset")
 	msg.SetBody("text/html", msgBody)
 
-	d := gomail.NewDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
+	d := gomail.NewPlainDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
 	//d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 	// send email
