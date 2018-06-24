@@ -249,6 +249,11 @@ h1, h2, h3 {
 }
 
 /* uploaded files */
+#file-input {
+    overflow: scroll;
+    max-height: 200px;
+    text-align: center;
+}
 .upload-result-container img, .upload-result-container audio, .upload-result-container video {
     width: 100%;
 }
@@ -298,7 +303,10 @@ h1, h2, h3 {
     margin-top: 5px;
     margin-bottom: 5px;
 }
-.upload-result-panel .col-sm-12 {
+.upload-result-panel .panel-body {
+    padding-bottom: 5px;
+}
+.upload-result-panel .col-sm-12, .upload-result-panel .col-xs-12 {
     padding-right: 10px;
     padding-left: 10px;
     padding-bottom: 5px;

@@ -5,7 +5,7 @@ $(document).ready(function() {
     Dropzone.options.fileInput = {
         paramName: "file-input", // The name that will be used to transfer the file
         maxFilesize: maxFileSize, // MB
-        parallelUploads: 5,
+        parallelUploads: 1,
         init: function() {
             this.on("success", function(file, response) {
                 $("#upload-results-panel").prepend(response);

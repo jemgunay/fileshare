@@ -1,9 +1,27 @@
-### memoryshare
+# memoryshare
 
-Memories documented in the form of photos and videos will eventually become saturated over time, making finding a specific memory like finding a needle in a haystack. A further issue is that people have different collections of memories which are not always accessible to all who share the memories.
+### Preface
+Memories documented in the form of photos and videos will eventually become saturated over time - eventually, finding a specific memory will be like finding a needle in a haystack. A further issue is that people have different collections of memories which are not always accessible to all who share the memories.
 
-I am in the process of developing a distributed server which can be deployed by any number of people who wish to join the memory sharing network. This will ensure that everyone shares the same set of files and that the files are assigned metadata which can be used to identify and locate them. For those who choose not to host a file server, a HTTP interface will provide access from file hosts who permit it.
-* Decentralised: multiple servers can have a copy of all files which will be accessible when all other hosts are offline.
-* Flexible: anyone can drop offline and will collect file updates on next start up (assuming other file hosting servers are online).
-* Scalable: new hosts can join at any time and will begin collecting unacquired files from other online hosts. 
-* Authenticated: only permitted users can access and contribute files.
+This is an WIP project which will aims to address these issues and preserve memories.
+
+### Features
+
+* Ability to upload files into a temporary area where a description, relevant tags and people can be added to the each file. The files can then be published so that other users can view and search them.
+* Flexible search controls.
+* Data querying HTTP API.
+* User accounts and permissions which limit access to memories. Guest accounts can also be created which cannot upload new memories.
+* Mobile responsive.
+
+### Usage
+
+```go
+cd $GOPATH/src/github.com/jemgunay/memoryshare/cmd/memoryshare
+go build && ./memoryshare
+```
+
+Following this, create a default account via the command line as instructed then connect to the server via your browser (http://localhost:8000 by default).
+
+### Future
+
+Once the (endless) list of core features has eventually been implemented, I intend to make the service distributed so that multiple users can run an instance of the server and be inter-connected, resulting in an consistently eventually consistent data store mesh network.

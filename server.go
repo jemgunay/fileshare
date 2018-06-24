@@ -331,8 +331,9 @@ func (s *Server) sendPasswordResetEmail(recipientEmail string) {
 	Info.Log("New password: ", tempPass)
 
 	// construct new email with randomly generated temp password
-	msgBody := fmt.Sprintf("<html><body><p>This is your temporary one time use password: <br><br><b>%v", tempPass)
-	msgBody += "</b><br><br>Use it to log in and change your password. It will expire in one hour.</p></body></html>"
+	msgBody := fmt.Sprintf("<html><body><p>This is your temporary %v password: <br><br><b>%v</b>", config.ServiceName, tempPass)
+	msgBody += "<br><br>Use it to log in and change your password - it will expire in one hour!"
+	msgBody += "<br><br><3</p></body></html>"
 
 	msg := gomail.NewMessage()
 	msg.SetAddressHeader("From", config.EmailDisplayAddr, "Memory Share")
@@ -341,7 +342,6 @@ func (s *Server) sendPasswordResetEmail(recipientEmail string) {
 	msg.SetBody("text/html", msgBody)
 
 	d := gomail.NewPlainDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
-	//d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 
 	// send email
 	if err := d.DialAndSend(msg); err != nil {

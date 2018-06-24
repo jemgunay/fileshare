@@ -325,7 +325,11 @@ function setOverlayMemory(memoryUUID, addHistoryEntry) {
             setOverlayEnabled(false);
             notifier.queueAlert("Cannot find specified memory.", "warning");
             return;
+        } else if (response.trim() === "no_files_published") {
+            setOverlayEnabled(false);
+            return;
         }
+
         setOverlayEnabled(true);
         $("#overlay-content").empty().append(response);
 

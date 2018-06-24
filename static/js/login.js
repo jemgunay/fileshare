@@ -76,7 +76,7 @@ $(document).ready(function() {
                     window.location = "/";
                 }
                 else if (result.status === "warning") {
-                    $("#password, #password-confirm").val("");
+                    $("#password, #confirm-password").val("");
                     $("#password").focus();
 
                     if (result.value === "invalid_password_matching") {
