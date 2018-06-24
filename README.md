@@ -3,7 +3,7 @@
 ### Preface
 Memories documented in the form of photos and videos will eventually become saturated over time - eventually, finding a specific memory will be like finding a needle in a haystack. A further issue is that people have different collections of memories which are not always accessible to all who share the memories.
 
-This is an WIP project which will aims to address these issues and preserve memories.
+This is an WIP project which will aims to address these issues.
 
 ### Features
 

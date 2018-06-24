@@ -5,7 +5,7 @@ $(document).ready(function() {
     Dropzone.options.fileInput = {
         paramName: "file-input", // The name that will be used to transfer the file
         maxFilesize: maxFileSize, // MB
-        parallelUploads: 1,
+        parallelUploads: 3,
         init: function() {
             this.on("success", function(file, response) {
                 $("#upload-results-panel").prepend(response);
@@ -97,7 +97,7 @@ function initUploadForm() {
                         $('#upload-results-panel').delay(200).masonry('reloadItems').masonry();
                     });
 
-                    initUploadTokenfields();
+                    //initUploadTokenfields();
                 }
                 else if (result === "no_description") {
                     panel.find(".btn-primary").attr("title", "Please write a description before publishing.").tooltip('show');

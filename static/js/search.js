@@ -210,7 +210,6 @@ function performSearch(append) {
     if (preventSearches) {
         return
     }
-
     var scrollY = $(window).scrollTop();
 
     if (append !== true && append !== false) append = false;
@@ -218,7 +217,6 @@ function performSearch(append) {
         currentPage++;
     } else {
         currentPage = 0;
-        $(".detail-wall, #search-freewall").empty();
     }
 
     var request = constructSearchURL();
@@ -226,6 +224,10 @@ function performSearch(append) {
     // perform search request
     performRequest(hostname + request, "GET", "", function(html) {
         $(".results-window").fadeOut(100, function () {
+            if (append === false) {
+                $(".detail-wall, #search-freewall").empty();
+            }
+
             if ($("#view-search-input").is(":checked")) {
                 $(".detail-wall").hide();
                 $("#search-freewall").show();

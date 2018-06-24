@@ -5,9 +5,7 @@ $(".upload-result-container").each(function(i) {
     $(this).find(".description-input").val("Description no. " + (i+1).toString());
     $(this).find(".tags-input").tokenfield('setTokens', randomMultiple(tags));
     $(this).find(".people-input").tokenfield('setTokens', randomMultiple(people));
-    setTimeout(function() {
-        $(this).find(".btn-primary").trigger("click");
-    }, getRandomInt(750));
+    $(this).find(".btn-primary").trigger("click");
 });
 
 function randomMultiple(arr) {
