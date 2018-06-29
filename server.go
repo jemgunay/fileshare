@@ -997,16 +997,19 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		// fetch upload page
 		templateData := struct {
-			Title             string
-			BrandName         string
-			SessionUser       User
-			NavbarHTML        template.HTML
-			NavbarFocus       string
-			FooterHTML        template.HTML
-			UploadHTML        template.HTML
-			ContentHTML       template.HTML
-			UploadFormsHTML   template.HTML
-			MaxFileUploadSize int64
+			Title                string
+			BrandName            string
+			SessionUser          User
+			NavbarHTML           template.HTML
+			NavbarFocus          string
+			FooterHTML           template.HTML
+			UploadHTML           template.HTML
+			ContentHTML          template.HTML
+			UploadFormsHTML      template.HTML
+			MaxFileUploadSize    int64
+			MaxDescriptionLength int
+			MaxTagsCount         int
+			MaxPeopleCount       int
 		}{
 			"Upload",
 			config.ServiceName,
@@ -1018,6 +1021,9 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			"",
 			"",
 			int64(s.maxFileUploadSize),
+			config.MaxDescriptionLength,
+			config.MaxTagsCount,
+			config.MaxPeopleCount,
 		}
 
 		// get all uploaded/temp files for session user
@@ -1130,22 +1136,31 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// process tags and people fields
-			desc := r.Form.Get("description-input")
-			tags := ProcessInputList(r.Form.Get("tags-input"), ",", true)
-			people := ProcessInputList(r.Form.Get("people-input"), ",", true)
-			metaData := MetaData{Description: desc, Tags: tags, People: people}
+			var (
+				desc            = r.Form.Get("description-input")
+				tags            = ProcessInputList(r.Form.Get("tags-input"), ",", true)
+				people          = ProcessInputList(r.Form.Get("people-input"), ",", true)
+				metaData        = MetaData{Description: desc, Tags: tags, People: people}
+				validationIssue = ""
+			)
 
 			// validate form field lengths
-			if len(desc) == 0 {
-				s.Respond(w, r, "no_description")
-				return
+			switch {
+			case len(desc) == 0:
+				validationIssue = "no_description"
+			case len(desc) > config.MaxDescriptionLength:
+				validationIssue = "max_description"
+			case len(tags) == 0:
+				validationIssue = "no_tags"
+			case len(tags) > config.MaxTagsCount:
+				validationIssue = "max_tags"
+			case len(people) == 0:
+				validationIssue = "no_people"
+			case len(people) > config.MaxPeopleCount:
+				validationIssue = "max_people"
 			}
-			if len(tags) == 0 {
-				s.Respond(w, r, "no_tags")
-				return
-			}
-			if len(people) == 0 {
-				s.Respond(w, r, "no_people")
+			if validationIssue != "" {
+				s.Respond(w, r, validationIssue)
 				return
 			}
 

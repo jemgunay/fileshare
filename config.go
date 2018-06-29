@@ -49,15 +49,15 @@ type ServerSettings struct {
 	EmailServer      string `toml:"email_server"`
 	EmailPort        int    `toml:"email_port"`
 	EmailAddr        string `toml:"email_addr"`
-	EmailPass        string `toml:"email_pass"`
+	EmailPass        string `toml:"email_pass" json:"-"`
 	EmailDisplayAddr string `toml:"email_display_addr"`
 
-	AllowPublicWebApp   bool `toml:"allow_public_web_app"`
-	ServePublicUpdates  bool `toml:"serve_public_updates"`
-	EnablePublicReads   bool `toml:"enable_public_reads"`
-	EnablePublicUploads bool `toml:"enable_public_uploads"`
-	MaxFileUploadSize   int  `toml:"max_file_upload_size"`
-	MaxSessionAge       int  `toml:"max_session_age"`
+	AllowPublicWebApp    bool `toml:"allow_public_web_app"`
+	MaxFileUploadSize    int  `toml:"max_file_upload_size"`
+	MaxSessionAge        int  `toml:"max_session_age"`
+	MaxDescriptionLength int  `toml:"max_description_length"`
+	MaxTagsCount         int  `toml:"max_tags_count"`
+	MaxPeopleCount       int  `toml:"max_people_count"`
 }
 
 // FileFormats is a container for permitted file upload types.
@@ -72,6 +72,7 @@ type FileFormats struct {
 
 // NewConfig initialises a new configuration for a memory service.
 func NewConfig(rootPath string) (conf *Config, err error) {
+	logger.SetBuffered(true)
 	conf = &Config{
 		rootPath: rootPath,
 		file:     rootPath + "/config/settings.ini",

@@ -100,13 +100,22 @@ function initUploadForm() {
                     //initUploadTokenfields();
                 }
                 else if (result === "no_description") {
-                    panel.find(".btn-primary").attr("title", "Please write a description before publishing.").tooltip('show');
+                    panel.find(".btn-primary").attr("title", "Please write a description before publishing.").tooltip('fixTitle').tooltip('show');
+                }
+                else if (result === "max_description") {
+                    panel.find(".btn-primary").attr("title", "Description must be no larger than " + $("#max-description-length").attr("data-size") + " characters.").tooltip('fixTitle').tooltip('show');
                 }
                 else if (result === "no_tags") {
-                    panel.find(".btn-primary").attr("title", "Please specify at least one tag before publishing.").tooltip('show');
+                    panel.find(".btn-primary").attr("title", "Please specify at least one tag before publishing.").tooltip('fixTitle').tooltip('show');
+                }
+                else if (result === "max_tags") {
+                    panel.find(".btn-primary").attr("title", "Must provide no more than " + $("#max-tags-count").attr("data-size") + " tags.").tooltip('fixTitle').tooltip('show');
                 }
                 else if (result === "no_people") {
-                    panel.find(".btn-primary").attr("title", "Please specify at least one person before publishing.").tooltip('show');
+                    panel.find(".btn-primary").attr("title", "Please specify at least one person before publishing.").tooltip('fixTitle').tooltip('show');
+                }
+                else if (result === "max_people") {
+                    panel.find(".btn-primary").attr("title", "Must provide no more than " + $("#max-people-count").attr("data-size") + " people.").tooltip('fixTitle').tooltip('show');
                 }
                 else if (result === "already_stored") {
                     notifier.queueAlert("A copy of this file has already been stored!", "warning");

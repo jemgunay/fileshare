@@ -18,6 +18,10 @@
                     <div class="panel panel-default" id="dropzone-panel">
                         <div class="panel-body">
                             <div id="max-file-size" data-size="{{ .MaxFileUploadSize }}"></div>
+                            <div id="max-description-length" data-size="{{ .MaxDescriptionLength }}"></div>
+                            <div id="max-tags-count" data-size="{{ .MaxTagsCount }}"></div>
+                            <div id="max-people-count" data-size="{{ .MaxPeopleCount }}"></div>
+
                             <p>Add comma separated tags and people in order to group memories and to identify the people who were present. Start typing in the tags and people fields for previously used suggestions.</p>
 
                             <p>The maximum file upload size is {{ formatByteCount .MaxFileUploadSize true }}.</p>
@@ -49,12 +53,18 @@
                                     <button type="button" class="btn btn-sm btn-default" id="select-manual-btn">Manual Select</button>
                                 </div>
 
-                                <div class="col-sm-8" id="operation-tools">
-                                    <h4>Operation</h4>
+                                <div class="col-sm-4" id="operation-tools">
+                                    <h4>Edit</h4>
 
-                                    <button type="button" class="btn btn-sm btn-warning" id="delete-selected-btn"><strong>Delete Selected</strong></button>
-                                    <button type="button" class="btn btn-sm btn-warning" id="publish-selected-btn"><strong>Publish Selected</strong></button>
-                                    <button type="button" class="btn btn-sm btn-warning" id="edit-selected-btn"><strong>Edit Selected</strong></button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="delete-selected-btn"><strong>Set Description</strong></button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="publish-selected-btn"><strong>Set Tags</strong></button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="edit-selected-btn"><strong>Set People</strong></button>
+                                </div>
+
+                                <div class="col-sm-4" id="operation-tools">
+                                    <h4>Delete</h4>
+
+                                    <button type="button" class="btn btn-sm btn-danger" id="delete-selected-btn"><strong>Delete Selected</strong></button>
                                 </div>
                             </div>
                         </div>
