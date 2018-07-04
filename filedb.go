@@ -100,7 +100,7 @@ type Transaction struct {
 // TransactionMutex wraps all Transformations to allow permit concurrent access.
 type TransactionMutex struct {
 	Transactions []Transaction
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 // Create creates a new Transaction and adds it to the Transactions list.
@@ -120,7 +120,7 @@ func (tm *TransactionMutex) Create(transactionType TransactionType, fileUUID str
 // FileMapMutex wraps all Files to permit safe concurrent access.
 type FileMapMutex struct {
 	Files map[string]File
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	name  string
 }
 
@@ -133,16 +133,16 @@ func (fm *FileMapMutex) Set(UUID string, file File) {
 
 // Get attempts to retrieve a File from a FileDB.
 func (fm *FileMapMutex) Get(UUID string) (file File, ok bool) {
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
 	file, ok = fm.Files[UUID]
 	return
 }
 
 // Count returns the number of Files in a FileDB.
 func (fm *FileMapMutex) Count() (size int) {
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
 	return len(fm.Files)
 }
 

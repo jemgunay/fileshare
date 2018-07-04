@@ -68,7 +68,7 @@ type User struct {
 // UserMapMutex wraps all Users to permit safe concurrent access. Map key is the username.
 type UserMapMutex struct {
 	Users map[string]User
-	mu    sync.Mutex
+	mu    sync.RWMutex
 }
 
 // Set creates or updates a User in a UserDB.
@@ -80,16 +80,16 @@ func (fm *UserMapMutex) Set(username string, user User) {
 
 // Get attempts to retrieve a User from a UserDB.
 func (fm *UserMapMutex) Get(username string) (user User, ok bool) {
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
 	user, ok = fm.Users[username]
 	return
 }
 
 // Count returns the number of Users in a UserDB.
 func (fm *UserMapMutex) Count() (size int) {
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
 	return len(fm.Users)
 }
 
