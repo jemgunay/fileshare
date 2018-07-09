@@ -26,11 +26,7 @@ var (
 	Internal = NewLogger(os.Stdout, "LOG", true)
 )
 
-func init() {
-	startPoller()
-}
-
-// queueItem is used to
+// queueItem is used to push a new message onto the write queue
 type queueItem struct {
 	writer   io.Writer
 	category Category
@@ -39,7 +35,7 @@ type queueItem struct {
 
 // startPoller attempts to receive from both the standard queue, the buffered queue and exit channel. This serialises
 // all logging writes.
-func startPoller() {
+func StartPoller() {
 	go func() {
 		for {
 			select {

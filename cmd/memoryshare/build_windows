@@ -1,4 +1,0 @@
-#!/bin/bash
-
-# build for windows
-GOOS=windows GOARCH=386 go build -o memoryshare.exe

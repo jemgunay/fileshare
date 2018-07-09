@@ -1,3 +1,0 @@
-#!/bin/bash
-
-./build_linux && ./build_windows

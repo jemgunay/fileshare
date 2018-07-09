@@ -12,6 +12,7 @@
 *.out
 
 # Service specific files/dirs
+build
 cmd/memoryshare/memoryshare
 cmd/memoryshare/memoryshare.exe
 db/temp/*

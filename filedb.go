@@ -197,7 +197,7 @@ func (db *FileDB) UnlockAll() {
 // a new file is created containing the serialized empty FileDB.
 func NewFileDB(dbDir string) (fileDB *FileDB, err error) {
 	// check db/temp & static/content directories exists
-	if err = EnsureDirExists(dbDir+"/temp/", config.rootPath+"/static/content/"); err != nil {
+	if err = EnsureDirExists(dbDir, dbDir+"/temp/", config.rootPath+"/static/content/"); err != nil {
 		return nil, errors.Wrap(err, "a FileDB directory could not be created")
 	}
 

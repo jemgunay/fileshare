@@ -41,7 +41,7 @@
   branch = "master"
   name = "github.com/jemgunay/logger"
   packages = ["."]
-  revision = "997e165f0b39cd51229615968258b0b5ce97ddd5"
+  revision = "55b01225483370619e3798d070b8f4cfe0efdd4d"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -78,7 +78,7 @@
     "unix",
     "windows"
   ]
-  revision = "63fc586f45fe72d95d5240a5d5eb95e6503907d3"
+  revision = "1b2967e3c290b7c545b3db0deeda16e9be4f98a2"
 
 [[projects]]
   branch = "v3"

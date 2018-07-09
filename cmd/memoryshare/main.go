@@ -2,24 +2,16 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"time"
-
 	"github.com/jemgunay/memoryshare"
+	"github.com/jemgunay/logger"
 )
 
 func main() {
-	// get absolute path to project base directory
-	executable, err := os.Executable()
-	if err != nil {
-		memoryshare.Critical.Logf("Unable to determine working directory: %v", err)
-		return
-	}
-	rootPath := filepath.Dir(executable + "/../../../")
+	go logger.StartPoller()
 
 	// create service config
-	config, err := memoryshare.NewConfig(rootPath)
+	config, err := memoryshare.NewConfig()
 	if err != nil {
 		memoryshare.Critical.Logf("Unable to parse config: %v", err)
 		return

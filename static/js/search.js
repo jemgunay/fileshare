@@ -128,6 +128,7 @@ function setSearchVisible(targetState, animated) {
     if (targetState === "disabled") {
         // show search options
         $(".search-hide-btn span").removeClass("glyphicon-eye-open").addClass("glyphicon-eye-close");
+        $("#search-panel .panel-body").show();
         $("#search-panel").animate({'height': $("#search-panel .panel-body").prop('scrollHeight')}, rate, "swing", function() {
             $("#search-panel").css("height", "auto");
         });
@@ -138,6 +139,7 @@ function setSearchVisible(targetState, animated) {
         $(".search-hide-btn span").removeClass("glyphicon-eye-close").addClass("glyphicon-eye-open");
         $("#search-panel").animate({'height': '0px'}, rate, "swing", function() {
             $("#search-panel").css("border-top-color", "#fff");
+            $("#search-panel .panel-body").hide();
         });
     }
     localStorage.setItem("search-visible-state", targetState);

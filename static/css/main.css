@@ -249,7 +249,7 @@ h1, h2, h3 {
 
 /* uploaded files */
 #file-input {
-    overflow: scroll;
+    overflow-y: auto;
     max-height: 200px;
     text-align: center;
 }

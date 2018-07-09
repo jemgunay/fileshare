@@ -6,6 +6,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/jemgunay/logger"
+	"path/filepath"
 )
 
 var (
@@ -71,8 +72,15 @@ type FileFormats struct {
 }
 
 // NewConfig initialises a new configuration for a memory service.
-func NewConfig(rootPath string) (conf *Config, err error) {
-	logger.SetBuffered(true)
+func NewConfig() (conf *Config, err error) {
+	// get absolute path to project base directory
+	executable, err := os.Executable()
+	if err != nil {
+		Critical.Logf("Unable to determine working directory: %v", err)
+		return
+	}
+	rootPath := filepath.Dir(executable + "/../../../")
+
 	conf = &Config{
 		rootPath: rootPath,
 		file:     rootPath + "/config/settings.ini",
