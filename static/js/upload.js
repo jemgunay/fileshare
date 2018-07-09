@@ -178,6 +178,8 @@ function initUploadTokenfields() {
     });
 }
 
+var individualSelectEnabled = false;
+
 // Set up upload tools UI.
 function initUploadTools() {
     // select all
@@ -192,17 +194,37 @@ function initUploadTools() {
             $(this).removeClass("tool-selected");
         });
     });
+    // select individual
+    $("#select-individual-btn").on("click", function() {
+        individualSelectEnabled = !individualSelectEnabled;
+        if (individualSelectEnabled) {
+            $(this).text("Disable Individual Select").addClass("btn-warning");
+        } else {
+            $(this).text("Enable Individual Select").removeClass("btn-warning");
+        }
+
+        $(".upload-result-panel .panel-body").each(function() {
+            $(this).on("click", function() {
+                if ($(this).hasClass("tool-selected")) {
+                    $(this).removeClass("tool-selected");
+                } else {
+                    $(this).addClass("tool-selected");
+                }
+            });
+        });
+    });
+
     // set description
     $("#set-description-btn").on("click", function() {
-        toolDisplayModal("description")
+        uploadToolDisplayModal("description")
     });
     // set tags
     $("#set-tags-btn").on("click", function() {
-        toolDisplayModal("tags")
+        uploadToolDisplayModal("tags")
     });
     // set people
     $("#set-people-btn").on("click", function() {
-        toolDisplayModal("people")
+        uploadToolDisplayModal("people")
     });
 
     // delete selected
@@ -214,7 +236,7 @@ function initUploadTools() {
 }
 
 // Set modal values depending on operation type.
-function toolDisplayModal(operation) {
+function uploadToolDisplayModal(operation) {
     // ensure some uploads have been selected
     if ($(".tool-selected").length === 0) {
         notifier.queueAlert("Please select at least one upload to edit.", "warning");

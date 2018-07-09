@@ -417,6 +417,16 @@ h1, h2, h3 {
         padding-top: 0;
         padding-bottom: 10px;
     }
+    #overlay-content .wall-tile-desc h4 {
+        word-wrap: break-word;
+        white-space: normal;
+        line-height: 24px
+    }
+    #overlay-content .wall-tile-desc #description-wrapper {
+        display: block;
+        width: 100%;
+        padding-right: 140px;
+    }
 }
 @media (max-width: 991px) {
     .overlay-media {

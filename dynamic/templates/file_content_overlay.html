@@ -27,25 +27,27 @@
                 <input type="hidden" id="file-UUID" value="{{ .File.UUID }}">
                 <input type="hidden" id="username" value="{{ .User.Username }}">
 
-                <h4>
-                    {{ if eq .File.MediaType "image" }}
-                        <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
-                    {{ end }}
-                    {{ if eq .File.MediaType "video" }}
-                        <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
-                    {{ end }}
-                    {{ if eq .File.MediaType "audio" }}
-                        <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
-                    {{ end }}
-                    {{ if eq .File.MediaType "text" }}
-                        <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
-                    {{ end }}
-                    {{ if eq .File.MediaType "other" }}
-                        <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
-                    {{ end }}
+                <div id="description-wrapper">
+                    <h4>
+                        {{ if eq .File.MediaType "image" }}
+                            <span class="glyphicon glyphicon-picture" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq .File.MediaType "video" }}
+                            <span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq .File.MediaType "audio" }}
+                            <span class="glyphicon glyphicon-music" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq .File.MediaType "text" }}
+                            <span class="glyphicon glyphicon-book" aria-hidden="true"></span>
+                        {{ end }}
+                        {{ if eq .File.MediaType "other" }}
+                            <span class="glyphicon glyphicon-file" aria-hidden="true"></span>
+                        {{ end }}
 
-                    <strong>{{ .File.Description }}</strong>
-                </h4>
+                        <strong>{{ .File.Description }}</strong>
+                    </h4>
+                </div>
 
                 <hr>
 
