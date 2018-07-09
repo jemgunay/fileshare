@@ -225,11 +225,11 @@ type FileSearchResult struct {
 	state       string
 }
 
-// InvalidFileError implies a file name or extension were invalid.
-var InvalidFileError = errors.New("invalid file name or extension")
+// ErrInvalidFile implies a file name or extension were invalid.
+var ErrInvalidFile = errors.New("invalid file name or extension")
 
-// UnsupportedFormatError implies the file is of an unsupported file format.
-var UnsupportedFormatError = errors.New("unsupported file format")
+// ErrUnsupportedFormat implies the file is of an unsupported file format.
+var ErrUnsupportedFormat = errors.New("unsupported file format")
 
 // FileExistsError implies a file has already been uploaded or published.
 type FileExistsError struct {
@@ -285,11 +285,11 @@ func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err 
 	// separate & validate file name/extension
 	newTempFile.Name, newTempFile.Extension = SplitFileName(handler.Filename)
 	if newTempFile.Name == "" || newTempFile.Extension == "" {
-		err = InvalidFileError
+		err = ErrInvalidFile
 		return
 	}
 	if newTempFile.MediaType = config.CheckMediaType(newTempFile.Extension); newTempFile.MediaType == Unsupported {
-		err = UnsupportedFormatError
+		err = ErrUnsupportedFormat
 		return
 	}
 
@@ -359,8 +359,8 @@ func (db *FileDB) UploadFile(r *http.Request, user User) (newTempFile File, err 
 	return newTempFile, nil
 }
 
-// FileNotFoundError implies a file was not found which should exist.
-var FileNotFoundError = errors.New("file not found")
+// ErrFileNotFound implies a file was not found which should exist.
+var ErrFileNotFound = errors.New("file not found")
 
 // PublishFile publishes the file, making it visible to all logged in users. User input Metadata is also added to the
 // file here and the original temp file will be deleted.
@@ -368,7 +368,7 @@ func (db *FileDB) PublishFile(fileUUID string, metaData MetaData) (err error) {
 	// append new details to file object
 	uploadedFile, ok := db.Uploaded.Get(fileUUID)
 	if !ok {
-		return FileNotFoundError
+		return ErrFileNotFound
 	}
 
 	uploadedFile.PublishedTimestamp = time.Now().UnixNano()
@@ -442,7 +442,8 @@ func (db *FileDB) GetMetaData(target string) (result []string) {
 	return
 }
 
-var FileAlreadyDeletedError = errors.New("file has already been deleted")
+// ErrFileAlreadyDeleted implies that the file to be deleted has already been deleted.
+var ErrFileAlreadyDeleted = errors.New("file has already been deleted")
 
 // DeleteFile marks a published file in the DB as deleted, or deletes an actual temp uploaded file.
 func (db *FileDB) DeleteFile(fileUUID string) (err error) {
@@ -451,7 +452,7 @@ func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 	if !ok {
 		file, ok = db.Published.Get(fileUUID)
 		if !ok {
-			return FileNotFoundError
+			return ErrFileNotFound
 		}
 	}
 
@@ -469,7 +470,7 @@ func (db *FileDB) DeleteFile(fileUUID string) (err error) {
 		db.FileTransactions.Create(Delete, file.UUID)
 
 	case Deleted:
-		return FileAlreadyDeletedError
+		return ErrFileAlreadyDeleted
 	}
 
 	db.SerializeToFile()
@@ -648,14 +649,15 @@ func (db *FileDB) GetFilesByUser(username string, state State) (files []File) {
 	return SortFilesByDate(files)
 }
 
-var FileDBEmptyError = errors.New("no files have been published")
+// ErrFileDBEmpty implies that no files have been published to the DB.
+var ErrFileDBEmpty = errors.New("no files have been published")
 
 // GetRandomFile returns a randomly selected file.
 func (db *FileDB) GetRandomFile() (File, error) {
 	UUIDs := db.GetUUIDs()
 
 	if len(UUIDs) == 0 {
-		return File{}, FileDBEmptyError
+		return File{}, ErrFileDBEmpty
 	}
 
 	// pick random from slice

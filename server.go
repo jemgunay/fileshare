@@ -605,7 +605,7 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// represents a user creation request
+// UserCreationDetails represents a user creation request.
 type UserCreationDetails struct {
 	Forename    string `json:"forename"`
 	Surname     string `json:"surname"`
@@ -884,7 +884,7 @@ func (s *Server) processFileRequest(w http.ResponseWriter, r *http.Request) {
 		randomFile, err := s.fileDB.GetRandomFile()
 		if err != nil {
 			switch err {
-			case FileDBEmptyError:
+			case ErrFileDBEmpty:
 				s.Respond(w, r, "no_files_published")
 			default:
 				s.Respond(w, r, "random_error")
@@ -1075,9 +1075,9 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				switch err {
-				case InvalidFileError:
+				case ErrInvalidFile:
 					s.RespondStatus(w, r, "invalid_file", http.StatusBadRequest)
-				case UnsupportedFormatError:
+				case ErrUnsupportedFormat:
 					s.RespondStatus(w, r, "format_not_supported", http.StatusBadRequest)
 				default:
 					Critical.Logf("%+v", err)
@@ -1114,9 +1114,9 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			// remove file
 			if err := s.fileDB.DeleteFile(r.Form.Get("fileUUID")); err != nil {
 				switch err {
-				case FileNotFoundError:
+				case ErrFileNotFound:
 					s.RespondStatus(w, r, "file_not_found", http.StatusBadRequest)
-				case FileAlreadyDeletedError:
+				case ErrFileAlreadyDeleted:
 					s.RespondStatus(w, r, "file_already_deleted", http.StatusBadRequest)
 				default:
 					Critical.Logf("%+v", err)
@@ -1167,7 +1167,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			// add file to DB & move from db/temp dir to db/content dir
 			if err := s.fileDB.PublishFile(r.Form.Get("fileUUID"), metaData); err != nil {
 				switch err {
-				case FileNotFoundError:
+				case ErrFileNotFound:
 					s.Respond(w, r, "file_not_found")
 				default:
 					Critical.Logf("%+v", err)

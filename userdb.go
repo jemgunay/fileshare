@@ -391,7 +391,7 @@ func (db *UserDB) GetSessionUser(r *http.Request) (user User, err error) {
 func (db *UserDB) SetFavourite(username string, fileUUID string, state bool) (err error) {
 	user, ok := db.Users.Get(username)
 	if !ok {
-		return UserNotFoundError
+		return ErrUserNotFound
 	}
 
 	favourites := user.FavouriteFileUUIDs
@@ -425,8 +425,8 @@ func (db *UserDB) GetUsers() []User {
 	return users
 }
 
-// UserNotFoundError implies no user matched the request.
-var UserNotFoundError = errors.New("user not found")
+// ErrUserNotFound implies no user matched the request.
+var ErrUserNotFound = errors.New("user not found")
 
 // GetUserByEmail returns the User that matches the given email address.
 func (db *UserDB) GetUserByEmail(email string) (User, error) {
@@ -442,7 +442,7 @@ func (db *UserDB) GetUserByEmail(email string) (User, error) {
 	user := db.Users.PerformFunc(userSearch).(User)
 
 	if user.Email == "" {
-		return user, UserNotFoundError
+		return user, ErrUserNotFound
 	}
 	return user, nil
 }
@@ -451,7 +451,7 @@ func (db *UserDB) GetUserByEmail(email string) (User, error) {
 func (db *UserDB) GetUserByUsername(username string) (user User, err error) {
 	user, ok := db.Users.Get(username)
 	if !ok {
-		err = UserNotFoundError
+		err = ErrUserNotFound
 	}
 	return
 }

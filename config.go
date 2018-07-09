@@ -133,7 +133,6 @@ func (c *Config) CollateFileFormats() {
 			c.fileFormats[format] = formatMapping[i]
 		}
 	}
-
 }
 
 // CheckMediaType determines the media type grouping for the provided file extension.

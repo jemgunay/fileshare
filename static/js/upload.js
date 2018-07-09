@@ -143,7 +143,7 @@ function initUploadForm() {
                 setButtonProcessing(panel.find("form .btn-danger"), false);
 
                 if (result === "success") {
-                    notifier.queueAlert("The file has been deleted (" + panel.find("h4").text().trim() + ")!", "success");
+                    //notifier.queueAlert("The file has been deleted (" + panel.find("h4").text().trim() + ")!", "success");
 
                     panel.fadeOut(500, function() {
                         panel.parent(".upload-masonry-item").remove();
@@ -181,15 +181,78 @@ function initUploadTokenfields() {
 // Set up upload tools UI.
 function initUploadTools() {
     // select all
-    $("#select-all-btn").on("click", function(i) {
+    $("#select-all-btn").on("click", function() {
         $(".upload-result-panel .panel-body").each(function() {
            $(this).addClass("tool-selected");
         });
     });
     // deselect all
-    $("#deselect-all-btn").on("click", function(i) {
+    $("#deselect-all-btn").on("click", function() {
         $(".upload-result-panel .panel-body").each(function() {
             $(this).removeClass("tool-selected");
         });
+    });
+    // set description
+    $("#set-description-btn").on("click", function() {
+        toolDisplayModal("description")
+    });
+    // set tags
+    $("#set-tags-btn").on("click", function() {
+        toolDisplayModal("tags")
+    });
+    // set people
+    $("#set-people-btn").on("click", function() {
+        toolDisplayModal("people")
+    });
+
+    // delete selected
+    $("#delete-selected-btn").on("click", function() {
+        $(".upload-result-panel .panel-body.tool-selected .btn-danger").each(function() {
+            $(this).trigger("click");
+        });
+    });
+}
+
+// Set modal values depending on operation type.
+function toolDisplayModal(operation) {
+    // ensure some uploads have been selected
+    if ($(".tool-selected").length === 0) {
+        notifier.queueAlert("Please select at least one upload to edit.", "warning");
+        return
+    }
+
+    var operationText = {
+        "description": ["Set Descriptions...", "Set the description text for all selected uploads to the following...", "Description", function() {
+            $(".upload-result-panel .panel-body.tool-selected .description-input").each(function() {
+                $(this).val($("#upload-modal .modal-body input").val());
+            });
+        }],
+        "tags": ["Set Tags...", "Set the tags for all selected uploads to the following comma-separated list of tags...", "Tags (comma separated)", function() {
+            $(".upload-result-panel .panel-body.tool-selected .tags-input").each(function() {
+                $(this).tokenfield("setTokens", $("#upload-modal .modal-body input").val());
+            });
+        }],
+        "people": ["Set People...", "Set the people for all selected uploads to the following comma-separated list of people...", "People (comma separated)", function() {
+            $(".upload-result-panel .panel-body.tool-selected .people-input").each(function() {
+                $(this).tokenfield("setTokens", $("#upload-modal .modal-body input").val());
+            });
+        }]
+    };
+
+    // set modal UI values
+    $("#upload-modal .modal-title").text(operationText[operation][0]);
+    $("#upload-modal .modal-body p").text(operationText[operation][1]);
+    $("#upload-modal .modal-body input").val("").attr("placeholder", operationText[operation][2]);
+
+    $("#upload-modal").modal("show");
+    $("#upload-modal-submit").off("click").on("click", function() {
+        operationText[operation][3]();
+        $("#upload-modal").modal("hide");
+    });
+    $("#upload-modal").off("keypress").on("keypress", function(e) {
+        if(e.which === 13) {
+            operationText[operation][3]();
+            $("#upload-modal").modal("hide");
+        }
     });
 }
