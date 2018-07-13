@@ -33,6 +33,7 @@ type Config struct {
 
 	GeneralSettings `toml:"general_settings"`
 	ServerSettings  `toml:"server_settings"`
+	DebugSettings   `toml:"debug_settings"`
 	FileFormats     `toml:"file_formats"`
 }
 
@@ -59,6 +60,11 @@ type ServerSettings struct {
 	MaxDescriptionLength int  `toml:"max_description_length"`
 	MaxTagsCount         int  `toml:"max_tags_count"`
 	MaxPeopleCount       int  `toml:"max_people_count"`
+}
+
+// DebugSettings i sa container for all debug related settings.
+type DebugSettings struct {
+	CacheTemplates bool `toml:"cache_templates"`
 }
 
 // FileFormats is a container for permitted file upload types.

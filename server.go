@@ -16,6 +16,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"gopkg.in/gomail.v2"
+	"os"
+	"path/filepath"
 )
 
 var config *Config
@@ -32,7 +34,7 @@ type Server struct {
 }
 
 // NewServer initialises the file & user databases, then launches the HTTP server.
-func NewServer(conf *Config) (httpServer Server, err error) {
+func NewServer(conf *Config) (httpServer *Server, err error) {
 	config = conf
 
 	// create new file DB
@@ -50,13 +52,21 @@ func NewServer(conf *Config) (httpServer Server, err error) {
 	}
 
 	// start http server
-	httpServer = Server{
+	httpServer = &Server{
 		host:              "localhost",
 		port:              config.HTTPPort,
 		fileDB:            fileDB,
 		startTimestamp:    time.Now().Unix(),
 		userDB:            userDB,
 		maxFileUploadSize: config.MaxFileUploadSize,
+	}
+
+	// preload html templates
+	if config.CacheTemplates {
+		if err = httpServer.PreloadTemplates(); err != nil {
+			Critical.Logf("Server error: %v", err)
+			return
+		}
 	}
 
 	// set host
@@ -1231,28 +1241,64 @@ var templateFuncs = template.FuncMap{
 	"toTitleCase": strings.Title,
 }
 
+var (
+	templates = template.New("t")
+)
+
+// PreloadTemplates parses all files in the dynamic/templates directory into templates ready for lookup.
+func (s *Server) PreloadTemplates() error {
+	return filepath.Walk(config.rootPath+"/dynamic/templates", func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return errors.Wrap(err, "walking templates directory failed")
+		}
+
+		if f.IsDir() {
+			return nil
+		}
+
+		if _, err := s.GenerateTemplate(path); err != nil {
+			return errors.Wrap(err, "template generation failed")
+		}
+
+		return nil
+	})
+}
+
+// GenerateTemplate reads a file's contents and parses it into a template.
+func (s *Server) GenerateTemplate(filePath string) (t *template.Template, err error) {
+	// read HTML template from file
+	fileContents, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return
+	}
+
+	// create template from file contents
+	return templates.New(filePath).Funcs(templateFuncs).Parse(string(fileContents))
+}
+
 // CompleteTemplate replaces variables in HTML templates with corresponding values in TemplateData.
 func (s *Server) CompleteTemplate(filePath string, data interface{}) (result template.HTML) {
 	filePath = config.rootPath + filePath
+	var targetTemplate *template.Template
+	var err error
 
-	// load HTML template from disk
-	htmlTemplate, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		Critical.Log(err)
-		return
+	if config.CacheTemplates {
+		// lookup template
+		if targetTemplate = templates.Lookup(filePath); targetTemplate == nil {
+			Critical.Log("template lookup failed: template could not be found")
+			return
+		}
+	} else {
+		// reload files for every request - slow but allows changes to HTML files to be consumed instantly
+		if targetTemplate, err = s.GenerateTemplate(filePath); err != nil {
+			Critical.Log(err)
+			return
+		}
 	}
 
-	// parse HTML template & register template functions
-	templateParsed, err := template.New("t").Funcs(templateFuncs).Parse(string(htmlTemplate))
-
-	if err != nil {
-		Critical.Log(err)
-		return
-	}
-
-	// perform template variable replacement
+	// perform template variable substitution
 	buffer := &bytes.Buffer{}
-	if err = templateParsed.Execute(buffer, data); err != nil {
+	if err := targetTemplate.Execute(buffer, data); err != nil {
 		Critical.Log(err)
 		return
 	}
@@ -1271,11 +1317,10 @@ func (s *Server) Stop() context.CancelFunc {
 }
 
 // ParseFormBody parses a request's form based body.
-func (s *Server) ParseFormBody(w http.ResponseWriter, r *http.Request) error {
-	if err := r.ParseForm(); err != nil {
+func (s *Server) ParseFormBody(w http.ResponseWriter, r *http.Request) (err error) {
+	if err = r.ParseForm(); err != nil {
 		Input.Log(errors.Wrap(err, "error parsing body form"))
 		s.Respond(w, r, "error")
-		return err
 	}
-	return nil
+	return
 }
