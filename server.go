@@ -1256,7 +1256,7 @@ func (s *Server) PreloadTemplates() error {
 			return nil
 		}
 
-		if _, err := s.GenerateTemplate(path); err != nil {
+		if _, err := s.GenerateTemplate(path, true); err != nil {
 			return errors.Wrap(err, "template generation failed")
 		}
 
@@ -1265,7 +1265,7 @@ func (s *Server) PreloadTemplates() error {
 }
 
 // GenerateTemplate reads a file's contents and parses it into a template.
-func (s *Server) GenerateTemplate(filePath string) (t *template.Template, err error) {
+func (s *Server) GenerateTemplate(filePath string, cache bool) (t *template.Template, err error) {
 	// read HTML template from file
 	fileContents, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -1273,7 +1273,10 @@ func (s *Server) GenerateTemplate(filePath string) (t *template.Template, err er
 	}
 
 	// create template from file contents
-	return templates.New(filePath).Funcs(templateFuncs).Parse(string(fileContents))
+	if cache {
+		return templates.New(filePath).Funcs(templateFuncs).Parse(string(fileContents))
+	}
+	return template.New(filePath).Funcs(templateFuncs).Parse(string(fileContents))
 }
 
 // CompleteTemplate replaces variables in HTML templates with corresponding values in TemplateData.
@@ -1290,16 +1293,16 @@ func (s *Server) CompleteTemplate(filePath string, data interface{}) (result tem
 		}
 	} else {
 		// reload files for every request - slow but allows changes to HTML files to be consumed instantly
-		if targetTemplate, err = s.GenerateTemplate(filePath); err != nil {
-			Critical.Log(err)
+		if targetTemplate, err = s.GenerateTemplate(filePath, false); err != nil {
+			Critical.Logf("failed to reload template: %v", err)
 			return
 		}
 	}
 
 	// perform template variable substitution
 	buffer := &bytes.Buffer{}
-	if err := targetTemplate.Execute(buffer, data); err != nil {
-		Critical.Log(err)
+	if err = targetTemplate.Execute(buffer, data); err != nil {
+		Critical.Logf("failed to execute template: %v", err)
 		return
 	}
 

@@ -17,6 +17,7 @@ cmd/memoryshare/memoryshare
 cmd/memoryshare/memoryshare.exe
 db/temp/*
 db/*.dat
+config/settings.ini
 static/content/*
 img/user/*
 notes

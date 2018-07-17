@@ -1,37 +1,37 @@
-# Go parameters
+# Tests, builds for linux/windows & zips all required service files.
 GOCMD=go
 GOBUILD=$(GOCMD) build
-GOTEST=$(GOCMD) test
+GOTEST=$(GOCMD) test -race -v ./...
 GOVET=$(GOCMD) vet
 BINARY_NAME=memoryshare
-BINARY_WIN=$(BINARY_NAME).exe
+BINARY_NAME_WIN=$(BINARY_NAME).exe
+SERVICE_VERSION=$$(awk -F '=' '/^version/ {print $$2}' config/settings.ini | tr -d ' ' | tr -d '"')
 
 all: clean test build
 
 clean:
-	rm -rf ./build
-	mkdir -p ./build/cmd/{linux,windows}
+	rm -rf ./build/{cmd,config,dynamic,static}
 
 test:
-	$(GOTEST) -v ./...
+	$(GOTEST)
 	$(GOVET)
 
 build: dep build-linux build-windows
-	cp ./config/settings.ini ./build/
 	cp -r ./dynamic ./build/
 	mkdir -p ./build/static && cp -r ./static/{css,fonts,img,js,templates} ./build/static/
-	mkdir -p ./build/config && cp ./config/settings.ini ./build/config/
-	cd ./build && zip -r ./memoryshare.zip *
+	mkdir -p ./build/config && cp ./config/settings_default.ini ./build/config/settings.ini
+	cd ./build && rm -f ./memoryshare_$(SERVICE_VERSION).zip && zip -r ./memoryshare_$(SERVICE_VERSION).zip *
+	cd .
 
 dep:
 	go get ./...
 
 build-linux:
+	mkdir -p ./build/cmd/linux; \
 	cd ./cmd/memoryshare; \
-	$(GOBUILD) -o $(BINARY_NAME); \
-	mv $(BINARY_NAME) ../../build/cmd/linux/
+	$(GOBUILD) -o ../../build/cmd/linux/$(BINARY_NAME)
 
 build-windows:
+	mkdir -p ./build/cmd/windows; \
 	cd ./cmd/memoryshare; \
-	GOOS=windows GOARCH=386 $(GOBUILD) -o $(BINARY_WIN); \
-	mv $(BINARY_WIN) ../../build/cmd/windows/
+	GOOS=windows GOARCH=386 $(GOBUILD) -o ../../build/cmd/windows/$(BINARY_NAME_WIN)
