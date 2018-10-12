@@ -717,8 +717,7 @@ func (db *FileDB) SerializeToFile() (err error) {
 	defer file.Close()
 
 	// encode & store DB to file
-	err = gob.NewEncoder(file).Encode(&db)
-	if err != nil {
+	if err = gob.NewEncoder(file).Encode(&db); err != nil {
 		Critical.Log(err)
 		return err
 	}
@@ -731,7 +730,7 @@ func (db *FileDB) DeserializeFromFile() (err error) {
 	db.LockAll()
 
 	// if db file does not exist, create a new one
-	if _, err := os.Stat(db.file); os.IsNotExist(err) {
+	if _, err = os.Stat(db.file); os.IsNotExist(err) {
 		db.UnlockAll()
 		db.SerializeToFile()
 		return nil

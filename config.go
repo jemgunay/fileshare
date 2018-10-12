@@ -3,10 +3,10 @@ package memoryshare
 import (
 	"flag"
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 	"github.com/jemgunay/logger"
-	"path/filepath"
 )
 
 var (

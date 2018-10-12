@@ -20,7 +20,7 @@ build: dep build-linux build-windows
 	cp -r ./dynamic ./build/
 	mkdir -p ./build/static && cp -r ./static/{css,fonts,img,js,templates} ./build/static/
 	mkdir -p ./build/config && cp ./config/settings_default.ini ./build/config/settings.ini
-	cd ./build && rm -f ./memoryshare_$(SERVICE_VERSION).zip && zip -r ./memoryshare_$(SERVICE_VERSION).zip *
+	cd ./build && rm -f ./memoryshare_$(SERVICE_VERSION).zip && zip -x "*.zip" -r ./memoryshare_$(SERVICE_VERSION).zip *
 	cd .
 
 dep:

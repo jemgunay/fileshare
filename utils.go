@@ -17,6 +17,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
+
 	"golang.org/x/crypto/ssh/terminal"
 )
 

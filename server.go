@@ -9,15 +9,16 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+
 	"gopkg.in/gomail.v2"
-	"os"
-	"path/filepath"
 )
 
 var config *Config
@@ -353,7 +354,7 @@ func (s *Server) sendPasswordResetEmail(recipientEmail string) {
 	d := gomail.NewPlainDialer(config.EmailServer, config.EmailPort, config.EmailAddr, config.EmailPass)
 
 	// send email
-	if err := d.DialAndSend(msg); err != nil {
+	if err = d.DialAndSend(msg); err != nil {
 		Critical.Log(errors.Wrap(err, "failed to reset email"))
 		return
 	}
@@ -599,8 +600,7 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 		case "favourite":
 			state, _ := strconv.ParseBool(r.Form.Get("state"))
 
-			err := s.userDB.SetFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state)
-			if err != nil {
+			if err = s.userDB.SetFavourite(sessionUser.Username, r.Form.Get("fileUUID"), state); err != nil {
 				s.Respond(w, r, err)
 				return
 			}
