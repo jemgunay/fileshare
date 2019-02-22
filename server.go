@@ -25,13 +25,13 @@ var config *Config
 
 // Server wraps both a HTTP server and the file & user databases.
 type Server struct {
-	startTimestamp    int64
-	server            *http.Server
 	host              string
 	port              int
+	startTimestamp    int64
 	fileDB            *FileDB
 	maxFileUploadSize int
 	userDB            *UserDB
+	*http.Server
 }
 
 // NewServer initialises the file & user databases, then launches the HTTP server.
@@ -56,10 +56,10 @@ func NewServer(conf *Config) (httpServer *Server, err error) {
 	httpServer = &Server{
 		host:              "localhost",
 		port:              config.HTTPPort,
-		fileDB:            fileDB,
 		startTimestamp:    time.Now().Unix(),
-		userDB:            userDB,
+		fileDB:            fileDB,
 		maxFileUploadSize: config.MaxFileUploadSize,
+		userDB:            userDB,
 	}
 
 	// preload html templates
@@ -111,20 +111,19 @@ func (s *Server) Start() {
 	tempFileHandler := http.StripPrefix("/temp_uploaded/", http.FileServer(http.Dir(config.rootPath+"/db/temp/")))
 	router.Handle(`/temp_uploaded/{user_id:[a-zA-Z0-9=\-_]+}/{file:[a-zA-Z0-9=\-\/._]+}`, s.fileServerAuthHandler(tempFileHandler))
 
-	s.server = &http.Server{
+	s.Server = &http.Server{
 		Handler:      router,
 		Addr:         net.JoinHostPort(s.host, fmt.Sprint(s.port)),
-		WriteTimeout: 5 * time.Second,
-		ReadTimeout:  5 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// listen for HTTP requests
 	Info.Logf("starting HTTP server on port %d", s.port)
-	go func(server *http.Server) {
-		if err := server.ListenAndServe(); err != nil {
-			Critical.Log(err)
-		}
-	}(s.server)
+	go func(server *Server) {
+		Info.Log(server.ListenAndServe())
+	}(s)
 }
 
 // authHandler is a HTTP handler wrapper which authenticates requests.
@@ -145,9 +144,9 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 			// forbidden routes for unauthenticated users (redirect to login page)
 			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/login", http.StatusFound)
-			} else {
-				s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
+				return
 			}
+			s.RespondStatus(w, r, "unauthorised", http.StatusUnauthorized)
 			return
 		}
 
@@ -183,9 +182,9 @@ func (s *Server) authHandler(h http.HandlerFunc) http.HandlerFunc {
 		if r.URL.String() == "/login" || strings.HasPrefix(r.URL.String(), "/reset") {
 			if r.Method == http.MethodGet {
 				http.Redirect(w, r, "/", http.StatusFound)
-			} else {
-				s.Respond(w, r, "already logged in")
+				return
 			}
+			s.Respond(w, r, "already logged in")
 			return
 		}
 
@@ -540,7 +539,6 @@ func (s *Server) manageUserHandler(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		// get specific user details -> /user/{username}
 		case http.MethodGet:
-
 			// HTML template data
 			templateData := struct {
 				Title       string
@@ -749,10 +747,14 @@ type SearchRequest struct {
 func (s *Server) searchMemoriesHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// construct search query from url params
-	searchReq := SearchRequest{description: q.Get("desc"), minDate: 0, maxDate: 0}
-	searchReq.tags = ProcessInputList(q.Get("tags"), ",", true)
-	searchReq.people = ProcessInputList(q.Get("people"), ",", true)
-	searchReq.fileTypes = ProcessInputList(q.Get("file_types"), ",", true)
+	searchReq := SearchRequest{
+		description: q.Get("desc"),
+		minDate:     0,
+		maxDate:     0,
+		tags:        ProcessInputList(q.Get("tags"), ",", true),
+		people:      ProcessInputList(q.Get("people"), ",", true),
+		fileTypes:   ProcessInputList(q.Get("file_types"), ",", true),
+	}
 
 	// parse date to int unix timestamp
 	if formattedDate, err := strconv.ParseInt(q.Get("min_date"), 10, 64); err == nil {
@@ -1209,11 +1211,11 @@ func (s *Server) RespondStatus(w http.ResponseWriter, r *http.Request, response 
 	// type cast response into string
 	switch response.(type) {
 	case JSONResponse:
-		json, err := json.Marshal(response)
+		jsonData, err := json.Marshal(response)
 		if err != nil {
 			Output.Log("failed to parse JSON response: ", err)
 		}
-		response = string(json)
+		response = string(jsonData)
 	case template.HTML:
 		response = string(response.(template.HTML))
 	case []byte:
@@ -1241,9 +1243,7 @@ var templateFuncs = template.FuncMap{
 	"toTitleCase": strings.Title,
 }
 
-var (
-	templates = template.New("t")
-)
+var templates = template.New("t")
 
 // PreloadTemplates parses all files in the dynamic/templates directory into templates ready for lookup.
 func (s *Server) PreloadTemplates() error {
@@ -1312,7 +1312,7 @@ func (s *Server) CompleteTemplate(filePath string, data interface{}) (result tem
 // Stop gracefully stops the HTTP server.
 func (s *Server) Stop() context.CancelFunc {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := s.server.Shutdown(ctx); err != nil {
+	if err := s.Shutdown(ctx); err != nil {
 		Info.Log(err)
 	}
 
